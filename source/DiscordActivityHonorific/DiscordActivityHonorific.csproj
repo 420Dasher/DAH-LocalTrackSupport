@@ -1,0 +1,29 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project Sdk="Dalamud.NET.Sdk/15.0.0">
+  <PropertyGroup>
+    <!-- Dalamud plugin manifest metadata. These are required by DalamudPackager. -->
+    <Name>DAH-LocalSpotifySupport</Name>
+    <Author>Dash + AI</Author>
+    <Punchline>Discord honorifics with Spotify local-file support.</Punchline>
+    <Description>Discord Activity Honorific with Spotify Web API fallback for Spotify local files.</Description>
+    <RepoUrl>https://github.com/420Dasher/DAH-LocalSpotifySupport</RepoUrl>
+    <Tags>discord;spotify;local-files;activity;honorific</Tags>
+    <!-- Unique fork identity so Dalamud cannot confuse this build with upstream. -->
+    <AssemblyName>DAH-LocalSpotifySupport</AssemblyName>
+    <RootNamespace>DiscordActivityHonorific</RootNamespace>
+    <Product>DAH-LocalSpotifySupport</Product>
+    <AssemblyTitle>DAH-LocalSpotifySupport</AssemblyTitle>
+    <Version Condition="'$(Version)' == ''">0.1.0.0</Version>
+    <AssemblyVersion>$(Version)</AssemblyVersion>
+    <FileVersion>$(Version)</FileVersion>
+    <PackageProjectUrl>https://github.com/420Dasher/DAH-LocalSpotifySupport</PackageProjectUrl>
+    <PackageLicenseExpression>AGPL-3.0-or-later</PackageLicenseExpression>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Discord.Net.WebSocket" Version="3.20.1" />
+    <PackageReference Include="Scriban" Version="7.2.5" />
+    <PackageReference Include="SpotifyAPI.Web" Version="7.2.1" />
+    <PackageReference Include="SpotifyAPI.Web.Auth" Version="7.2.1" />
+  </ItemGroup>
+</Project>

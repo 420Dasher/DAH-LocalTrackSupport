@@ -1,0 +1,41 @@
+name: Build
+
+on:
+  push:
+    branches: [ "master" ]
+  pull_request:
+    branches: [ "master" ]
+
+jobs:
+  Build:
+    runs-on: ubuntu-latest
+    env:
+      DALAMUD_HOME: /tmp/dalamud
+      DALAMUD_ARCHIVE_URL: ${{ vars.DALAMUD_ARCHIVE_URL || 'https://goatcorp.github.io/dalamud-distrib/latest.zip' }}
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v7
+
+      - name: Set up .NET
+        uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: 9.0.x
+          
+      - name: Download Dalamud Latest
+        run: |
+          wget ${{ env.DALAMUD_ARCHIVE_URL }} -O ${{ env.DALAMUD_HOME }}.zip
+          unzip ${{ env.DALAMUD_HOME }}.zip -d ${{ env.DALAMUD_HOME }}
+
+      - name: Restore Project
+        run: dotnet restore
+
+      - name: Build Project
+        run: dotnet build --configuration Release DiscordActivityHonorific/DiscordActivityHonorific.csproj
+
+      - name: Upload Artifacts
+        uses: actions/upload-artifact@v7
+        with:
+          name: DiscordActivityHonorific
+          path: |
+             DiscordActivityHonorific/bin/Release/*
+             !DiscordActivityHonorific/bin/Release/DiscordActivityHonorific/*

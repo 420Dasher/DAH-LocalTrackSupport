@@ -1,0 +1,15 @@
+# Temporary upstream/build workspace
+work/
+
+# Local IDE/build noise
+.vs/
+.idea/
+**/bin/
+**/obj/
+*.user
+*.suo
+
+# Never commit local secrets/config exports
+*.token
+*.secret
+*.env

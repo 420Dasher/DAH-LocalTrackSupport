@@ -1,0 +1,62 @@
+{
+  "version": 1,
+  "dependencies": {
+    "net10.0-windows7.0": {
+      "DalamudPackager": {
+        "type": "Direct",
+        "requested": "[15.0.0, )",
+        "resolved": "15.0.0",
+        "contentHash": "411vwC8/X8Z/sQ2TI6v3SvOn66xFPeOjFn3Zn+h0d3Ox2t1kFm66AhDvmx/qcMwVrR+Hidxj0dadpQ2dgyXMBQ=="
+      },
+      "Discord.Net.WebSocket": {
+        "type": "Direct",
+        "requested": "[3.20.1, )",
+        "resolved": "3.20.1",
+        "contentHash": "/JwHnqfAFkEfZ8nO3dKpImGEFG+pYG9KzcGvNYuHYztMsA2r9+bdk0Y1OxncL53zaE3053wq0AtwlXe8+CDfgQ==",
+        "dependencies": {
+          "Discord.Net.Core": "3.20.1",
+          "Discord.Net.Dave": "3.20.1",
+          "Discord.Net.Rest": "3.20.1"
+        }
+      },
+      "DotNet.ReproducibleBuilds": {
+        "type": "Direct",
+        "requested": "[1.2.39, )",
+        "resolved": "1.2.39",
+        "contentHash": "fcFN01tDTIQqDuTwr1jUQK/geofiwjG5DycJQOnC72i1SsLAk1ELe+apBOuZ11UMQG8YKFZG1FgvjZPbqHyatg=="
+      },
+      "Scriban": {
+        "type": "Direct",
+        "requested": "[7.2.5, )",
+        "resolved": "7.2.5",
+        "contentHash": "6HDyv0P6PVdx/prWM3Aw0QHAT/DCpkBxOovZ2iPIH4L4ZvJ13JNYJgyUI+xJ5K2agXreYTBe23AL5ZQNTqJQvA=="
+      },
+      "Discord.Net.Core": {
+        "type": "Transitive",
+        "resolved": "3.20.1",
+        "contentHash": "fgWdbTlcd2ck05OoS03UBd/7kyrgHWATV9o2mvTwReqIB2CCcVPf5Qu8BpUpr3IgGYNHeVg+9J4KnK9DznYT4Q==",
+        "dependencies": {
+          "Newtonsoft.Json": "13.0.4"
+        }
+      },
+      "Discord.Net.Dave": {
+        "type": "Transitive",
+        "resolved": "3.20.1",
+        "contentHash": "fsHIhE5dRHlihOsqwe3WNjgHiS9Xgh8XJWjsuJ/R1nfiSuGFYrEopF7EFMOpIs9z2aHaGKl8GurA8HP6RHoLWg=="
+      },
+      "Discord.Net.Rest": {
+        "type": "Transitive",
+        "resolved": "3.20.1",
+        "contentHash": "vAmHwdpotchmz/rPicB2BrYoU2yWmMuFJhqDv/Ywi4nelIo/O7VYzzHD82iNGm3fYnD+2m+dCcZZGGgga3A7wQ==",
+        "dependencies": {
+          "Discord.Net.Core": "3.20.1"
+        }
+      },
+      "Newtonsoft.Json": {
+        "type": "Transitive",
+        "resolved": "13.0.4",
+        "contentHash": "pdgNNMai3zv51W5aq268sujXUyx7SNdE2bj1wZcWjAQrKMFZV260lbqYop1d2GM67JI1huLRwxo9ZqnfF/lC6A=="
+      }
+    }
+  }
+}
