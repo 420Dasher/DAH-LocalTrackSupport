@@ -6,7 +6,7 @@
     <Author>Dash + AI</Author>
     <Punchline>Discord honorifics with Spotify local-file support.</Punchline>
     <Description>Discord Activity Honorific with Spotify Web API fallback for Spotify local files.</Description>
-    <RepoUrl>https://github.com/420Dasher/DAH-LocalSpotifySupport</RepoUrl>
+    <RepoUrl>https://github.com/420Dasher/DAH-LocalTrackSupport</RepoUrl>
     <Tags>discord;spotify;local-files;activity;honorific</Tags>
     <!-- Unique fork identity so Dalamud cannot confuse this build with upstream. -->
     <AssemblyName>DAH-LocalSpotifySupport</AssemblyName>
@@ -16,7 +16,7 @@
     <Version Condition="'$(Version)' == ''">0.1.0.0</Version>
     <AssemblyVersion>$(Version)</AssemblyVersion>
     <FileVersion>$(Version)</FileVersion>
-    <PackageProjectUrl>https://github.com/420Dasher/DAH-LocalSpotifySupport</PackageProjectUrl>
+    <PackageProjectUrl>https://github.com/420Dasher/DAH-LocalTrackSupport</PackageProjectUrl>
     <PackageLicenseExpression>AGPL-3.0-or-later</PackageLicenseExpression>
     <IsPackable>false</IsPackable>
   </PropertyGroup>

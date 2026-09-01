@@ -5,7 +5,7 @@
     "AssemblyVersion":  "0.1.0.0",
     "Description":  "Discord Activity Honorific with Spotify Web API fallback for Spotify local files.",
     "ApplicableVersion":  "any",
-    "RepoUrl":  "https://github.com/420Dasher/DAH-LocalSpotifySupport",
+    "RepoUrl":  "https://github.com/420Dasher/DAH-LocalTrackSupport",
     "Tags":  [
                  "discord",
                  "spotify",
@@ -21,9 +21,9 @@
     "Punchline":  "Discord honorifics with Spotify local-file support.",
     "Changelog":  "DAH-LocalSpotifySupport release by Dash + AI.",
     "AcceptsFeedback":  false,
-    "DownloadLinkInstall":  "https://raw.githubusercontent.com/420Dasher/DAH-LocalSpotifySupport/main/plugins/DAH-LocalSpotifySupport/latest.zip",
+    "DownloadLinkInstall":  "https://raw.githubusercontent.com/420Dasher/DAH-LocalTrackSupport/main/plugins/DAH-LocalSpotifySupport/latest.zip",
     "IsHide":  false,
     "IsTestingExclusive":  false,
-    "DownloadLinkTesting":  "https://raw.githubusercontent.com/420Dasher/DAH-LocalSpotifySupport/main/plugins/DAH-LocalSpotifySupport/latest.zip",
-    "DownloadLinkUpdate":  "https://raw.githubusercontent.com/420Dasher/DAH-LocalSpotifySupport/main/plugins/DAH-LocalSpotifySupport/latest.zip"
+    "DownloadLinkTesting":  "https://raw.githubusercontent.com/420Dasher/DAH-LocalTrackSupport/main/plugins/DAH-LocalSpotifySupport/latest.zip",
+    "DownloadLinkUpdate":  "https://raw.githubusercontent.com/420Dasher/DAH-LocalTrackSupport/main/plugins/DAH-LocalSpotifySupport/latest.zip"
 }
