@@ -1,7 +1,7 @@
 param(
     [Parameter(Mandatory=$true)][string]$GitHubUser,
     [string]$RepoName = 'DAH-LocalSpotifySupport',
-    [string]$Version = '0.1.0.0'
+    [string]$Version = '0.1.0.0'@($entry) | ConvertTo-Json -Depth 10 | Set-Content -Encoding UTF8 $Manifest
 )
 
 $ErrorActionPreference = 'Stop'
@@ -114,7 +114,8 @@ $entry = [ordered]@{
     DownloadLinkTesting = $download
     DownloadLinkUpdate = $download
 }
-@($entry) | ConvertTo-Json -Depth 10 | Set-Content -Encoding UTF8 $Manifest
+$json = ConvertTo-Json -InputObject @($entry) -Depth 10
+[System.IO.File]::WriteAllText($Manifest, $json, (New-Object System.Text.UTF8Encoding($false)))
 
 Write-Host ''
 Write-Host 'PUBLISH PACKAGE READY' -ForegroundColor Green
