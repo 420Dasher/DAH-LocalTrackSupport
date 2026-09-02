@@ -22,7 +22,7 @@ The source lives in `SpotifyTrackHonorific/`.
 
 `DAH-LocalSpotifySupport` is retained for existing users but is **discontinued** and replaced by SpotifyTrackHonorific.
 
-The legacy fork remains subject to its upstream DiscordActivityHonorific licensing/notice requirements. Keep its existing `source/`, `overlay/`, and `LICENSE_NOTICE.md` material in the repository.
+The legacy fork remains subject to its upstream DiscordActivityHonorific licensing/notice requirements. Keeping its existing `source/`, `overlay/`, and `LICENSE_NOTICE.md` material in the repository.
 
 ## Add this custom repository to Dalamud
 
