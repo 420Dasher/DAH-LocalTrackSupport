@@ -1,10 +1,36 @@
 [
     {
         "Author":  "Dash + AI",
-        "Name":  "DAH-LocalSpotifySupport",
+        "Name":  "SpotifyTrackHonorific",
+        "InternalName":  "SpotifyTrackHonorific",
+        "AssemblyVersion":  "1.0.0.0",
+        "Description":  "Shows your current Spotify track as an Honorific title, including local files, formatting, cleanup, styling, supporter effects, and reliability handling.",
+        "ApplicableVersion":  "any",
+        "RepoUrl":  "https://github.com/420Dasher/DAH-LocalTrackSupport",
+        "Tags":  [
+                     "spotify",
+                     "local-files",
+                     "honorific",
+                     "music"
+                 ],
+        "DalamudApiLevel":  15,
+        "LoadRequiredState":  0,
+        "LoadSync":  false,
+        "CanUnloadAsync":  false,
+        "LoadPriority":  0,
+        "Punchline":  "Show your Spotify track as an Honorific title.",
+        "Changelog":  "SpotifyTrackHonorific 1.0.0 stable release by Dash + AI.",
+        "AcceptsFeedback":  false,
+        "DownloadLinkInstall":  "https://raw.githubusercontent.com/420Dasher/DAH-LocalTrackSupport/main/plugins/SpotifyTrackHonorific/latest.zip",
+        "IsHide":  false,
+        "IsTestingExclusive":  false,
+        "DownloadLinkTesting":  "https://raw.githubusercontent.com/420Dasher/DAH-LocalTrackSupport/main/plugins/SpotifyTrackHonorific/latest.zip",
+        "DownloadLinkUpdate":  "https://raw.githubusercontent.com/420Dasher/DAH-LocalTrackSupport/main/plugins/SpotifyTrackHonorific/latest.zip"
+    },
+    {
+        "Author":  "Dash + AI",
         "InternalName":  "DAH-LocalSpotifySupport",
         "AssemblyVersion":  "0.1.0.0",
-        "Description":  "Discord Activity Honorific with Spotify Web API fallback for Spotify local files.",
         "ApplicableVersion":  "any",
         "RepoUrl":  "https://github.com/420Dasher/DAH-LocalTrackSupport",
         "Tags":  [
@@ -19,13 +45,15 @@
         "LoadSync":  false,
         "CanUnloadAsync":  false,
         "LoadPriority":  0,
-        "Punchline":  "Discord honorifics with Spotify local-file support.",
-        "Changelog":  "DAH-LocalSpotifySupport release by Dash + AI.",
         "AcceptsFeedback":  false,
         "DownloadLinkInstall":  "https://raw.githubusercontent.com/420Dasher/DAH-LocalTrackSupport/main/plugins/DAH-LocalSpotifySupport/latest.zip",
-        "IsHide":  false,
         "IsTestingExclusive":  false,
         "DownloadLinkTesting":  "https://raw.githubusercontent.com/420Dasher/DAH-LocalTrackSupport/main/plugins/DAH-LocalSpotifySupport/latest.zip",
-        "DownloadLinkUpdate":  "https://raw.githubusercontent.com/420Dasher/DAH-LocalTrackSupport/main/plugins/DAH-LocalSpotifySupport/latest.zip"
+        "DownloadLinkUpdate":  "https://raw.githubusercontent.com/420Dasher/DAH-LocalTrackSupport/main/plugins/DAH-LocalSpotifySupport/latest.zip",
+        "Name":  "[Discontinued] DAH-LocalSpotifySupport",
+        "Description":  "Discontinued legacy DiscordActivityHonorific fork. Replaced by the standalone SpotifyTrackHonorific plugin.",
+        "Punchline":  "Discontinued - replaced by SpotifyTrackHonorific.",
+        "Changelog":  "This legacy DAH-based fork is discontinued. Use SpotifyTrackHonorific instead.",
+        "IsHide":  false
     }
 ]
