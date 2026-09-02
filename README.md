@@ -1,67 +1,76 @@
-# DAH-LocalSpotifySupport
+# DAH-LocalTrackSupport custom Dalamud repository
 
-Creator: **Dash + AI**
+Custom plugin repository maintained by **Dash + AI** / GitHub user **420Dasher**.
 
-A private-use / unlisted Dalamud fork of DiscordActivityHonorific that keeps the original Discord activity behavior and adds Spotify Web API fallback for **Spotify local-file playback**.
+## Active plugin: SpotifyTrackHonorific
 
-## What stays the same
+**SpotifyTrackHonorific v1.0.0** is the active standalone plugin. It talks directly to Spotify's Web API and Honorific and does not depend on DiscordActivityHonorific or Discord.
 
-- Existing DiscordActivityHonorific behavior remains the primary source.
-- The existing `/discordactivityhonorific` command stays unchanged for compatibility.
-- Normal Spotify/Discord activity continues to behave as before.
+Highlights:
 
-## What this fork adds
+- regular Spotify tracks and Spotify local files
+- configurable title templates and rotating `{cycle:...}` formats
+- bracket cleanup and smart fitting to Honorific's 32-character limit
+- Honorific color/glow
+- trust-gated Honorific supporter gradients and animations
+- Spotify retry/backoff and rate-limit handling
+- beginner-friendly Home / Title / Appearance / Advanced UI
 
-- Spotify PKCE authentication (no client secret required).
-- Spotify local-file detection through the Spotify Web API.
-- Local-track metadata support even when a normal Spotify track ID is unavailable.
-- Stable local-track fingerprinting so switching between local files updates correctly.
-- Spotify fallback only when the local-file path is needed, avoiding unnecessary interference with normal Discord activity.
+The source lives in `SpotifyTrackHonorific/`.
 
-## Packaging note
+## Legacy plugin: DAH-LocalSpotifySupport
 
-This kit defines the required DalamudPackager metadata (`Name`, `Author`, `Punchline`, `Description`, and `RepoUrl`) directly in the API-15 project file. The release build generates a fresh manifest for the renamed fork instead of reusing upstream's `DiscordActivityHonorific.json`.
+`DAH-LocalSpotifySupport` is retained for existing users but is **discontinued** and replaced by SpotifyTrackHonorific.
 
-## First publish
+The legacy fork remains subject to its upstream DiscordActivityHonorific licensing/notice requirements. Keep its existing `source/`, `overlay/`, and `LICENSE_NOTICE.md` material in the repository.
 
-1. Create a **public** GitHub repository named `DAH-LocalSpotifySupport` (or another name you prefer). It may be unadvertised, but Dalamud must be able to fetch the manifest and ZIP without authentication.
-2. Put the contents of this folder at the repository root.
-3. Run PowerShell from the repo root:
+## Add this custom repository to Dalamud
 
-   `./publish.ps1 -GitHubUser YOUR_GITHUB_NAME -Version 0.1.0.0`
+In FFXIV, open `/xlsettings` -> **Experimental** -> **Custom Plugin Repositories** and add:
 
-4. The script downloads the current upstream source, applies the known-working Spotify-local overlay, writes a complete corresponding source snapshot to `source/`, builds the plugin, creates `plugins/DAH-LocalSpotifySupport/latest.zip`, and generates `pluginmaster.json`.
-5. Commit and push **`source/`, `overlay/`, `plugins/`, `pluginmaster.json`, `publish.ps1`, `README.md`, and `LICENSE_NOTICE.md`**.
-6. In FFXIV open `/xlsettings` -> **Experimental** -> **Custom Plugin Repositories**.
-7. Add:
+`https://raw.githubusercontent.com/420Dasher/DAH-LocalTrackSupport/main/pluginmaster.json`
 
-   `https://raw.githubusercontent.com/YOUR_GITHUB_NAME/DAH-LocalSpotifySupport/main/pluginmaster.json`
-
-8. Save, open `/xlplugins`, search for **DAH-LocalSpotifySupport**, and install it.
-
-If you use a different GitHub repository name, pass `-RepoName YOUR_REPO_NAME` to `publish.ps1` and use that name in the raw URL.
+Then open `/xlplugins` and install **SpotifyTrackHonorific**.
 
 ## Spotify setup
 
-Authenticate with:
+SpotifyTrackHonorific requires your own Spotify Developer app Client ID.
 
-`/discordactivityhonorific spotify-auth YOUR_SPOTIFY_CLIENT_ID`
+Use this Redirect URI in the Spotify app:
 
-No Spotify client secret is needed. Never commit your Dalamud config, Spotify refresh token, Discord token, or other credentials.
+`http://127.0.0.1:5000/callback`
 
-## Updating later
+Then open `/sth`, enter the Client ID, and press **Connect Spotify**. No client secret is required.
 
-Increase the four-part version and publish again, e.g.:
+## Publishing SpotifyTrackHonorific
 
-`./publish.ps1 -GitHubUser YOUR_GITHUB_NAME -Version 0.1.0.1`
+From the repository root:
 
-Then commit/push the updated `source/`, `pluginmaster.json`, and `latest.zip`. Dalamud can then offer the newer version through `/xlplugins`.
+```powershell
+Set-ExecutionPolicy -Scope Process Bypass
+.\publish.ps1
+```
 
-## Credits and license
+The publisher:
 
-Fork/modified build by **Dash + AI**.
+1. verifies .NET 10;
+2. builds the source under `SpotifyTrackHonorific/`;
+3. copies the release package to `plugins/SpotifyTrackHonorific/latest.zip`;
+4. preserves every existing `pluginmaster.json` entry;
+5. marks the old DAH fork discontinued if it is present;
+6. adds/updates SpotifyTrackHonorific;
+7. validates that `pluginmaster.json` remains a JSON array.
 
-Based on DiscordActivityHonorific by Anya Hichu:
-https://github.com/anya-hichu/DiscordActivityHonorific
+Review the changes before pushing:
 
-The upstream project declares AGPL-3.0-or-later. This kit deliberately snapshots the complete modified source used for each published binary under `source/` so the corresponding source can be distributed with the release.
+```powershell
+git status
+git diff
+git add SpotifyTrackHonorific plugins/SpotifyTrackHonorific pluginmaster.json README.md publish.ps1 publish-legacy-dah.ps1
+git commit -m "Release SpotifyTrackHonorific v1.0.0"
+git push origin main
+```
+
+## Legacy publisher
+
+`publish-legacy-dah.ps1` exists only in case the discontinued DAH fork ever needs to be rebuilt. Unlike the old one-plugin publisher, it preserves SpotifyTrackHonorific and any other manifest entries.

@@ -1,23 +1,35 @@
 param(
-    [Parameter(Mandatory=$true)][string]$GitHubUser,
-    [string]$RepoName = 'DAH-LocalSpotifySupport',
-    [string]$Version = '0.1.0.0'@($entry) | ConvertTo-Json -Depth 10 | Set-Content -Encoding UTF8 $Manifest
+    [string]$GitHubUser = '420Dasher',
+    [string]$RepoName = 'DAH-LocalTrackSupport'
 )
 
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
 
 $Root = Split-Path -Parent $MyInvocation.MyCommand.Path
-$Work = Join-Path $Root 'work'
-$RepoZip = Join-Path $Work 'upstream.zip'
-$Extract = Join-Path $Work 'extract'
-$Repo = Join-Path $Extract 'DiscordActivityHonorific-master'
-$Overlay = Join-Path $Root 'overlay\DiscordActivityHonorific'
-$SourceSnapshot = Join-Path $Root 'source'
-$PluginDir = Join-Path $Root 'plugins\DAH-LocalSpotifySupport'
+$SourceDir = Join-Path $Root 'SpotifyTrackHonorific'
+$Project = Join-Path $SourceDir 'SpotifyTrackHonorific.csproj'
+$BuildRelease = Join-Path $SourceDir 'build-release.ps1'
+$PluginDir = Join-Path $Root 'plugins\SpotifyTrackHonorific'
 $LatestZip = Join-Path $PluginDir 'latest.zip'
+$LatestHash = Join-Path $PluginDir 'latest.zip.sha256.txt'
 $Manifest = Join-Path $Root 'pluginmaster.json'
 
+function Set-JsonProperty {
+    param(
+        [Parameter(Mandatory=$true)]$Object,
+        [Parameter(Mandatory=$true)][string]$Name,
+        [Parameter(Mandatory=$true)]$Value
+    )
+    $Object | Add-Member -NotePropertyName $Name -NotePropertyValue $Value -Force
+}
+
+if (-not (Test-Path $Project)) {
+    throw "SpotifyTrackHonorific source was not found at: $SourceDir"
+}
+if (-not (Test-Path $BuildRelease)) {
+    throw "build-release.ps1 was not found at: $BuildRelease"
+}
 if (-not (Get-Command dotnet -ErrorAction SilentlyContinue)) {
     throw '.NET SDK was not found.'
 }
@@ -26,87 +38,88 @@ if ($sdks -notmatch '(?m)^10\.') {
     throw '.NET 10 SDK was not found. Dalamud API 15 builds require .NET 10.'
 }
 
-if (-not (Test-Path $Overlay)) {
-    throw "Spotify-local overlay was not found at: $Overlay"
+[xml]$projectXml = Get-Content -LiteralPath $Project
+$propertyGroup = $projectXml.Project.PropertyGroup | Select-Object -First 1
+$fullVersion = [string]$propertyGroup.Version
+if ([string]::IsNullOrWhiteSpace($fullVersion)) {
+    throw 'Could not read <Version> from SpotifyTrackHonorific.csproj.'
 }
-
-if (Test-Path $Work) { Remove-Item $Work -Recurse -Force }
-New-Item -ItemType Directory -Path $Work, $Extract, $PluginDir -Force | Out-Null
-
-Write-Host '[1/6] Downloading current upstream source...'
-Invoke-WebRequest -UseBasicParsing -Uri 'https://github.com/anya-hichu/DiscordActivityHonorific/archive/refs/heads/master.zip' -OutFile $RepoZip
-Expand-Archive -Path $RepoZip -DestinationPath $Extract -Force
-if (-not (Test-Path $Repo)) { throw 'Unexpected upstream archive structure.' }
-
-Write-Host '[2/6] Applying DAH-LocalSpotifySupport overlay...'
-Copy-Item -Path (Join-Path $Overlay '*') -Destination (Join-Path $Repo 'DiscordActivityHonorific') -Recurse -Force
-
-# Keep repository branding aligned with the custom repository that is being published.
-$Project = Join-Path $Repo 'DiscordActivityHonorific\DiscordActivityHonorific.csproj'
-[xml]$ProjectXml = Get-Content $Project
-$propertyGroup = $ProjectXml.Project.PropertyGroup | Select-Object -First 1
-$repoPage = "https://github.com/$GitHubUser/$RepoName"
-
-# Dalamud.NET.Sdk/DalamudPackager reads RepoUrl for plugin metadata.
-# PackageProjectUrl is kept aligned as normal NuGet/project metadata as well.
-if ($null -ne $propertyGroup.RepoUrl) {
-    $propertyGroup.RepoUrl = $repoPage
-}
-if ($null -ne $propertyGroup.PackageProjectUrl) {
-    $propertyGroup.PackageProjectUrl = $repoPage
-}
-$ProjectXml.Save($Project)
-
-# The upstream manifest belongs to the upstream assembly name. Our fork uses
-# csproj manifest properties and gets a fresh DAH-LocalSpotifySupport.json.
-$staleManifest = Join-Path $Repo 'DiscordActivityHonorific\DiscordActivityHonorific.json'
-if (Test-Path $staleManifest) { Remove-Item $staleManifest -Force }
-
-Write-Host '[3/6] Saving complete corresponding source snapshot...'
-if (Test-Path $SourceSnapshot) { Remove-Item $SourceSnapshot -Recurse -Force }
-Copy-Item -Path $Repo -Destination $SourceSnapshot -Recurse -Force
-
-Write-Host "[4/6] Building DAH-LocalSpotifySupport $Version..."
-Push-Location $Repo
-try {
-    & dotnet restore $Project --force-evaluate
-    if ($LASTEXITCODE -ne 0) { throw 'dotnet restore failed.' }
-    & dotnet build $Project -c Release --no-restore -p:Version=$Version -p:AssemblyVersion=$Version -p:FileVersion=$Version
-    if ($LASTEXITCODE -ne 0) { throw 'dotnet build failed.' }
-}
-finally { Pop-Location }
-
-Write-Host '[5/6] Collecting Dalamud plugin package...'
-$releaseZip = Get-ChildItem -Path (Join-Path $Repo 'DiscordActivityHonorific\bin') -Filter 'latest.zip' -Recurse -File -ErrorAction SilentlyContinue |
-    Sort-Object LastWriteTime -Descending | Select-Object -First 1
-if (-not $releaseZip) {
-    $releaseZip = Get-ChildItem -Path (Join-Path $Repo 'DiscordActivityHonorific\bin') -Filter '*.zip' -Recurse -File -ErrorAction SilentlyContinue |
-        Sort-Object LastWriteTime -Descending | Select-Object -First 1
-}
-if (-not $releaseZip) { throw 'Build succeeded but no plugin ZIP was found under bin/.' }
-Copy-Item $releaseZip.FullName $LatestZip -Force
-
-Write-Host '[6/6] Generating custom-repository manifest...'
-$rawBase = "https://raw.githubusercontent.com/$GitHubUser/$RepoName/main"
+$displayVersion = $fullVersion -replace '\.0$', ''
 $repoUrl = "https://github.com/$GitHubUser/$RepoName"
-$download = "$rawBase/plugins/DAH-LocalSpotifySupport/latest.zip"
+$rawBase = "https://raw.githubusercontent.com/$GitHubUser/$RepoName/main"
+$download = "$rawBase/plugins/SpotifyTrackHonorific/latest.zip"
 
-$entry = [ordered]@{
+Write-Host "[1/4] Building SpotifyTrackHonorific $displayVersion..."
+& $BuildRelease
+
+$releaseZip = Join-Path $SourceDir "release\SpotifyTrackHonorific-v$displayVersion.zip"
+if (-not (Test-Path $releaseZip)) {
+    throw "Expected release ZIP was not found: $releaseZip"
+}
+
+Write-Host '[2/4] Copying repository package...'
+New-Item -ItemType Directory -Path $PluginDir -Force | Out-Null
+Copy-Item -LiteralPath $releaseZip -Destination $LatestZip -Force
+$hash = Get-FileHash -LiteralPath $LatestZip -Algorithm SHA256
+$hashLine = "$($hash.Hash.ToLowerInvariant())  latest.zip"
+$utf8NoBom = New-Object System.Text.UTF8Encoding($false)
+[System.IO.File]::WriteAllText($LatestHash, $hashLine + [Environment]::NewLine, $utf8NoBom)
+
+Write-Host '[3/4] Updating multi-plugin repository manifest...'
+$entries = @()
+if (Test-Path $Manifest) {
+    $rawManifest = [System.IO.File]::ReadAllText($Manifest)
+    if (-not [string]::IsNullOrWhiteSpace($rawManifest)) {
+        try {
+            $parsed = $rawManifest | ConvertFrom-Json
+            $entries = @($parsed)
+        }
+        catch {
+            throw "Existing pluginmaster.json is invalid JSON: $($_.Exception.Message)"
+        }
+    }
+}
+
+# Keep the old DAH fork visible, but make its status unmistakable. Its binary,
+# version and download links are preserved exactly as they already exist.
+$legacy = $entries | Where-Object {
+    $_.InternalName -eq 'DAH-LocalSpotifySupport' -or
+    $_.Name -eq 'DAH-LocalSpotifySupport' -or
+    $_.Name -eq '[Discontinued] DAH-LocalSpotifySupport'
+} | Select-Object -First 1
+
+if ($legacy) {
+    Set-JsonProperty $legacy 'Name' '[Discontinued] DAH-LocalSpotifySupport'
+    Set-JsonProperty $legacy 'Description' 'Discontinued legacy DiscordActivityHonorific fork. Replaced by the standalone SpotifyTrackHonorific plugin.'
+    Set-JsonProperty $legacy 'Punchline' 'Discontinued - replaced by SpotifyTrackHonorific.'
+    Set-JsonProperty $legacy 'Changelog' 'This legacy DAH-based fork is discontinued. Use SpotifyTrackHonorific instead.'
+    Set-JsonProperty $legacy 'IsHide' $false
+}
+else {
+    Write-Warning 'DAH-LocalSpotifySupport was not found in the existing manifest, so no legacy entry was modified.'
+}
+
+# Replace only SpotifyTrackHonorific; preserve every other repository entry.
+$preserved = @($entries | Where-Object {
+    $_.InternalName -ne 'SpotifyTrackHonorific' -and $_.Name -ne 'SpotifyTrackHonorific'
+})
+
+$newEntry = [pscustomobject][ordered]@{
     Author = 'Dash + AI'
-    Name = 'DAH-LocalSpotifySupport'
-    InternalName = 'DAH-LocalSpotifySupport'
-    AssemblyVersion = $Version
-    Description = 'Discord Activity Honorific with Spotify Web API fallback for Spotify local files.'
+    Name = 'SpotifyTrackHonorific'
+    InternalName = 'SpotifyTrackHonorific'
+    AssemblyVersion = $fullVersion
+    Description = 'Shows your current Spotify track as an Honorific title, including local files, formatting, cleanup, styling, supporter effects, and reliability handling.'
     ApplicableVersion = 'any'
     RepoUrl = $repoUrl
-    Tags = @('discord','spotify','local-files','activity','honorific')
+    Tags = @('spotify','local-files','honorific','music')
     DalamudApiLevel = 15
     LoadRequiredState = 0
     LoadSync = $false
     CanUnloadAsync = $false
     LoadPriority = 0
-    Punchline = 'Discord honorifics with Spotify local-file support.'
-    Changelog = 'DAH-LocalSpotifySupport release by Dash + AI.'
+    Punchline = 'Show your Spotify track as an Honorific title.'
+    Changelog = "SpotifyTrackHonorific $displayVersion stable release by Dash + AI."
     AcceptsFeedback = $false
     DownloadLinkInstall = $download
     IsHide = $false
@@ -114,16 +127,41 @@ $entry = [ordered]@{
     DownloadLinkTesting = $download
     DownloadLinkUpdate = $download
 }
-$json = ConvertTo-Json -InputObject @($entry) -Depth 10
-[System.IO.File]::WriteAllText($Manifest, $json, (New-Object System.Text.UTF8Encoding($false)))
 
+# Put the active plugin first while preserving all other entries and their data.
+$finalEntries = @($newEntry) + @($preserved)
+$manifestJson = ConvertTo-Json -InputObject $finalEntries -Depth 15
+if (-not $manifestJson.TrimStart().StartsWith('[')) {
+    $manifestJson = "[`r`n$manifestJson`r`n]"
+}
+[System.IO.File]::WriteAllText($Manifest, $manifestJson + [Environment]::NewLine, $utf8NoBom)
+
+# Validate the shape immediately. Dalamud custom repositories require an array.
+$manifestCheck = [System.IO.File]::ReadAllText($Manifest)
+if (-not $manifestCheck.TrimStart().StartsWith('[')) {
+    throw 'Generated pluginmaster.json is not a JSON array.'
+}
+try {
+    $validated = @($manifestCheck | ConvertFrom-Json)
+}
+catch {
+    throw "Generated pluginmaster.json is invalid JSON: $($_.Exception.Message)"
+}
+if (-not ($validated | Where-Object { $_.InternalName -eq 'SpotifyTrackHonorific' })) {
+    throw 'Generated manifest does not contain SpotifyTrackHonorific.'
+}
+
+Write-Host '[4/4] Publish package prepared.'
 Write-Host ''
 Write-Host 'PUBLISH PACKAGE READY' -ForegroundColor Green
-Write-Host "Creator:    Dash + AI"
-Write-Host "Plugin:     DAH-LocalSpotifySupport"
-Write-Host "Plugin ZIP: $LatestZip"
-Write-Host "Manifest:   $Manifest"
-Write-Host "Source:     $SourceSnapshot"
-Write-Host "Repo URL:   $rawBase/pluginmaster.json"
+Write-Host "Plugin:      SpotifyTrackHonorific $displayVersion"
+Write-Host "Plugin ZIP:  $LatestZip"
+Write-Host "SHA256:      $($hash.Hash.ToLowerInvariant())"
+Write-Host "Manifest:    $Manifest"
+Write-Host "Repo URL:    $rawBase/pluginmaster.json"
 Write-Host ''
-Write-Host 'Commit and push source/, pluginmaster.json, plugins/, overlay/, publish.ps1, README.md and LICENSE_NOTICE.md.'
+Write-Host 'Review git diff/status, then commit and push:'
+Write-Host '  git status'
+Write-Host '  git add SpotifyTrackHonorific plugins/SpotifyTrackHonorific pluginmaster.json README.md publish.ps1 publish-legacy-dah.ps1'
+Write-Host ('  git commit -m "Release SpotifyTrackHonorific v' + $displayVersion + '"')
+Write-Host '  git push origin main'

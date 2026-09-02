@@ -1,0 +1,3 @@
+This repo integration kit does not select or change a license for the standalone SpotifyTrackHonorific source.
+
+The discontinued DAH-LocalSpotifySupport fork remains derived from DiscordActivityHonorific and its existing upstream license/source-notice obligations must remain intact. Do not remove its existing source snapshot, overlay, or LICENSE_NOTICE.md when applying this kit.
