@@ -132,13 +132,28 @@ internal sealed class SpotifyApiService : IDisposable
                 if (response.StatusCode == HttpStatusCode.NoContent)
                     return new SpotifyPollResult(SpotifyPollState.NotPlaying);
 
+                var body = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
+
                 if ((int)response.StatusCode == 429)
                 {
-                    var retryAfter = GetRetryAfterSeconds(response, 5);
-                    return new SpotifyPollResult(SpotifyPollState.RateLimited, RetryAfterSeconds: retryAfter, Error: "Spotify rate limit reached.");
+                    var retryAfter = GetRetryAfterSeconds(response, 0);
+                    var reason = TryGetSpotifyErrorReason(body);
+                    var error = BuildHttpError("Spotify playback request", response.StatusCode, body);
+
+                    if (string.Equals(reason, "QUOTA_EXCEEDED", StringComparison.OrdinalIgnoreCase))
+                    {
+                        return new SpotifyPollResult(
+                            SpotifyPollState.QuotaExceeded,
+                            RetryAfterSeconds: retryAfter,
+                            Error: error);
+                    }
+
+                    return new SpotifyPollResult(
+                        SpotifyPollState.RateLimited,
+                        RetryAfterSeconds: retryAfter,
+                        Error: error);
                 }
 
-                var body = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
                 if (!response.IsSuccessStatusCode)
                 {
                     var error = BuildHttpError("Spotify playback request", response.StatusCode, body);
@@ -322,22 +337,44 @@ internal sealed class SpotifyApiService : IDisposable
     {
         var retryAfter = response.Headers.RetryAfter;
         if (retryAfter?.Delta is { } delta)
-            return ClampRetryAfter((int)Math.Ceiling(delta.TotalSeconds), fallback);
+            return NormalizeRetryAfter(delta.TotalSeconds, fallback);
 
         if (retryAfter?.Date is { } date)
-        {
-            var seconds = (int)Math.Ceiling((date - DateTimeOffset.UtcNow).TotalSeconds);
-            return ClampRetryAfter(seconds, fallback);
-        }
+            return NormalizeRetryAfter((date - DateTimeOffset.UtcNow).TotalSeconds, fallback);
 
         return Math.Max(0, fallback);
     }
 
-    private static int ClampRetryAfter(int seconds, int fallback)
+    private static int NormalizeRetryAfter(double seconds, int fallback)
     {
-        if (seconds <= 0)
+        if (double.IsNaN(seconds) || double.IsInfinity(seconds) || seconds <= 0)
             seconds = Math.Max(1, fallback);
-        return Math.Clamp(seconds, 1, 3600);
+
+        var rounded = Math.Ceiling(seconds);
+        return rounded >= int.MaxValue ? int.MaxValue : Math.Max(1, (int)rounded);
+    }
+
+    private static string? TryGetSpotifyErrorReason(string? body)
+    {
+        if (string.IsNullOrWhiteSpace(body))
+            return null;
+
+        try
+        {
+            using var doc = JsonDocument.Parse(body);
+            if (doc.RootElement.TryGetProperty("error", out var error) &&
+                error.ValueKind == JsonValueKind.Object &&
+                error.TryGetProperty("reason", out var reason) &&
+                reason.ValueKind == JsonValueKind.String)
+                return reason.GetString();
+        }
+        catch (JsonException)
+        {
+            // Keep malformed 429 bodies visible through BuildHttpError; they should
+            // still be handled as an ordinary rate-limit response.
+        }
+
+        return null;
     }
 
     private static string BuildHttpError(string operation, HttpStatusCode statusCode, string body)

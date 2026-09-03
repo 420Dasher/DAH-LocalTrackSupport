@@ -130,6 +130,7 @@ internal enum SpotifyPollState
     NotPlaying,
     NotAuthenticated,
     RateLimited,
+    QuotaExceeded,
     TransientError,
     Error
 }

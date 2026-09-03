@@ -1,21 +1,32 @@
-# SpotifyTrackHonorific v1.0.0 Release Smoke Test
+# SpotifyTrackHonorific v1.0.1 Release Smoke Test
 
-v1.0.0 is runtime-identical to the passed v0.0.14 RC except for version/release metadata.
+This build specifically targets long-running Spotify 429 handling.
 
-Before publishing the generated ZIP:
+## Build / migration
 
-- Build v1.0.0 successfully with .NET 10 / Dalamud API 15.
-- Load it over the tested v0.0.14 configuration.
-- Confirm Spotify authorization and all settings carry over unchanged.
-- Confirm `/sth status` and the settings header report v1.0.0.
-- Play a regular Spotify track and confirm the Honorific appears.
-- Play a Spotify local file and confirm the Honorific appears.
-- Confirm track switching, pause/resume and configured clear behavior.
-- Confirm the active template/cycle still renders correctly.
-- Confirm smart-fit/bracket cleanup if enabled.
-- Confirm color/glow and supporter gradient/animation settings if enabled.
-- Confirm Home / Title / Appearance / Advanced open without errors.
-- Reload the plugin while Spotify is playing and confirm it recovers normally.
-- Run `build-release.ps1` and verify the versioned release ZIP is created.
+- Build successfully with .NET 10 / Dalamud API 15.
+- Upgrade directly over v1.0.0.
+- Confirm Spotify auth, template, colors, gradients, and other settings survive unchanged.
+- Confirm `/sth status` and the settings header report v1.0.1.
 
-If any runtime regression is discovered, do not silently replace the v1.0.0 package after publishing. Fix it as a new version.
+## Normal playback regression
+
+- Normal Spotify track appears.
+- Spotify local file appears.
+- Normal <-> local switching still works.
+- Pause/resume behavior still follows settings.
+- Cycle templates, progress variables, smart-fit, colors/glow, and supporter gradients still work.
+- Confirm progress variables and `{cycle:...}` continue advancing about once per second locally even though Spotify itself is polled about every 15 seconds.
+
+## 429 / quota behavior
+
+If the account is still currently limited, this is the most valuable test:
+
+- Load v1.0.1 and let it make one Spotify request.
+- If Spotify returns `reason: QUOTA_EXCEEDED`, Home/Advanced status should say Development Mode quota exceeded rather than generic rate limited.
+- If Spotify sends a Retry-After longer than one hour, the displayed retry time must remain longer than one hour. It must NOT collapse to 3600 seconds.
+- Press Retry while the cooldown is active. The plugin should refuse to bypass Spotify's wait period and should not make an immediate API request.
+- Changing title/appearance settings during the cooldown should update the cached title when possible without forcing an early Spotify API request.
+- After the cooldown expires and Spotify accepts requests again, normal polling should recover automatically.
+
+Do not publish v1.0.1 until normal playback regression passes. The real long-cooldown behavior can be verified against the currently active Spotify 429 if available.

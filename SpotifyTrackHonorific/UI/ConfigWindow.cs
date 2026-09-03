@@ -313,7 +313,7 @@ internal sealed class ConfigWindow : Window
             ImGui.TextWrapped("Each entry is shown for the chosen number of playback seconds, then repeats. Entries may contain normal variables.");
             ImGui.TextDisabled("Example: » {cycle:10|vibing to music|{track}|{artist}} «");
             ImGui.Spacing();
-            ImGui.TextWrapped("Timing note: Spotify is normally checked about every 3 seconds while music is playing. Elapsed time, remaining time, and cycle changes therefore may appear up to roughly one polling interval late.");
+            ImGui.TextWrapped("Timing note: Spotify is normally checked about every 15 seconds while music is playing (60 seconds while idle) to reduce Development Mode quota usage. Progress and cycle templates advance locally about once per second between API polls; actual track changes can take up to roughly one Spotify polling interval to appear.");
             ImGui.TextDisabled("Variables are case-insensitive. Unknown variables stay visible so formatting mistakes are easy to spot.");
         }
     }

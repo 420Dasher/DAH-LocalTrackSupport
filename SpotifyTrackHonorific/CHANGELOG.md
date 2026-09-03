@@ -1,5 +1,16 @@
 # Changelog
 
+## 1.0.1
+
+- Fixed Spotify `Retry-After` values being incorrectly capped at 3600 seconds.
+- Added explicit detection of Development Mode `QUOTA_EXCEEDED` 429 responses.
+- Added conservative quota cooldown fallback: 1h, 2h, 4h, 8h, then 12h when Spotify provides no retry time.
+- Manual retry and settings changes no longer bypass an active Spotify rate/quota cooldown.
+- Reduced Web API polling from ~3s playing / ~8s idle to ~15s playing / ~60s idle to lower long-running Development Mode quota usage.
+- Progress and `{cycle:...}` templates now advance locally between API polls, preserving smooth title rotation without spending extra Spotify quota.
+- Reliability status now renders long cooldowns in readable minute/hour/day form.
+- Keeps the last valid Honorific title during temporary Spotify failures as before.
+
 ## 1.0.0
 
 - First stable release of SpotifyTrackHonorific.

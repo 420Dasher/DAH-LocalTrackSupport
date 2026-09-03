@@ -16,13 +16,17 @@ namespace SpotifyTrackHonorific;
 
 public sealed class Plugin : IDalamudPlugin
 {
-    internal const string DisplayVersion = "1.0.0";
+    internal const string DisplayVersion = "1.0.1";
     private const string ShortCommand = "/sth";
     private const string LongCommand = "/spotifytrackhonorific";
-    private static readonly TimeSpan NormalPollInterval = TimeSpan.FromSeconds(3);
-    private static readonly TimeSpan IdlePollInterval = TimeSpan.FromSeconds(8);
+    private static readonly TimeSpan NormalPollInterval = TimeSpan.FromSeconds(15);
+    private static readonly TimeSpan IdlePollInterval = TimeSpan.FromSeconds(60);
+    private static readonly TimeSpan LocalRenderRefreshInterval = TimeSpan.FromSeconds(1);
     private const int FailureBackoffBaseSeconds = 5;
     private const int FailureBackoffMaxSeconds = 120;
+    private const int RateLimitFallbackSeconds = 30;
+    private const int QuotaFallbackBaseSeconds = 3600;
+    private const int QuotaFallbackMaxSeconds = 43200;
 
     [PluginService] private static IDalamudPluginInterface PluginInterface { get; set; } = null!;
     [PluginService] private static ICommandManager CommandManager { get; set; } = null!;
@@ -44,11 +48,14 @@ public sealed class Plugin : IDalamudPlugin
     private bool hasAppliedTitle;
     private SpotifyTrackInfo? lastTrack;
     private bool lastTrackPaused;
+    private long lastTrackObservedUtcTicks;
+    private long nextLocalRenderUtcTicks;
     private string lastState = "Starting";
     private string? lastError;
     private bool honorificErrorShown;
     private int consecutivePollFailures;
     private long lastSuccessfulPollUtcTicks;
+    private long spotifyCooldownUntilUtcTicks;
     private string? lastLoggedSpotifyError;
 
     internal Configuration Config => config;
@@ -129,12 +136,13 @@ public sealed class Plugin : IDalamudPlugin
             return;
         }
 
-        if (lastTrack != null)
+        var renderTrack = GetCurrentRenderTrack();
+        if (renderTrack != null)
         {
             if (lastTrackPaused && config.ClearOnPause)
                 TryClearHonorific();
-            else if (IsTrackAllowed(lastTrack))
-                ApplyHonorificTitle(BuildConfiguredTitle(lastTrack, lastTrackPaused), BuildRenderFingerprint(lastTrack, lastTrackPaused));
+            else if (IsTrackAllowed(renderTrack))
+                ApplyHonorificTitle(BuildConfiguredTitle(renderTrack, lastTrackPaused), BuildRenderFingerprint(renderTrack, lastTrackPaused));
             else
                 TryClearHonorific();
             return;
@@ -162,6 +170,13 @@ public sealed class Plugin : IDalamudPlugin
 
     internal void RetrySpotifyNow()
     {
+        if (TryGetSpotifyCooldownRemaining(out var remaining))
+        {
+            lastState = $"Spotify cooldown active - retry in {FormatRetryDelay(remaining)}";
+            ChatGui.Print($"Spotify asked us to wait. Retry is available in {FormatRetryDelay(remaining)}.");
+            return;
+        }
+
         Interlocked.Exchange(ref consecutivePollFailures, 0);
         lastLoggedSpotifyError = null;
         lastState = "Manual Spotify retry requested";
@@ -180,8 +195,11 @@ public sealed class Plugin : IDalamudPlugin
     {
         spotify.ForgetAuthorization(clearClientId);
         ResetFailureCounter();
+        ClearSpotifyCooldown();
         lastTrack = null;
         lastTrackPaused = false;
+        lastTrackObservedUtcTicks = 0;
+        Interlocked.Exchange(ref nextLocalRenderUtcTicks, 0);
         lastError = null;
         lastState = "Spotify connection removed";
         appliedFingerprint = null;
@@ -230,6 +248,8 @@ public sealed class Plugin : IDalamudPlugin
             return;
         }
 
+        RefreshCachedProgressTitle();
+
         if (DateTimeOffset.UtcNow.UtcDateTime.Ticks < Interlocked.Read(ref nextPollUtcTicks))
             return;
 
@@ -253,6 +273,8 @@ public sealed class Plugin : IDalamudPlugin
                     MarkSpotifyPollHealthy();
                     lastTrack = result.Track;
                     lastTrackPaused = false;
+                    lastTrackObservedUtcTicks = DateTimeOffset.UtcNow.UtcDateTime.Ticks;
+                    Interlocked.Exchange(ref nextLocalRenderUtcTicks, lastTrackObservedUtcTicks);
                     lastError = null;
                     ScheduleNextPoll(NormalPollInterval);
 
@@ -281,6 +303,8 @@ public sealed class Plugin : IDalamudPlugin
                     MarkSpotifyPollHealthy();
                     lastTrack = result.Track;
                     lastTrackPaused = true;
+                    lastTrackObservedUtcTicks = 0;
+                    Interlocked.Exchange(ref nextLocalRenderUtcTicks, 0);
                     lastState = "Playback paused";
                     lastError = null;
                     ScheduleNextPoll(IdlePollInterval);
@@ -312,6 +336,8 @@ public sealed class Plugin : IDalamudPlugin
                     MarkSpotifyPollHealthy();
                     lastTrack = null;
                     lastTrackPaused = false;
+                    lastTrackObservedUtcTicks = 0;
+                    Interlocked.Exchange(ref nextLocalRenderUtcTicks, 0);
                     lastState = "Nothing playing / paused";
                     lastError = null;
                     ScheduleNextPoll(IdlePollInterval);
@@ -321,8 +347,11 @@ public sealed class Plugin : IDalamudPlugin
 
                 case SpotifyPollState.NotAuthenticated:
                     ResetFailureCounter();
+                    ClearSpotifyCooldown();
                     lastTrack = null;
                     lastTrackPaused = false;
+                    lastTrackObservedUtcTicks = 0;
+                    Interlocked.Exchange(ref nextLocalRenderUtcTicks, 0);
                     lastState = string.IsNullOrWhiteSpace(result.Error)
                         ? "Not authenticated"
                         : "Spotify re-authentication required";
@@ -334,8 +363,23 @@ public sealed class Plugin : IDalamudPlugin
 
                 case SpotifyPollState.RateLimited:
                 {
-                    var delay = ScheduleSpotifyFailure(result.Error, result.RetryAfterSeconds, useExponentialBackoff: false);
-                    lastState = $"Spotify rate limited - retrying in {delay}s";
+                    var delay = ScheduleSpotifyFailure(
+                        result.Error,
+                        result.RetryAfterSeconds,
+                        useExponentialBackoff: false,
+                        isQuotaExceeded: false);
+                    lastState = $"Spotify rate limited - retrying in {FormatRetryDelay(TimeSpan.FromSeconds(delay))}";
+                    break;
+                }
+
+                case SpotifyPollState.QuotaExceeded:
+                {
+                    var delay = ScheduleSpotifyFailure(
+                        result.Error,
+                        result.RetryAfterSeconds,
+                        useExponentialBackoff: false,
+                        isQuotaExceeded: true);
+                    lastState = $"Spotify Development Mode quota exceeded - retrying in {FormatRetryDelay(TimeSpan.FromSeconds(delay))}";
                     break;
                 }
 
@@ -377,6 +421,7 @@ public sealed class Plugin : IDalamudPlugin
     {
         var recoveredFailures = Interlocked.Exchange(ref consecutivePollFailures, 0);
         Interlocked.Exchange(ref lastSuccessfulPollUtcTicks, DateTimeOffset.UtcNow.UtcDateTime.Ticks);
+        ClearSpotifyCooldown();
         lastLoggedSpotifyError = null;
 
         if (recoveredFailures > 0)
@@ -389,12 +434,28 @@ public sealed class Plugin : IDalamudPlugin
         lastLoggedSpotifyError = null;
     }
 
-    private int ScheduleSpotifyFailure(string? error, int minimumDelaySeconds, bool useExponentialBackoff)
+    private int ScheduleSpotifyFailure(
+        string? error,
+        int minimumDelaySeconds,
+        bool useExponentialBackoff,
+        bool isQuotaExceeded = false)
     {
         var failureCount = Interlocked.Increment(ref consecutivePollFailures);
-        var delay = Math.Max(1, minimumDelaySeconds);
+        var delay = Math.Max(0, minimumDelaySeconds);
 
-        if (useExponentialBackoff)
+        if (isQuotaExceeded)
+        {
+            // Spotify's Development Mode quota is separate from the rolling
+            // rate-limit window. If Spotify provides Retry-After, never retry
+            // earlier than requested. If it does not, back off aggressively:
+            // 1h, 2h, 4h, 8h, 12h, 12h...
+            var shift = Math.Min(Math.Max(0, failureCount - 1), 4);
+            var quotaFallback = Math.Min(
+                QuotaFallbackMaxSeconds,
+                QuotaFallbackBaseSeconds * (1 << shift));
+            delay = Math.Max(delay, quotaFallback);
+        }
+        else if (useExponentialBackoff)
         {
             // 5, 10, 20, 40, 80, 120, 120... seconds.
             var shift = Math.Min(Math.Max(0, failureCount - 1), 5);
@@ -403,20 +464,24 @@ public sealed class Plugin : IDalamudPlugin
         }
         else
         {
-            // Spotify's Retry-After is authoritative for 429. Keep a tiny floor in
-            // case a malformed/missing header would otherwise create a hot loop.
-            delay = Math.Max(delay, FailureBackoffBaseSeconds);
+            // Ordinary Spotify rate limits are based on a rolling 30-second
+            // request window. Retry-After is authoritative when supplied.
+            delay = Math.Max(delay, RateLimitFallbackSeconds);
         }
 
-        delay = Math.Min(Math.Max(1, delay), 3600);
+        delay = Math.Max(1, delay);
         lastError = string.IsNullOrWhiteSpace(error) ? "Unknown Spotify error." : error;
-        ScheduleNextPoll(TimeSpan.FromSeconds(delay));
+        var retryDelay = TimeSpan.FromSeconds(delay);
+        ScheduleNextPoll(retryDelay);
+
+        if (isQuotaExceeded || !useExponentialBackoff)
+            SetSpotifyCooldown(retryDelay);
 
         // Avoid one warning every retry forever. Log the first failure, any changed
         // error, and periodic reminders during a long outage.
         if (failureCount == 1 || failureCount % 5 == 0 || !string.Equals(lastLoggedSpotifyError, lastError, StringComparison.Ordinal))
         {
-            Log.Warning($"Spotify poll failure #{failureCount}; retrying in {delay}s: {lastError}");
+            Log.Warning($"Spotify poll failure #{failureCount}; retrying in {FormatRetryDelay(retryDelay)}: {lastError}");
             lastLoggedSpotifyError = lastError;
         }
 
@@ -429,7 +494,42 @@ public sealed class Plugin : IDalamudPlugin
         Interlocked.Exchange(ref nextPollUtcTicks, when);
     }
 
-    private void SchedulePollNow() => Interlocked.Exchange(ref nextPollUtcTicks, DateTimeOffset.UtcNow.UtcDateTime.Ticks);
+    private void SchedulePollNow()
+    {
+        var nowTicks = DateTimeOffset.UtcNow.UtcDateTime.Ticks;
+        var cooldownTicks = Interlocked.Read(ref spotifyCooldownUntilUtcTicks);
+        Interlocked.Exchange(ref nextPollUtcTicks, Math.Max(nowTicks, cooldownTicks));
+    }
+
+    private void SetSpotifyCooldown(TimeSpan delay)
+    {
+        var untilTicks = DateTimeOffset.UtcNow.Add(delay).UtcDateTime.Ticks;
+        Interlocked.Exchange(ref spotifyCooldownUntilUtcTicks, untilTicks);
+    }
+
+    private void ClearSpotifyCooldown() =>
+        Interlocked.Exchange(ref spotifyCooldownUntilUtcTicks, 0);
+
+    private bool TryGetSpotifyCooldownRemaining(out TimeSpan remaining)
+    {
+        var cooldownTicks = Interlocked.Read(ref spotifyCooldownUntilUtcTicks);
+        if (cooldownTicks <= 0)
+        {
+            remaining = TimeSpan.Zero;
+            return false;
+        }
+
+        var until = new DateTimeOffset(new DateTime(cooldownTicks, DateTimeKind.Utc));
+        remaining = until - DateTimeOffset.UtcNow;
+        if (remaining <= TimeSpan.Zero)
+        {
+            ClearSpotifyCooldown();
+            remaining = TimeSpan.Zero;
+            return false;
+        }
+
+        return true;
+    }
 
     private string BuildSpotifyFriendlyStatus()
     {
@@ -467,9 +567,12 @@ public sealed class Plugin : IDalamudPlugin
             successText = $"last success {FormatAge(now - successAt)} ago";
         }
 
-        var retrySeconds = Math.Max(0, (int)Math.Ceiling((new DateTimeOffset(new DateTime(nextTicks, DateTimeKind.Utc)) - now).TotalSeconds));
+        var retryDelay = new DateTimeOffset(new DateTime(nextTicks, DateTimeKind.Utc)) - now;
+        if (retryDelay < TimeSpan.Zero)
+            retryDelay = TimeSpan.Zero;
+
         if (failures > 0)
-            return $"Recovering: {failures} consecutive failure(s), retry in {retrySeconds}s, {successText}";
+            return $"Recovering: {failures} consecutive failure(s), retry in {FormatRetryDelay(retryDelay)}, {successText}";
 
         if (Volatile.Read(ref pollInProgress) != 0)
             return $"Healthy: polling now, {successText}";
@@ -485,7 +588,63 @@ public sealed class Plugin : IDalamudPlugin
             return $"{Math.Max(0, (int)age.TotalSeconds)}s";
         if (age.TotalMinutes < 60)
             return $"{(int)age.TotalMinutes}m";
-        return $"{(int)age.TotalHours}h";
+        if (age.TotalHours < 24)
+            return $"{(int)age.TotalHours}h";
+        return $"{(int)age.TotalDays}d";
+    }
+
+    private static string FormatRetryDelay(TimeSpan delay)
+    {
+        if (delay < TimeSpan.Zero)
+            delay = TimeSpan.Zero;
+
+        if (delay.TotalDays >= 1)
+            return $"{(int)delay.TotalDays}d {delay.Hours}h";
+        if (delay.TotalHours >= 1)
+            return $"{(int)delay.TotalHours}h {delay.Minutes}m";
+        if (delay.TotalMinutes >= 1)
+            return $"{(int)delay.TotalMinutes}m {delay.Seconds}s";
+        return $"{Math.Max(0, (int)Math.Ceiling(delay.TotalSeconds))}s";
+    }
+
+    private SpotifyTrackInfo? GetCurrentRenderTrack()
+    {
+        var track = lastTrack;
+        if (track == null || lastTrackPaused || lastTrackObservedUtcTicks <= 0)
+            return track;
+
+        var observedAt = new DateTimeOffset(new DateTime(lastTrackObservedUtcTicks, DateTimeKind.Utc));
+        var elapsedMs = Math.Max(0, (long)(DateTimeOffset.UtcNow - observedAt).TotalMilliseconds);
+        var maxProgress = track.DurationMs > 0 ? track.DurationMs : int.MaxValue;
+        var progress = Math.Clamp((long)track.ProgressMs + elapsedMs, 0L, (long)maxProgress);
+
+        return track with { ProgressMs = (int)progress };
+    }
+
+    private void RefreshCachedProgressTitle()
+    {
+        var track = lastTrack;
+        if (track == null ||
+            lastTrackPaused ||
+            !TitleTemplateFormatter.UsesProgressVariable(config.TitleFormat) ||
+            !IsTrackAllowed(track))
+            return;
+
+        var nowTicks = DateTimeOffset.UtcNow.UtcDateTime.Ticks;
+        if (nowTicks < Interlocked.Read(ref nextLocalRenderUtcTicks))
+            return;
+
+        Interlocked.Exchange(
+            ref nextLocalRenderUtcTicks,
+            DateTimeOffset.UtcNow.Add(LocalRenderRefreshInterval).UtcDateTime.Ticks);
+
+        var renderTrack = GetCurrentRenderTrack();
+        if (renderTrack == null)
+            return;
+
+        var fingerprint = BuildRenderFingerprint(renderTrack, paused: false);
+        if (!string.Equals(appliedFingerprint, fingerprint, StringComparison.Ordinal))
+            ApplyHonorificTitle(BuildConfiguredTitle(renderTrack, paused: false), fingerprint);
     }
 
     private bool IsTrackAllowed(SpotifyTrackInfo track) =>
@@ -497,7 +656,7 @@ public sealed class Plugin : IDalamudPlugin
         return HonorificBridge.FitTitle(formatted, config.SmartFitLongTitles);
     }
 
-    private SpotifyTrackInfo BuildPreviewTrack() => lastTrack ?? new SpotifyTrackInfo(
+    private SpotifyTrackInfo BuildPreviewTrack() => GetCurrentRenderTrack() ?? new SpotifyTrackInfo(
         "A Very Long Example Track Title (Remastered 2026)",
         new[] { "Artist", "Featured Artist" },
         "Album",
@@ -704,6 +863,7 @@ public sealed class Plugin : IDalamudPlugin
             config.OnboardingCompleted = true;
             SaveConfig();
             ResetFailureCounter();
+            ClearSpotifyCooldown();
             lastError = null;
             lastState = "Authenticated - waiting for Spotify";
             SchedulePollNow();
@@ -749,14 +909,15 @@ public sealed class Plugin : IDalamudPlugin
 
     private void PrintNow()
     {
-        if (lastTrack == null)
+        var renderTrack = GetCurrentRenderTrack();
+        if (renderTrack == null)
         {
             ChatGui.Print($"No active track cached. State: {lastState}.");
             return;
         }
 
-        ChatGui.Print($"Spotify: {lastTrack.ArtistText} - {lastTrack.Name} | Album: {lastTrack.Album} | Local: {lastTrack.IsLocal}");
-        ChatGui.Print($"Honorific title: {BuildConfiguredTitle(lastTrack, lastTrackPaused)} | {(config.IsPrefix ? "Prefix" : "Suffix")}");
+        ChatGui.Print($"Spotify: {renderTrack.ArtistText} - {renderTrack.Name} | Album: {renderTrack.Album} | Local: {renderTrack.IsLocal}");
+        ChatGui.Print($"Honorific title: {BuildConfiguredTitle(renderTrack, lastTrackPaused)} | {(config.IsPrefix ? "Prefix" : "Suffix")}");
     }
 
     private static void PrintHelp()

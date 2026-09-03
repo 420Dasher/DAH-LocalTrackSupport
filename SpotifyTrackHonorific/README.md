@@ -67,7 +67,7 @@ Example rotating title:
 
 `» {cycle:10|vibing to music|{track}|{artist}} «`
 
-Each entry lasts roughly ten seconds. Spotify is normally polled about every three seconds while playing, so cycle/progress changes may appear up to roughly one polling interval late.
+Each entry lasts roughly ten seconds. Spotify is normally polled about every 15 seconds while playing (and about every 60 seconds while idle) to reduce Development Mode quota usage. Between API polls, elapsed/remaining time and cycle templates advance locally about once per second; actual track changes may take up to roughly one Spotify polling interval to appear.
 
 ### Appearance
 
@@ -94,9 +94,13 @@ Reliability/debug information, manual retry/test/clear controls, command help, d
 
 ## Reliability
 
-Temporary network errors, Spotify server errors, and rate limits do not immediately erase a valid title. The plugin keeps the last good title while retrying with increasing delays, respects Spotify `Retry-After` responses, and returns to normal polling after recovery.
+Temporary network errors, Spotify server errors, rate limits, and Development Mode quota exhaustion do not immediately erase a valid title. The plugin keeps the last good title, distinguishes Spotify `QUOTA_EXCEEDED` responses from ordinary rate limits, honors the full server `Retry-After` interval, prevents manual retry from bypassing an active Spotify cooldown, and returns to normal polling after recovery.
 
 If Spotify authorization becomes invalid, the UI asks the user to reconnect instead of retrying forever.
+
+## Version 1.0.1
+
+v1.0.1 is the first post-release reliability update. It fixes a one-hour `Retry-After` clamp, recognizes Spotify Development Mode `QUOTA_EXCEEDED` responses, backs off conservatively when Spotify supplies no quota retry time, and reduces normal API polling from 3s/8s to 15s/60s.
 
 ## Version 1.0.0
 

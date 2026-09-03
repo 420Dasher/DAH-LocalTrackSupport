@@ -113,6 +113,7 @@ $newEntry = [pscustomobject][ordered]@{
     ApplicableVersion = 'any'
     RepoUrl = $repoUrl
     Tags = @('spotify','local-files','honorific','music')
+    IconUrl = "$rawBase/SpotifyTrackHonorific/images/icon.png"
     DalamudApiLevel = 15
     LoadRequiredState = 0
     LoadSync = $false

@@ -6,15 +6,16 @@
     <Punchline>Show your Spotify track as an Honorific title.</Punchline>
     <Description>Displays your current Spotify track as an Honorific title, including Spotify local files, configurable formatting, title cleanup, and optional Honorific styling.</Description>
     <Tags>spotify;local-files;honorific;music</Tags>
+    <IconUrl>https://raw.githubusercontent.com/420Dasher/DAH-LocalTrackSupport/main/SpotifyTrackHonorific/images/icon.png</IconUrl>
 
     <AssemblyName>SpotifyTrackHonorific</AssemblyName>
     <RootNamespace>SpotifyTrackHonorific</RootNamespace>
     <Product>SpotifyTrackHonorific</Product>
     <AssemblyTitle>SpotifyTrackHonorific</AssemblyTitle>
 
-    <Version>1.0.0.0</Version>
-    <AssemblyVersion>1.0.0.0</AssemblyVersion>
-    <FileVersion>1.0.0.0</FileVersion>
+    <Version>1.0.1.0</Version>
+    <AssemblyVersion>1.0.1.0</AssemblyVersion>
+    <FileVersion>1.0.1.0</FileVersion>
     <IsPackable>false</IsPackable>
   </PropertyGroup>
 </Project>

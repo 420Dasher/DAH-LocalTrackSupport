@@ -1,0 +1,26 @@
+SpotifyTrackHonorific v1.0.1 HOTFIX TEST BUILD
+
+This source is based directly on released v1.0.0.
+
+Primary fixes:
+- removes the accidental 3600-second Retry-After cap
+- recognizes Spotify Development Mode QUOTA_EXCEEDED responses
+- blocks manual/settings-triggered API retries during an active Spotify cooldown
+- uses conservative 1h -> 2h -> 4h -> 8h -> 12h quota fallback if Spotify gives no Retry-After
+- reduces Spotify API polling to ~15s while playing / ~60s while idle
+- locally advances elapsed/remaining/cycle rendering about once per second between API polls
+
+IMPORTANT:
+This environment does not have .NET/Dalamud available, so this package has received static source checks only.
+Build it on the normal Windows/Dalamud API 15 environment before loading it.
+
+Most useful live test while the account is currently returning 429:
+1. Build v1.0.1.
+2. Load it once.
+3. Open /sth -> Advanced or run /sth status.
+4. Capture the State and Last error text.
+5. If Spotify returns reason QUOTA_EXCEEDED, the state should explicitly say Development Mode quota exceeded.
+6. If Retry-After is >1 hour, the plugin must show the full longer wait and not collapse it to 3600s.
+7. Click Retry during cooldown: it should refuse to issue an early retry.
+
+Do not publish to the custom repo until the normal playback regression checklist also passes.

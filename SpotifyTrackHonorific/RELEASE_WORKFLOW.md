@@ -18,9 +18,9 @@ Set-ExecutionPolicy -Scope Process Bypass
 
 The script performs a clean build and creates a versioned ZIP plus SHA-256 checksum under `release/`.
 
-For v1.0.0 the expected package is:
+For v1.0.1 the expected package is:
 
-`release/SpotifyTrackHonorific-v1.0.0.zip`
+`release/SpotifyTrackHonorific-v1.0.1.zip`
 
 ## Custom repository
 
@@ -30,4 +30,4 @@ The target custom repository is:
 
 It remains a multi-plugin repository. `DAH-LocalSpotifySupport` stays available as a discontinued legacy entry while `SpotifyTrackHonorific` is the active plugin.
 
-Use the repository integration publisher supplied with the v1.0.0 repo kit. It preserves unrelated existing manifest entries, marks the old DAH fork discontinued, builds SpotifyTrackHonorific, copies its `latest.zip`, and writes `pluginmaster.json` as a JSON array.
+Use the multi-plugin repository publisher already present in the repository root. It preserves unrelated existing manifest entries, marks the old DAH fork discontinued, builds SpotifyTrackHonorific, copies its `latest.zip`, and writes `pluginmaster.json` as a JSON array.
