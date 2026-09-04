@@ -1,5 +1,6 @@
 using Dalamud.Bindings.ImGui;
 using Dalamud.Interface.Windowing;
+using SpotifyTrackHonorific.Filtering;
 using SpotifyTrackHonorific.Honorific;
 using System;
 using System.Numerics;
@@ -15,6 +16,7 @@ internal sealed class ConfigWindow : Window
     private bool showOnboardingSetup;
     private bool confirmResetDisplay;
     private bool confirmForgetSpotify;
+    private string filterTestDraft = "$uicideboy$";
 
     public ConfigWindow(Plugin plugin)
         : base("SpotifyTrackHonorific Settings")
@@ -49,6 +51,12 @@ internal sealed class ConfigWindow : Window
             if (ImGui.BeginTabItem("Title"))
             {
                 DrawTitleTab();
+                ImGui.EndTabItem();
+            }
+
+            if (ImGui.BeginTabItem("Filter"))
+            {
+                DrawFilterTab();
                 ImGui.EndTabItem();
             }
 
@@ -318,6 +326,166 @@ internal sealed class ConfigWindow : Window
         }
     }
 
+
+    private void DrawFilterTab()
+    {
+        var config = plugin.Config;
+
+        ImGui.Text("Content filter");
+        ImGui.Separator();
+        ImGui.TextWrapped("Censor artist, track, or album names you do not want exposed while keeping your normal title format and cycles running.");
+        ImGui.Spacing();
+
+        var enabled = config.EnableContentFilter;
+        if (ImGui.Checkbox("Enable blacklist", ref enabled))
+        {
+            config.EnableContentFilter = enabled;
+            plugin.SettingsChanged();
+        }
+
+        var smart = config.SmartContentFilterMatching;
+        if (ImGui.Checkbox("Smart variation matching", ref smart))
+        {
+            config.SmartContentFilterMatching = smart;
+            plugin.SettingsChanged();
+        }
+        HelpMarker("Also catches common obfuscation such as $ -> s, 0 -> o, @ -> a, punctuation/spacing changes, and conservative small typos on longer entries.");
+
+        ImGui.Spacing();
+        ImGui.Text("Built-in triggerwords");
+
+        var useBuiltIn = config.UseBuiltInContentFilterList;
+        if (ImGui.Checkbox("Use built-in triggerword list", ref useBuiltIn))
+        {
+            config.UseBuiltInContentFilterList = useBuiltIn;
+            plugin.SettingsChanged();
+        }
+
+        var activeBuiltIns = ContentFilterMatcher.ActiveBuiltInTriggerWordCount(config.DisabledBuiltInContentFilterEntries);
+        ImGui.SameLine();
+        ImGui.TextDisabled(useBuiltIn
+            ? $"{activeBuiltIns}/{ContentFilterMatcher.BuiltInTriggerWords.Count} active"
+            : $"{activeBuiltIns}/{ContentFilterMatcher.BuiltInTriggerWords.Count} selected (preset off)");
+        ImGui.TextDisabled("A conservative starter preset for common high-sensitivity terms. Your custom entries stay completely separate.");
+
+        if (ImGui.TreeNode("View / customize built-in list"))
+        {
+            string? lastCategory = null;
+            foreach (var entry in ContentFilterMatcher.BuiltInTriggerWords)
+            {
+                if (!string.Equals(lastCategory, entry.Category, StringComparison.Ordinal))
+                {
+                    if (lastCategory != null)
+                        ImGui.Spacing();
+                    ImGui.TextDisabled(entry.Category);
+                    lastCategory = entry.Category;
+                }
+
+                var entryEnabled = ContentFilterMatcher.IsBuiltInEntryEnabled(
+                    entry.Id,
+                    config.DisabledBuiltInContentFilterEntries);
+
+                if (ImGui.Checkbox($"{entry.Term}##builtin-trigger-{entry.Id}", ref entryEnabled))
+                {
+                    config.DisabledBuiltInContentFilterEntries = ContentFilterMatcher.SetBuiltInEntryEnabled(
+                        entry.Id,
+                        entryEnabled,
+                        config.DisabledBuiltInContentFilterEntries);
+                    plugin.SettingsChanged();
+                }
+            }
+
+            ImGui.Spacing();
+            if (ImGui.Button("Restore built-in defaults"))
+            {
+                config.DisabledBuiltInContentFilterEntries = string.Empty;
+                plugin.SettingsChanged();
+            }
+            ImGui.SameLine();
+            ImGui.TextDisabled("Re-enables every built-in term. Custom rules are untouched.");
+            ImGui.TreePop();
+        }
+
+        ImGui.Spacing();
+        ImGui.Text("Custom blacklist entries");
+        ImGui.TextDisabled("One entry per line. Leave it plain to check artist + track + album.");
+        ImGui.TextDisabled("Optional prefixes: artist:, track:, album:");
+
+        var entries = config.ContentFilterEntries;
+        if (ImGui.InputTextMultiline("##content-filter-entries", ref entries, 4096, new Vector2(-1, 160)))
+        {
+            config.ContentFilterEntries = entries;
+            plugin.SettingsChanged();
+        }
+
+        ImGui.TextDisabled("Example: artist: example artist");
+        if (config.SmartContentFilterMatching)
+            ImGui.TextDisabled("Smart matching applies to both the built-in preset and your custom entries.");
+
+        ImGui.Spacing();
+        ImGui.Text("When a blacklist entry matches");
+        var actionLabel = config.ContentFilterAction switch
+        {
+            1 => "Clear Spotify title",
+            2 => "Keep previous title",
+            _ => "Censor matching fields",
+        };
+
+        ImGui.SetNextItemWidth(260);
+        if (ImGui.BeginCombo("##content-filter-action", actionLabel))
+        {
+            if (ImGui.Selectable("Censor matching fields", config.ContentFilterAction == 0))
+            {
+                config.ContentFilterAction = 0;
+                plugin.SettingsChanged();
+            }
+            if (ImGui.Selectable("Clear Spotify title", config.ContentFilterAction == 1))
+            {
+                config.ContentFilterAction = 1;
+                plugin.SettingsChanged();
+            }
+            if (ImGui.Selectable("Keep previous title", config.ContentFilterAction == 2))
+            {
+                config.ContentFilterAction = 2;
+                plugin.SettingsChanged();
+            }
+            ImGui.EndCombo();
+        }
+
+        if (config.ContentFilterAction == 0)
+        {
+            ImGui.TextWrapped("Only the matching metadata field is replaced. Other fields and {cycle:...} stages continue normally.");
+            ImGui.TextDisabled("Example: $uicideboy$ -> Triggerword censored, while {track} and normal cycle text remain untouched.");
+            ImGui.Text("Replacement text");
+            var fallback = config.ContentFilterFallback;
+            ImGui.SetNextItemWidth(360);
+            if (ImGui.InputText("##content-filter-fallback", ref fallback, 128))
+            {
+                config.ContentFilterFallback = fallback;
+                plugin.SettingsChanged();
+            }
+            ImGui.SameLine();
+            if (ImGui.Button("Default##filter-fallback"))
+            {
+                config.ContentFilterFallback = Configuration.DefaultContentFilterFallback;
+                plugin.SettingsChanged();
+            }
+            ImGui.TextDisabled("Default: Triggerword censored");
+        }
+
+        ImGui.Spacing();
+        ImGui.Text("Test the matcher");
+        ImGui.TextDisabled("Tests the active built-in preset and your custom entries without changing Spotify playback.");
+        ImGui.SetNextItemWidth(360);
+        ImGui.InputText("##content-filter-test", ref filterTestDraft, 256);
+
+        var testResult = plugin.TestContentFilterText(filterTestDraft);
+        if (testResult.StartsWith("Blocked by", StringComparison.Ordinal))
+            ImGui.TextWrapped($"MATCH: {testResult}");
+        else
+            ImGui.TextDisabled(testResult);
+    }
+
     private void DrawAppearanceTab()
     {
         var config = plugin.Config;
@@ -531,7 +699,7 @@ internal sealed class ConfigWindow : Window
             if (ImGui.CollapsingHeader("Technical error details"))
                 ImGui.TextWrapped(plugin.ErrorText);
         }
-        ImGui.TextDisabled("Playing: approximately 3-second checks | idle/paused: approximately 8-second checks");
+        ImGui.TextDisabled("Playing: approximately 15-second checks | idle/paused: approximately 60-second checks");
         ImGui.TextDisabled("Temporary failures automatically back off up to 120 seconds; Spotify rate-limit retry times are respected.");
 
         ImGui.Spacing();

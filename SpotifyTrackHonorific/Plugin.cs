@@ -5,6 +5,7 @@ using Dalamud.Plugin;
 using Dalamud.Plugin.Services;
 using SpotifyTrackHonorific.Honorific;
 using SpotifyTrackHonorific.Formatting;
+using SpotifyTrackHonorific.Filtering;
 using SpotifyTrackHonorific.Spotify;
 using SpotifyTrackHonorific.UI;
 using System;
@@ -16,7 +17,7 @@ namespace SpotifyTrackHonorific;
 
 public sealed class Plugin : IDalamudPlugin
 {
-    internal const string DisplayVersion = "1.0.1";
+    internal const string DisplayVersion = "1.0.4";
     private const string ShortCommand = "/sth";
     private const string LongCommand = "/spotifytrackhonorific";
     private static readonly TimeSpan NormalPollInterval = TimeSpan.FromSeconds(15);
@@ -140,11 +141,32 @@ public sealed class Plugin : IDalamudPlugin
         if (renderTrack != null)
         {
             if (lastTrackPaused && config.ClearOnPause)
+            {
                 TryClearHonorific();
+            }
             else if (IsTrackAllowed(renderTrack))
-                ApplyHonorificTitle(BuildConfiguredTitle(renderTrack, lastTrackPaused), BuildRenderFingerprint(renderTrack, lastTrackPaused));
+            {
+                var filterMatch = GetContentFilterMatch(renderTrack);
+                if (filterMatch != null && config.ContentFilterAction == 1)
+                {
+                    lastState = $"Triggerword censored ({filterMatch.Field})";
+                    TryClearHonorific();
+                }
+                else if (filterMatch != null && config.ContentFilterAction == 2)
+                {
+                    lastState = $"Triggerword censored ({filterMatch.Field}) - previous title kept";
+                }
+                else
+                {
+                    if (filterMatch != null)
+                        lastState = $"Triggerword censored ({filterMatch.Field})";
+                    ApplyHonorificTitle(BuildConfiguredTitle(renderTrack, lastTrackPaused), BuildRenderFingerprint(renderTrack, lastTrackPaused));
+                }
+            }
             else
+            {
                 TryClearHonorific();
+            }
             return;
         }
 
@@ -190,6 +212,23 @@ public sealed class Plugin : IDalamudPlugin
     }
 
     internal void ClearPluginTitle() => TryClearHonorific();
+
+    internal string TestContentFilterText(string text)
+    {
+        var match = ContentFilterMatcher.TestText(
+            config.ContentFilterEntries,
+            config.UseBuiltInContentFilterList,
+            config.DisabledBuiltInContentFilterEntries,
+            config.SmartContentFilterMatching,
+            text);
+
+        if (match == null)
+            return "No blacklist match.";
+
+        var variation = match.UsedFuzzyMatch ? " - smart variation match" : string.Empty;
+        var source = match.IsBuiltIn ? "built-in: " : string.Empty;
+        return $"Blocked by {source}{match.Entry} ({match.Field}){variation}";
+    }
 
     internal void ForgetSpotifyConnection(bool clearClientId = false)
     {
@@ -290,7 +329,30 @@ public sealed class Plugin : IDalamudPlugin
                         break;
                     }
 
-                    lastState = result.Track.IsLocal ? "Playing local track" : "Playing Spotify track";
+                    var playingFilterMatch = GetContentFilterMatch(result.Track);
+                    if (playingFilterMatch != null)
+                    {
+                        lastState = $"Triggerword censored ({playingFilterMatch.Field})";
+
+                        if (config.ContentFilterAction == 1)
+                        {
+                            if (hasAppliedTitle)
+                                await Framework.RunOnFrameworkThread(TryClearHonorific).ConfigureAwait(false);
+                            appliedFingerprint = null;
+                            break;
+                        }
+
+                        if (config.ContentFilterAction == 2)
+                        {
+                            lastState += " - previous title kept";
+                            break;
+                        }
+                    }
+                    else
+                    {
+                        lastState = result.Track.IsLocal ? "Playing local track" : "Playing Spotify track";
+                    }
+
                     var renderFingerprint = BuildRenderFingerprint(result.Track, paused: false);
                     if (!string.Equals(appliedFingerprint, renderFingerprint, StringComparison.Ordinal))
                     {
@@ -322,6 +384,26 @@ public sealed class Plugin : IDalamudPlugin
                         if (hasAppliedTitle)
                             await Framework.RunOnFrameworkThread(TryClearHonorific).ConfigureAwait(false);
                         break;
+                    }
+
+                    var pausedFilterMatch = GetContentFilterMatch(result.Track);
+                    if (pausedFilterMatch != null)
+                    {
+                        lastState = $"Triggerword censored ({pausedFilterMatch.Field})";
+
+                        if (config.ContentFilterAction == 1)
+                        {
+                            if (hasAppliedTitle)
+                                await Framework.RunOnFrameworkThread(TryClearHonorific).ConfigureAwait(false);
+                            appliedFingerprint = null;
+                            break;
+                        }
+
+                        if (config.ContentFilterAction == 2)
+                        {
+                            lastState += " - previous title kept";
+                            break;
+                        }
                     }
 
                     var pausedFingerprint = BuildRenderFingerprint(result.Track, paused: true);
@@ -638,6 +720,9 @@ public sealed class Plugin : IDalamudPlugin
             ref nextLocalRenderUtcTicks,
             DateTimeOffset.UtcNow.Add(LocalRenderRefreshInterval).UtcDateTime.Ticks);
 
+        if (GetContentFilterMatch(track) != null && config.ContentFilterAction != 0)
+            return;
+
         var renderTrack = GetCurrentRenderTrack();
         if (renderTrack == null)
             return;
@@ -650,10 +735,42 @@ public sealed class Plugin : IDalamudPlugin
     private bool IsTrackAllowed(SpotifyTrackInfo track) =>
         track.IsLocal ? config.ShowLocalTracks : config.ShowNormalTracks;
 
+    private ContentFilterMatch? GetContentFilterMatch(SpotifyTrackInfo track)
+    {
+        if (!config.EnableContentFilter)
+            return null;
+
+        return ContentFilterMatcher.MatchTrack(
+            track,
+            config.ContentFilterEntries,
+            config.UseBuiltInContentFilterList,
+            config.DisabledBuiltInContentFilterEntries,
+            config.SmartContentFilterMatching);
+    }
+
     private string BuildConfiguredTitle(SpotifyTrackInfo track, bool paused)
     {
-        var formatted = TitleTemplateFormatter.Expand(config.TitleFormat, track, paused, config.StripBracketedTrackParts);
+        var renderTrack = GetContentFilteredTrack(track);
+        var formatted = TitleTemplateFormatter.Expand(config.TitleFormat, renderTrack, paused, config.StripBracketedTrackParts);
         return HonorificBridge.FitTitle(formatted, config.SmartFitLongTitles);
+    }
+
+    private SpotifyTrackInfo GetContentFilteredTrack(SpotifyTrackInfo track)
+    {
+        if (!config.EnableContentFilter || config.ContentFilterAction != 0)
+            return track;
+
+        var replacement = string.IsNullOrWhiteSpace(config.ContentFilterFallback)
+            ? Configuration.DefaultContentFilterFallback
+            : config.ContentFilterFallback.Trim();
+
+        return ContentFilterMatcher.CensorTrack(
+            track,
+            config.ContentFilterEntries,
+            config.UseBuiltInContentFilterList,
+            config.DisabledBuiltInContentFilterEntries,
+            config.SmartContentFilterMatching,
+            replacement).Track;
     }
 
     private SpotifyTrackInfo BuildPreviewTrack() => GetCurrentRenderTrack() ?? new SpotifyTrackInfo(
@@ -667,7 +784,7 @@ public sealed class Plugin : IDalamudPlugin
 
     private string BuildPreviewExpandedTitle()
     {
-        var track = BuildPreviewTrack();
+        var track = GetContentFilteredTrack(BuildPreviewTrack());
         return TitleTemplateFormatter.Expand(
             config.TitleFormat,
             track,
@@ -684,6 +801,15 @@ public sealed class Plugin : IDalamudPlugin
             ? $"|progress:{track.ProgressMs / 1000}"
             : string.Empty;
 
+        var contentFilterPart =
+            $"|contentFilter:{config.EnableContentFilter}" +
+            $"|contentFilterSmart:{config.SmartContentFilterMatching}" +
+            $"|contentFilterAction:{config.ContentFilterAction}" +
+            $"|contentFilterReplacement:{config.ContentFilterFallback}" +
+            $"|contentFilterBuiltIn:{config.UseBuiltInContentFilterList}" +
+            $"|contentFilterBuiltInDisabled:{config.DisabledBuiltInContentFilterEntries}" +
+            $"|contentFilterEntries:{config.ContentFilterEntries}";
+
         var stylePart = config.UseTitleColor
             ? $"|color:{config.TitleColor.X:F4},{config.TitleColor.Y:F4},{config.TitleColor.Z:F4}|glowEnabled:{config.UseTitleGlow}|glow:{config.TitleGlowColor.X:F4},{config.TitleGlowColor.Y:F4},{config.TitleGlowColor.Z:F4}"
             : "|color:default|glowEnabled:false";
@@ -698,7 +824,7 @@ public sealed class Plugin : IDalamudPlugin
             $"|gradientB:{config.GradientColorB.X:F4},{config.GradientColorB.Y:F4},{config.GradientColorB.Z:F4}" +
             $"|gradientC:{config.GradientColorC.X:F4},{config.GradientColorC.Y:F4},{config.GradientColorC.Z:F4}";
 
-        return $"{track.Fingerprint}|prefix:{config.IsPrefix}|paused:{paused}|strip:{config.StripBracketedTrackParts}|smartfit:{config.SmartFitLongTitles}|format:{config.TitleFormat}{stylePart}{supporterStylePart}{progressPart}";
+        return $"{track.Fingerprint}|prefix:{config.IsPrefix}|paused:{paused}|strip:{config.StripBracketedTrackParts}|smartfit:{config.SmartFitLongTitles}|format:{config.TitleFormat}{stylePart}{supporterStylePart}{contentFilterPart}{progressPart}";
     }
 
     private void ApplyHonorificTitle(string title, string fingerprint)

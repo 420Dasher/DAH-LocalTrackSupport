@@ -1,0 +1,23 @@
+SpotifyTrackHonorific v1.0.4
+=============================
+
+Release focus: Content Filter / Triggerword Censoring
+
+New in v1.0.4:
+- Optional content filter with custom blacklist entries.
+- Smart variation matching for case, spacing, punctuation and common leetspeak forms.
+- Optional artist:, track: and album: scopes.
+- Field-level censoring: only matching metadata is replaced, so {cycle:...} keeps running normally.
+- Multi-artist tracks keep unaffected credited artists visible.
+- Optional built-in list of 32 conservative high-sensitivity trigger terms.
+- Built-in list is separate from the user's custom blacklist.
+- Per-term built-in controls plus Restore built-in defaults.
+- Default replacement text: Triggerword censored.
+- Existing v1.0.1 Spotify polling/quota reliability behavior is preserved.
+
+Compiled package supplied by the user from the approved v1.0.4 release source.
+Expected package SHA-256:
+9d0f74af90ef91bb843a13c41f3ad456193081849f0c649de8a35d58c00a4136
+
+Expected manifest AssemblyVersion:
+1.0.4.0

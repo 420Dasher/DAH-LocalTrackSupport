@@ -8,8 +8,9 @@ namespace SpotifyTrackHonorific;
 public sealed class Configuration : IPluginConfiguration
 {
     public const string DefaultTitleFormat = "♪ {artist} - {track}";
+    public const string DefaultContentFilterFallback = "Triggerword censored";
 
-    public int Version { get; set; } = 7;
+    public int Version { get; set; } = 9;
 
     public bool Enabled { get; set; } = true;
     public bool ShowNormalTracks { get; set; } = true;
@@ -53,6 +54,20 @@ public sealed class Configuration : IPluginConfiguration
 
     // v7 release-UI onboarding state. Existing authenticated users migrate as completed.
     public bool OnboardingCompleted { get; set; } = false;
+
+    // v8 content filter. Entries are one per line, with optional artist:/track:/album: prefixes.
+    // Action: 0 = censor only matching metadata fields, 1 = clear title, 2 = keep previous title.
+    public bool EnableContentFilter { get; set; } = false;
+    public bool SmartContentFilterMatching { get; set; } = true;
+    public string ContentFilterEntries { get; set; } = string.Empty;
+    public int ContentFilterAction { get; set; } = 0;
+    public string ContentFilterFallback { get; set; } = DefaultContentFilterFallback;
+
+    // v9 optional built-in triggerword preset. The master preset is maintained by the
+    // plugin; user exclusions are stored separately so updates never overwrite the
+    // user's custom blacklist or their per-entry choices.
+    public bool UseBuiltInContentFilterList { get; set; } = true;
+    public string DisabledBuiltInContentFilterEntries { get; set; } = string.Empty;
 
     public bool EnsureDefaults()
     {
@@ -113,6 +128,28 @@ public sealed class Configuration : IPluginConfiguration
             changed = true;
         }
 
+        if (Version < 8)
+        {
+            EnableContentFilter = false;
+            SmartContentFilterMatching = true;
+            ContentFilterEntries = string.Empty;
+            ContentFilterAction = 0;
+            ContentFilterFallback = DefaultContentFilterFallback;
+            Version = 8;
+            changed = true;
+        }
+
+        if (Version < 9)
+        {
+            // The content filter itself remains opt-in. Once enabled, the conservative
+            // built-in preset is available by default and can be disabled globally or
+            // entry-by-entry without touching custom user rules.
+            UseBuiltInContentFilterList = true;
+            DisabledBuiltInContentFilterEntries = string.Empty;
+            Version = 9;
+            changed = true;
+        }
+
         // Honorific only applies ordinary glow when a main title colour is present.
         if (UseTitleGlow && !UseTitleColor)
         {
@@ -154,9 +191,24 @@ public sealed class Configuration : IPluginConfiguration
             changed = true;
         }
 
+        if (ContentFilterAction < 0 || ContentFilterAction > 2)
+        {
+            ContentFilterAction = 0;
+            changed = true;
+        }
+
+        if (string.IsNullOrWhiteSpace(ContentFilterFallback))
+        {
+            ContentFilterFallback = DefaultContentFilterFallback;
+            changed = true;
+        }
+
         SpotifyClientId ??= string.Empty;
         SpotifyRefreshToken ??= string.Empty;
         TitleFormat ??= DefaultTitleFormat;
+        ContentFilterEntries ??= string.Empty;
+        ContentFilterFallback ??= DefaultContentFilterFallback;
+        DisabledBuiltInContentFilterEntries ??= string.Empty;
 
         return changed;
     }

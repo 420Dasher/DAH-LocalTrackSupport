@@ -15,7 +15,8 @@ It talks directly to Spotify's Web API and Honorific. It does **not** require Di
 - Honorific title color and glow.
 - Trust-gated Honorific supporter gradients and animation styles.
 - Spotify/network retry handling with rate-limit-aware backoff.
-- A release-oriented settings UI split into Home / Title / Appearance / Advanced.
+- A release-oriented settings UI split into Home / Title / Appearance / Filter / Advanced.
+- Optional triggerword filtering with custom rules, smart variation matching, field-level censoring, and a built-in starter list.
 
 ## Requirements
 
@@ -77,6 +78,12 @@ Supporter controls are intentionally trust-based. The user must explicitly confi
 
 Honorific's own colored-title and animation settings must also permit the effects.
 
+### Filter
+
+Optional triggerword filtering for artist, track, and album metadata. Custom rules can be unscoped or prefixed with `artist:`, `track:`, or `album:`. Smart matching handles case, spacing, punctuation and common leetspeak forms.
+
+The default action censors only the matching metadata field with `Triggerword censored`, so rotating `{cycle:...}` titles continue normally. A separate optional built-in list provides conservative common trigger terms and can be customized term-by-term without overwriting the user's custom rules.
+
 ### Advanced
 
 Reliability/debug information, manual retry/test/clear controls, command help, display reset, and Spotify authorization removal.
@@ -97,6 +104,10 @@ Reliability/debug information, manual retry/test/clear controls, command help, d
 Temporary network errors, Spotify server errors, rate limits, and Development Mode quota exhaustion do not immediately erase a valid title. The plugin keeps the last good title, distinguishes Spotify `QUOTA_EXCEEDED` responses from ordinary rate limits, honors the full server `Retry-After` interval, prevents manual retry from bypassing an active Spotify cooldown, and returns to normal polling after recovery.
 
 If Spotify authorization becomes invalid, the UI asks the user to reconnect instead of retrying forever.
+
+## Version 1.0.4
+
+v1.0.4 adds the optional content filter, smart variation matching, field-level censoring that keeps title cycles running, and a separate built-in triggerword starter list with per-term controls.
 
 ## Version 1.0.1
 

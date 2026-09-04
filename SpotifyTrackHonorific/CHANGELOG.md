@@ -1,5 +1,36 @@
 # Changelog
 
+## 1.0.4 - Content Filter and Built-In Triggerwords
+
+- Added an optional content filter with custom blacklist entries and smart variation matching.
+- Added field-level censoring so matching artist, track, or album metadata is replaced without interrupting `{cycle:...}` title rotation.
+- Added optional `artist:`, `track:`, and `album:` scopes for custom blacklist entries.
+- Added an optional built-in list of 32 conservative high-sensitivity trigger terms, kept separate from the user's custom blacklist.
+- Added a master built-in-list toggle, per-term controls, and Restore built-in defaults.
+- Smart matching handles case, punctuation, spacing, common leetspeak forms such as `$uicide`, and conservative typo matching for longer terms.
+- Added short-term boundary protection to avoid obvious false positives such as `grape` matching `rape`.
+- Default replacement text is `Triggerword censored` and remains user-editable.
+- Existing Spotify polling, quota recovery, styling, and title formatting behavior from v1.0.1 is preserved.
+
+## 1.0.3-dev - Field-Level Content Censoring Test Build
+
+- Changed the default blacklist behavior from replacing the entire Honorific title to censoring only the matching Spotify metadata field.
+- Artist matches replace only the matching artist name; other credited artists remain visible.
+- Track matches replace only `{track}` and album matches replace only `{album}`.
+- `{cycle:...}` formatting, elapsed/remaining variables, wrappers, and unaffected metadata continue updating normally while censorship is active.
+- The replacement text remains user-editable and defaults to `Triggerword censored`.
+- Clear-title and keep-previous-title modes remain available as explicit alternatives.
+
+## 1.0.2-dev - Content Filter Test Build
+
+- Added an optional blacklist/content filter in a dedicated Filter tab.
+- Added one-entry-per-line rules with optional `artist:`, `track:`, and `album:` scopes.
+- Added Smart Variation Matching for case/spacing/punctuation, common leetspeak substitutions, and conservative typo matching on longer entries.
+- Added three match actions: fallback title, clear title, or keep the previous title.
+- Default fallback title is `Triggerword censored`.
+- Added a built-in matcher test field (pre-filled with `$uicideboy$`).
+- Corrected the Advanced tab polling description to the v1.0.1 15s/60s intervals.
+
 ## 1.0.1
 
 - Fixed Spotify `Retry-After` values being incorrectly capped at 3600 seconds.
