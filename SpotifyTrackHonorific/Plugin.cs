@@ -6,10 +6,14 @@ using Dalamud.Plugin.Services;
 using SpotifyTrackHonorific.Honorific;
 using SpotifyTrackHonorific.Formatting;
 using SpotifyTrackHonorific.Filtering;
+using SpotifyTrackHonorific.Profiles;
+using SpotifyTrackHonorific.Settings;
 using SpotifyTrackHonorific.Spotify;
 using SpotifyTrackHonorific.UI;
 using System;
+using System.Collections.Generic;
 using System.Diagnostics;
+using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -17,7 +21,7 @@ namespace SpotifyTrackHonorific;
 
 public sealed class Plugin : IDalamudPlugin
 {
-    internal const string DisplayVersion = "1.0.4";
+    internal const string DisplayVersion = "1.0.5";
     private const string ShortCommand = "/sth";
     private const string LongCommand = "/spotifytrackhonorific";
     private static readonly TimeSpan NormalPollInterval = TimeSpan.FromSeconds(15);
@@ -28,6 +32,12 @@ public sealed class Plugin : IDalamudPlugin
     private const int RateLimitFallbackSeconds = 30;
     private const int QuotaFallbackBaseSeconds = 3600;
     private const int QuotaFallbackMaxSeconds = 43200;
+    private static readonly JsonSerializerOptions PortableSettingsJsonOptions = new()
+    {
+        WriteIndented = true,
+        IncludeFields = true,
+        PropertyNameCaseInsensitive = true,
+    };
 
     [PluginService] private static IDalamudPluginInterface PluginInterface { get; set; } = null!;
     [PluginService] private static ICommandManager CommandManager { get; set; } = null!;
@@ -67,6 +77,8 @@ public sealed class Plugin : IDalamudPlugin
     internal string ReliabilityText => BuildReliabilityText();
     internal string PreviewTitle => BuildPreviewTitle();
     internal string PreviewExpandedTitle => BuildPreviewExpandedTitle();
+    internal bool PreviewUsesCurrentTrack => lastTrack != null;
+    internal IReadOnlyList<TitleProfile> SavedTitleProfiles => config.TitleProfiles;
     internal string RedirectUriText => spotify.RedirectUriText;
     internal string NowPlayingText => lastTrack == null
         ? (IsAuthenticated ? "Waiting for music" : "Spotify not connected")
@@ -230,6 +242,152 @@ public sealed class Plugin : IDalamudPlugin
         return $"Blocked by {source}{match.Entry} ({match.Field}){variation}";
     }
 
+    internal bool SaveTitleProfile(string name, out int profileIndex, out string message)
+    {
+        profileIndex = -1;
+        name = (name ?? string.Empty).Trim();
+        if (string.IsNullOrWhiteSpace(name))
+        {
+            message = "Enter a profile name first.";
+            return false;
+        }
+
+        if (name.Length > 48)
+            name = name[..48];
+
+        for (var i = 0; i < config.TitleProfiles.Count; i++)
+        {
+            if (!string.Equals(config.TitleProfiles[i].Name, name, StringComparison.OrdinalIgnoreCase))
+                continue;
+
+            config.TitleProfiles[i] = TitleProfile.Capture(config, name);
+            SaveConfig();
+            profileIndex = i;
+            message = $"Updated profile '{name}'.";
+            return true;
+        }
+
+        if (config.TitleProfiles.Count >= Configuration.MaxTitleProfiles)
+        {
+            message = $"You can save up to {Configuration.MaxTitleProfiles} profiles. Delete one first.";
+            return false;
+        }
+
+        config.TitleProfiles.Add(TitleProfile.Capture(config, name));
+        SaveConfig();
+        profileIndex = config.TitleProfiles.Count - 1;
+        message = $"Saved profile '{name}'.";
+        return true;
+    }
+
+    internal bool LoadTitleProfile(int profileIndex, out string message)
+    {
+        if (profileIndex < 0 || profileIndex >= config.TitleProfiles.Count)
+        {
+            message = "Choose a saved profile first.";
+            return false;
+        }
+
+        var profile = config.TitleProfiles[profileIndex];
+        var requestedSupporterGradient = profile.UseSupporterGradient;
+        profile.ApplyTo(config);
+        SettingsChanged();
+
+        message = requestedSupporterGradient && !config.HonorificSupporterConfirmed
+            ? $"Loaded '{profile.Name}'. Supporter gradient stayed disabled until supporter access is confirmed."
+            : $"Loaded profile '{profile.Name}'.";
+        return true;
+    }
+
+    internal bool DeleteTitleProfile(int profileIndex, out string message)
+    {
+        if (profileIndex < 0 || profileIndex >= config.TitleProfiles.Count)
+        {
+            message = "Choose a saved profile first.";
+            return false;
+        }
+
+        var name = config.TitleProfiles[profileIndex].Name;
+        config.TitleProfiles.RemoveAt(profileIndex);
+        SaveConfig();
+        message = $"Deleted profile '{name}'.";
+        return true;
+    }
+
+    internal string ExportPortableSettings()
+    {
+        var package = new PortableSettingsPackage
+        {
+            ExportedFromVersion = DisplayVersion,
+            CurrentSettings = TitleProfile.Capture(config, "Current settings"),
+            Profiles = new List<TitleProfile>(),
+        };
+
+        foreach (var profile in config.TitleProfiles)
+            package.Profiles.Add(profile.Clone());
+
+        return JsonSerializer.Serialize(package, PortableSettingsJsonOptions);
+    }
+
+    internal bool ImportPortableSettings(string json, out string message)
+    {
+        if (string.IsNullOrWhiteSpace(json))
+        {
+            message = "Clipboard does not contain portable SpotifyTrackHonorific settings.";
+            return false;
+        }
+
+        try
+        {
+            var package = JsonSerializer.Deserialize<PortableSettingsPackage>(json, PortableSettingsJsonOptions);
+            if (package == null ||
+                !string.Equals(package.Schema, PortableSettingsPackage.ExpectedSchema, StringComparison.Ordinal) ||
+                package.FormatVersion <= 0 ||
+                package.FormatVersion > PortableSettingsPackage.CurrentFormatVersion ||
+                package.CurrentSettings == null)
+            {
+                message = "Clipboard data is not a supported SpotifyTrackHonorific settings export.";
+                return false;
+            }
+
+            var importedCurrent = package.CurrentSettings.Clone();
+            importedCurrent.EnsureDefaults(0);
+            importedCurrent.ApplyTo(config);
+
+            config.TitleProfiles.Clear();
+            if (package.Profiles != null)
+            {
+                foreach (var importedProfile in package.Profiles)
+                {
+                    if (importedProfile == null || config.TitleProfiles.Count >= Configuration.MaxTitleProfiles)
+                        continue;
+
+                    var profile = importedProfile.Clone();
+                    profile.EnsureDefaults(config.TitleProfiles.Count);
+                    config.TitleProfiles.Add(profile);
+                }
+            }
+
+            // SettingsChanged validates/saves v10 data and refreshes the currently
+            // applied title. Spotify credentials, onboarding, global enable state and
+            // supporter entitlement confirmation were never part of the export.
+            SettingsChanged();
+            message = $"Imported display settings and {config.TitleProfiles.Count} saved profile(s). Spotify connection data was unchanged.";
+            return true;
+        }
+        catch (JsonException ex)
+        {
+            message = $"Could not import settings: {ex.Message}";
+            return false;
+        }
+        catch (Exception ex)
+        {
+            Log.Warning(ex, "Portable settings import failed");
+            message = $"Could not import settings: {ex.Message}";
+            return false;
+        }
+    }
+
     internal void ForgetSpotifyConnection(bool clearClientId = false)
     {
         spotify.ForgetAuthorization(clearClientId);
@@ -369,7 +527,12 @@ public sealed class Plugin : IDalamudPlugin
                     Interlocked.Exchange(ref nextLocalRenderUtcTicks, 0);
                     lastState = "Playback paused";
                     lastError = null;
-                    ScheduleNextPoll(IdlePollInterval);
+
+                    // Spotify does not push a "playback resumed" event to the plugin.
+                    // Keep checking paused playback at the normal 15-second cadence so
+                    // resuming is detected promptly. Truly idle/not-playing stays at
+                    // the 60-second cadence to preserve the low-quota behavior.
+                    ScheduleNextPoll(NormalPollInterval);
 
                     if (!IsTrackAllowed(result.Track))
                     {

@@ -105,6 +105,9 @@ Temporary network errors, Spotify server errors, rate limits, and Development Mo
 
 If Spotify authorization becomes invalid, the UI asks the user to reconnect instead of retrying forever.
 
+## Version 1.0.5
+
+v1.0.5 adds up to five saved title profiles, enhanced live preview details, portable settings export/import, and faster playback-resume detection while keeping the validated Spotify quota-friendly polling behavior.
 ## Version 1.0.4
 
 v1.0.4 adds the optional content filter, smart variation matching, field-level censoring that keeps title cycles running, and a separate built-in triggerword starter list with per-term controls.

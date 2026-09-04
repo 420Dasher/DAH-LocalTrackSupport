@@ -1,5 +1,16 @@
 # Changelog
 
+## 1.0.5 - Profiles, Portable Settings and Resume Detection
+
+- Added up to five named profiles that capture title, playback, appearance and content-filter settings.
+- Saving an existing profile name overwrites it; profiles can be loaded or deleted directly from the Title tab.
+- Enhanced the live preview to show current/example source, prefix/suffix position, exact Honorific output, and pre-fit text when smart fitting changes it.
+- Added portable JSON settings export/import through the clipboard for backup or transfer between installations.
+- Portable exports include current display/filter settings and saved profiles while deliberately excluding Spotify Client ID, refresh token, onboarding/auth state, global enable state, and Honorific supporter-entitlement confirmation.
+- Configuration schema advances to v10; existing v1.0.4 settings migrate in place and preserve the existing Spotify connection.
+- Paused playback now remains on the normal ~15-second polling cadence so playback resume is detected without a manual retry.
+- Truly idle/not-playing playback remains on the ~60-second cadence.
+- Existing v1.0.4 content filtering, rate-limit handling and Spotify cooldown behavior are preserved.
 ## 1.0.4 - Content Filter and Built-In Triggerwords
 
 - Added an optional content filter with custom blacklist entries and smart variation matching.

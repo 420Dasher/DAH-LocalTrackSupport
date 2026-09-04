@@ -1,5 +1,7 @@
 using Dalamud.Configuration;
+using SpotifyTrackHonorific.Profiles;
 using System;
+using System.Collections.Generic;
 using System.Numerics;
 
 namespace SpotifyTrackHonorific;
@@ -9,8 +11,9 @@ public sealed class Configuration : IPluginConfiguration
 {
     public const string DefaultTitleFormat = "♪ {artist} - {track}";
     public const string DefaultContentFilterFallback = "Triggerword censored";
+    public const int MaxTitleProfiles = 5;
 
-    public int Version { get; set; } = 9;
+    public int Version { get; set; } = 10;
 
     public bool Enabled { get; set; } = true;
     public bool ShowNormalTracks { get; set; } = true;
@@ -68,6 +71,10 @@ public sealed class Configuration : IPluginConfiguration
     // user's custom blacklist or their per-entry choices.
     public bool UseBuiltInContentFilterList { get; set; } = true;
     public string DisabledBuiltInContentFilterEntries { get; set; } = string.Empty;
+
+    // v10 saved display profiles. Profiles intentionally exclude Spotify credentials,
+    // onboarding state, the global enabled toggle, and supporter entitlement confirmation.
+    public List<TitleProfile> TitleProfiles { get; set; } = new();
 
     public bool EnsureDefaults()
     {
@@ -150,6 +157,15 @@ public sealed class Configuration : IPluginConfiguration
             changed = true;
         }
 
+        if (Version < 10)
+        {
+            // Existing v1.0.4 users simply start with no saved profiles. All current
+            // title, appearance, filter and Spotify connection settings stay untouched.
+            TitleProfiles = new List<TitleProfile>();
+            Version = 10;
+            changed = true;
+        }
+
         // Honorific only applies ordinary glow when a main title colour is present.
         if (UseTitleGlow && !UseTitleColor)
         {
@@ -209,6 +225,40 @@ public sealed class Configuration : IPluginConfiguration
         ContentFilterEntries ??= string.Empty;
         ContentFilterFallback ??= DefaultContentFilterFallback;
         DisabledBuiltInContentFilterEntries ??= string.Empty;
+        TitleProfiles ??= new List<TitleProfile>();
+
+        if (TitleProfiles.Count > MaxTitleProfiles)
+        {
+            TitleProfiles.RemoveRange(MaxTitleProfiles, TitleProfiles.Count - MaxTitleProfiles);
+            changed = true;
+        }
+
+        var usedProfileNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        for (var i = 0; i < TitleProfiles.Count; i++)
+        {
+            var profile = TitleProfiles[i];
+            if (profile == null)
+            {
+                profile = new TitleProfile { Name = $"Profile {i + 1}" };
+                TitleProfiles[i] = profile;
+                changed = true;
+            }
+
+            if (profile.EnsureDefaults(i))
+                changed = true;
+
+            var baseName = profile.Name;
+            var uniqueName = baseName;
+            var suffix = 2;
+            while (!usedProfileNames.Add(uniqueName))
+                uniqueName = $"{baseName} {suffix++}";
+
+            if (!string.Equals(uniqueName, profile.Name, StringComparison.Ordinal))
+            {
+                profile.Name = uniqueName;
+                changed = true;
+            }
+        }
 
         return changed;
     }

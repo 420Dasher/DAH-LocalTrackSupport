@@ -16,7 +16,12 @@ internal sealed class ConfigWindow : Window
     private bool showOnboardingSetup;
     private bool confirmResetDisplay;
     private bool confirmForgetSpotify;
+    private bool confirmImportSettings;
     private string filterTestDraft = "$uicideboy$";
+    private int selectedProfileIndex = -1;
+    private string profileNameDraft = string.Empty;
+    private string profileStatus = string.Empty;
+    private string portableSettingsStatus = string.Empty;
 
     public ConfigWindow(Plugin plugin)
         : base("SpotifyTrackHonorific Settings")
@@ -248,6 +253,8 @@ internal sealed class ConfigWindow : Window
         }
         HelpMarker("Rotating alternates between 'vibing to music', the track, and the artist every 10 playback seconds.");
 
+        DrawSavedProfiles();
+
         ImGui.Spacing();
         ImGui.Text("Custom title format");
         HelpMarker("You can type normal text and insert values such as {artist} and {track}. Use Advanced formatting help below for the complete list.");
@@ -298,10 +305,12 @@ internal sealed class ConfigWindow : Window
         ImGui.Separator();
         var original = plugin.PreviewExpandedTitle;
         var displayed = plugin.PreviewTitle;
+        ImGui.TextDisabled($"Source: {(plugin.PreviewUsesCurrentTrack ? "Current Spotify track" : "Built-in example track")} | Position: {(config.IsPrefix ? "Prefix" : "Suffix")}");
+        ImGui.TextWrapped($"Honorific receives: {displayed}");
         if (!string.Equals(original, displayed, StringComparison.Ordinal))
-            ImGui.TextWrapped($"Original:  {original}");
-        ImGui.TextWrapped($"Displayed: {displayed}");
+            ImGui.TextWrapped($"Before smart-fit: {original}");
         ImGui.TextDisabled($"Honorific limit: {displayed.Length} / {HonorificBridge.MaxTitleLength} characters");
+        ImGui.TextDisabled("The preview uses the same formatting, content-filter and smart-fit path as the real title. Cycle/progress stages update live while this window is open.");
 
         ImGui.Spacing();
         if (ImGui.CollapsingHeader("Advanced formatting help"))
@@ -326,6 +335,69 @@ internal sealed class ConfigWindow : Window
         }
     }
 
+
+    private void DrawSavedProfiles()
+    {
+        var profiles = plugin.SavedTitleProfiles;
+        if (selectedProfileIndex >= profiles.Count)
+            selectedProfileIndex = -1;
+
+        ImGui.Spacing();
+        ImGui.Text("Saved profiles");
+        ImGui.Separator();
+        ImGui.TextDisabled("Profiles capture title, playback, appearance and filter settings. Spotify connection data is never stored in a profile.");
+
+        var selectedLabel = selectedProfileIndex >= 0 && selectedProfileIndex < profiles.Count
+            ? profiles[selectedProfileIndex].Name
+            : "Choose a profile";
+
+        ImGui.SetNextItemWidth(300);
+        if (ImGui.BeginCombo("##saved-title-profile", selectedLabel))
+        {
+            for (var i = 0; i < profiles.Count; i++)
+            {
+                if (ImGui.Selectable(profiles[i].Name, selectedProfileIndex == i))
+                {
+                    selectedProfileIndex = i;
+                    profileNameDraft = profiles[i].Name;
+                }
+            }
+            ImGui.EndCombo();
+        }
+
+        if (selectedProfileIndex >= 0 && selectedProfileIndex < profiles.Count)
+        {
+            ImGui.SameLine();
+            if (ImGui.Button("Load profile"))
+                plugin.LoadTitleProfile(selectedProfileIndex, out profileStatus);
+
+            ImGui.SameLine();
+            if (ImGui.Button("Delete profile"))
+            {
+                plugin.DeleteTitleProfile(selectedProfileIndex, out profileStatus);
+                selectedProfileIndex = -1;
+                profileNameDraft = string.Empty;
+            }
+        }
+
+        ImGui.Text("Profile name");
+        ImGui.SetNextItemWidth(300);
+        ImGui.InputText("##profile-name", ref profileNameDraft, 64);
+        ImGui.SameLine();
+        if (ImGui.Button("Save current"))
+        {
+            if (plugin.SaveTitleProfile(profileNameDraft, out var savedIndex, out profileStatus))
+            {
+                selectedProfileIndex = savedIndex;
+                if (savedIndex >= 0 && savedIndex < plugin.SavedTitleProfiles.Count)
+                    profileNameDraft = plugin.SavedTitleProfiles[savedIndex].Name;
+            }
+        }
+
+        ImGui.TextDisabled($"{profiles.Count}/{Configuration.MaxTitleProfiles} profiles saved. Saving an existing name overwrites that profile.");
+        if (!string.IsNullOrWhiteSpace(profileStatus))
+            ImGui.TextWrapped(profileStatus);
+    }
 
     private void DrawFilterTab()
     {
@@ -699,7 +771,7 @@ internal sealed class ConfigWindow : Window
             if (ImGui.CollapsingHeader("Technical error details"))
                 ImGui.TextWrapped(plugin.ErrorText);
         }
-        ImGui.TextDisabled("Playing: approximately 15-second checks | idle/paused: approximately 60-second checks");
+        ImGui.TextDisabled("Playing/paused: approximately 15-second checks | idle: approximately 60-second checks");
         ImGui.TextDisabled("Temporary failures automatically back off up to 120 seconds; Spotify rate-limit retry times are respected.");
 
         ImGui.Spacing();
@@ -762,6 +834,8 @@ internal sealed class ConfigWindow : Window
         if (config.SpotifyAuthorizedAtUtc != DateTime.MinValue)
             ImGui.TextDisabled($"Spotify authorization saved: {config.SpotifyAuthorizedAtUtc:u}");
 
+        DrawPortableSettings();
+
         ImGui.Spacing();
         if (ImGui.CollapsingHeader("Command-line tools"))
         {
@@ -775,6 +849,46 @@ internal sealed class ConfigWindow : Window
             ImGui.TextDisabled("/sth disable      - disable Spotify title updates");
             ImGui.TextDisabled("/sth auth <id>    - manually start Spotify authorization");
         }
+    }
+
+    private void DrawPortableSettings()
+    {
+        ImGui.Spacing();
+        ImGui.Text("Backup / transfer settings");
+        ImGui.Separator();
+        ImGui.TextWrapped("Portable settings include your current title, appearance, filter setup and saved profiles. Spotify Client ID/token and supporter entitlement confirmation are never exported.");
+
+        if (ImGui.Button("Copy portable settings"))
+        {
+            ImGui.SetClipboardText(plugin.ExportPortableSettings());
+            portableSettingsStatus = "Portable settings copied to the clipboard.";
+            confirmImportSettings = false;
+        }
+
+        if (!confirmImportSettings)
+        {
+            ImGui.SameLine();
+            if (ImGui.Button("Import from clipboard"))
+                confirmImportSettings = true;
+        }
+        else
+        {
+            ImGui.TextWrapped("Importing replaces the current display/filter settings and saved profiles. Spotify authorization and supporter confirmation stay untouched.");
+            if (ImGui.Button("Confirm import"))
+            {
+                var clipboard = ImGui.GetClipboardText() ?? string.Empty;
+                plugin.ImportPortableSettings(clipboard, out portableSettingsStatus);
+                confirmImportSettings = false;
+                selectedProfileIndex = -1;
+                profileNameDraft = string.Empty;
+            }
+            ImGui.SameLine();
+            if (ImGui.Button("Cancel##portable-import"))
+                confirmImportSettings = false;
+        }
+
+        if (!string.IsNullOrWhiteSpace(portableSettingsStatus))
+            ImGui.TextWrapped(portableSettingsStatus);
     }
 
     private void ResetAppearance()
