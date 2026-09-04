@@ -7,28 +7,23 @@ param(
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
 
-$Root = Split-Path -Parent $MyInvocation.MyCommand.Path
-$Work = Join-Path $Root 'work'
+$ToolsDir = Split-Path -Parent $MyInvocation.MyCommand.Path
+$Root = (Resolve-Path (Join-Path $ToolsDir '..\..')).Path
+$Work = Join-Path $Root 'dev\.work\legacy-dah'
 $RepoZip = Join-Path $Work 'upstream.zip'
 $Extract = Join-Path $Work 'extract'
 $Repo = Join-Path $Extract 'DiscordActivityHonorific-master'
-$Overlay = Join-Path $Root 'overlay\DiscordActivityHonorific'
-$SourceSnapshot = Join-Path $Root 'source'
+$LegacyRoot = Join-Path $Root 'legacy\DAH-LocalSpotifySupport'
+$Overlay = Join-Path $LegacyRoot 'overlay\DiscordActivityHonorific'
+$SourceSnapshot = Join-Path $LegacyRoot 'source'
 $PluginDir = Join-Path $Root 'plugins\DAH-LocalSpotifySupport'
 $LatestZip = Join-Path $PluginDir 'latest.zip'
 $Manifest = Join-Path $Root 'pluginmaster.json'
 
-if (-not (Get-Command dotnet -ErrorAction SilentlyContinue)) {
-    throw '.NET SDK was not found.'
-}
+if (-not (Get-Command dotnet -ErrorAction SilentlyContinue)) { throw '.NET SDK was not found.' }
 $sdks = (& dotnet --list-sdks) -join "`n"
-if ($sdks -notmatch '(?m)^10\.') {
-    throw '.NET 10 SDK was not found. Dalamud API 15 builds require .NET 10.'
-}
-
-if (-not (Test-Path $Overlay)) {
-    throw "Spotify-local overlay was not found at: $Overlay"
-}
+if ($sdks -notmatch '(?m)^10\.') { throw '.NET 10 SDK was not found. Dalamud API 15 builds require .NET 10.' }
+if (-not (Test-Path $Overlay)) { throw "Spotify-local overlay was not found at: $Overlay" }
 
 if (Test-Path $Work) { Remove-Item $Work -Recurse -Force }
 New-Item -ItemType Directory -Path $Work, $Extract, $PluginDir -Force | Out-Null
@@ -41,24 +36,14 @@ if (-not (Test-Path $Repo)) { throw 'Unexpected upstream archive structure.' }
 Write-Host '[2/6] Applying DAH-LocalSpotifySupport overlay...'
 Copy-Item -Path (Join-Path $Overlay '*') -Destination (Join-Path $Repo 'DiscordActivityHonorific') -Recurse -Force
 
-# Keep repository branding aligned with the custom repository that is being published.
 $Project = Join-Path $Repo 'DiscordActivityHonorific\DiscordActivityHonorific.csproj'
 [xml]$ProjectXml = Get-Content $Project
 $propertyGroup = $ProjectXml.Project.PropertyGroup | Select-Object -First 1
 $repoPage = "https://github.com/$GitHubUser/$RepoName"
-
-# Dalamud.NET.Sdk/DalamudPackager reads RepoUrl for plugin metadata.
-# PackageProjectUrl is kept aligned as normal NuGet/project metadata as well.
-if ($null -ne $propertyGroup.RepoUrl) {
-    $propertyGroup.RepoUrl = $repoPage
-}
-if ($null -ne $propertyGroup.PackageProjectUrl) {
-    $propertyGroup.PackageProjectUrl = $repoPage
-}
+if ($null -ne $propertyGroup.RepoUrl) { $propertyGroup.RepoUrl = $repoPage }
+if ($null -ne $propertyGroup.PackageProjectUrl) { $propertyGroup.PackageProjectUrl = $repoPage }
 $ProjectXml.Save($Project)
 
-# The upstream manifest belongs to the upstream assembly name. Our fork uses
-# csproj manifest properties and gets a fresh DAH-LocalSpotifySupport.json.
 $staleManifest = Join-Path $Repo 'DiscordActivityHonorific\DiscordActivityHonorific.json'
 if (Test-Path $staleManifest) { Remove-Item $staleManifest -Force }
 
@@ -131,9 +116,7 @@ $preserved = @($entries | Where-Object {
 })
 $finalEntries = @($preserved) + @($entry)
 $manifestJson = ConvertTo-Json -InputObject $finalEntries -Depth 15
-if (-not $manifestJson.TrimStart().StartsWith('[')) {
-    $manifestJson = "[`r`n$manifestJson`r`n]"
-}
+if (-not $manifestJson.TrimStart().StartsWith('[')) { $manifestJson = "[`r`n$manifestJson`r`n]" }
 
 $utf8NoBom = New-Object System.Text.UTF8Encoding($false)
 [System.IO.File]::WriteAllText($Manifest, $manifestJson + [Environment]::NewLine, $utf8NoBom)
@@ -150,4 +133,4 @@ Write-Host "Manifest:   $Manifest"
 Write-Host "Source:     $SourceSnapshot"
 Write-Host "Repo URL:   $rawBase/pluginmaster.json"
 Write-Host ''
-Write-Host 'This publisher preserves SpotifyTrackHonorific and all other manifest entries.'
+Write-Host 'Legacy working files were kept under dev/.work and are ignored by Git.'

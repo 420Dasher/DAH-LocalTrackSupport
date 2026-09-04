@@ -1,5 +1,6 @@
-# Temporary upstream/build workspace
+# Temporary upstream/build workspaces
 work/
+dev/.work/
 
 # Local IDE/build noise
 .vs/
