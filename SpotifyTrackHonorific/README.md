@@ -50,7 +50,7 @@ Connection status, Spotify setup/reconnect controls, current track, retry contro
 
 ### Title
 
-Choose regular/local tracks, pause behavior, prefix/suffix placement, quick presets, custom templates, bracket cleanup, and smart fitting.
+Choose regular/local tracks, pause behavior, optional combat auto-hide, prefix/suffix placement, quick presets, custom templates, bracket cleanup, and smart fitting.
 
 Useful variables:
 
@@ -105,6 +105,9 @@ Temporary network errors, Spotify server errors, rate limits, and Development Mo
 
 If Spotify authorization becomes invalid, the UI asks the user to reconnect instead of retrying forever.
 
+## Version 1.0.6
+
+v1.0.6 adds optional combat auto-hide. When enabled, SpotifyTrackHonorific removes its Honorific title as combat begins while Spotify polling continues normally, then restores the latest cached title immediately when combat ends. The setting is global rather than profile-specific. Portable settings advance to format v2 while remaining compatible with v1.0.5 exports.
 ## Version 1.0.5
 
 v1.0.5 adds up to five saved title profiles, enhanced live preview details, portable settings export/import, and faster playback-resume detection while keeping the validated Spotify quota-friendly polling behavior.

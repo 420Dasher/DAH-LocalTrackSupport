@@ -1,4 +1,5 @@
 using Dalamud.Game.Command;
+using Dalamud.Game.ClientState.Conditions;
 using Dalamud.Interface.Windowing;
 using Dalamud.IoC;
 using Dalamud.Plugin;
@@ -21,7 +22,7 @@ namespace SpotifyTrackHonorific;
 
 public sealed class Plugin : IDalamudPlugin
 {
-    internal const string DisplayVersion = "1.0.5";
+    internal const string DisplayVersion = "1.0.6";
     private const string ShortCommand = "/sth";
     private const string LongCommand = "/spotifytrackhonorific";
     private static readonly TimeSpan NormalPollInterval = TimeSpan.FromSeconds(15);
@@ -44,6 +45,7 @@ public sealed class Plugin : IDalamudPlugin
     [PluginService] private static IChatGui ChatGui { get; set; } = null!;
     [PluginService] private static IPluginLog Log { get; set; } = null!;
     [PluginService] private static IFramework Framework { get; set; } = null!;
+    [PluginService] private static ICondition Condition { get; set; } = null!;
 
     private readonly Configuration config;
     private readonly SpotifyApiService spotify;
@@ -68,6 +70,7 @@ public sealed class Plugin : IDalamudPlugin
     private long lastSuccessfulPollUtcTicks;
     private long spotifyCooldownUntilUtcTicks;
     private string? lastLoggedSpotifyError;
+    private bool combatAutoHideActive;
 
     internal Configuration Config => config;
     internal bool IsAuthenticated => spotify.HasRefreshToken;
@@ -109,6 +112,7 @@ public sealed class Plugin : IDalamudPlugin
         });
 
         Framework.Update += OnFrameworkUpdate;
+        Condition.ConditionChange += OnConditionChange;
         PluginInterface.UiBuilder.Draw += windowSystem.Draw;
         PluginInterface.UiBuilder.OpenConfigUi += OpenConfigUi;
         PluginInterface.UiBuilder.OpenMainUi += OpenConfigUi;
@@ -121,6 +125,7 @@ public sealed class Plugin : IDalamudPlugin
         lifetimeCts.Cancel();
 
         Framework.Update -= OnFrameworkUpdate;
+        Condition.ConditionChange -= OnConditionChange;
         PluginInterface.UiBuilder.Draw -= windowSystem.Draw;
         PluginInterface.UiBuilder.OpenConfigUi -= OpenConfigUi;
         PluginInterface.UiBuilder.OpenMainUi -= OpenConfigUi;
@@ -145,10 +150,19 @@ public sealed class Plugin : IDalamudPlugin
 
         if (!config.Enabled)
         {
+            combatAutoHideActive = false;
             TryClearHonorific();
             return;
         }
 
+        if (ShouldAutoHideForCombat())
+        {
+            combatAutoHideActive = true;
+            TryClearHonorific();
+            return;
+        }
+
+        combatAutoHideActive = false;
         var renderTrack = GetCurrentRenderTrack();
         if (renderTrack != null)
         {
@@ -319,6 +333,7 @@ public sealed class Plugin : IDalamudPlugin
         var package = new PortableSettingsPackage
         {
             ExportedFromVersion = DisplayVersion,
+            AutoHideInCombat = config.AutoHideInCombat,
             CurrentSettings = TitleProfile.Capture(config, "Current settings"),
             Profiles = new List<TitleProfile>(),
         };
@@ -368,7 +383,12 @@ public sealed class Plugin : IDalamudPlugin
                 }
             }
 
-            // SettingsChanged validates/saves v10 data and refreshes the currently
+            // v1 exports from SpotifyTrackHonorific 1.0.5 remain valid and leave
+            // the current combat-visibility preference untouched.
+            if (package.FormatVersion >= 2)
+                config.AutoHideInCombat = package.AutoHideInCombat;
+
+            // SettingsChanged validates/saves v11 data and refreshes the currently
             // applied title. Spotify credentials, onboarding, global enable state and
             // supporter entitlement confirmation were never part of the export.
             SettingsChanged();
@@ -413,6 +433,7 @@ public sealed class Plugin : IDalamudPlugin
         config.ShowNormalTracks = defaults.ShowNormalTracks;
         config.ShowLocalTracks = defaults.ShowLocalTracks;
         config.ClearOnPause = defaults.ClearOnPause;
+        config.AutoHideInCombat = defaults.AutoHideInCombat;
         config.IsPrefix = defaults.IsPrefix;
         config.TitleFormat = defaults.TitleFormat;
         config.StripBracketedTrackParts = defaults.StripBracketedTrackParts;
@@ -434,6 +455,61 @@ public sealed class Plugin : IDalamudPlugin
         // Spotify credentials, first-run completion, and the user's explicit
         // supporter-entitlement confirmation are intentionally preserved.
         SettingsChanged();
+    }
+
+    private bool ShouldAutoHideForCombat() =>
+        config.Enabled &&
+        config.AutoHideInCombat &&
+        Condition[ConditionFlag.InCombat];
+
+    private void OnConditionChange(ConditionFlag flag, bool value)
+    {
+        if (flag != ConditionFlag.InCombat)
+            return;
+
+        if (!config.Enabled || !config.AutoHideInCombat)
+        {
+            combatAutoHideActive = false;
+            return;
+        }
+
+        if (value)
+        {
+            combatAutoHideActive = true;
+            TryClearHonorific();
+            return;
+        }
+
+        if (!combatAutoHideActive)
+            return;
+
+        combatAutoHideActive = false;
+        appliedFingerprint = null;
+        RestoreCachedTitleAfterCombat();
+    }
+
+    private void RestoreCachedTitleAfterCombat()
+    {
+        if (!config.Enabled || ShouldAutoHideForCombat())
+            return;
+
+        var renderTrack = GetCurrentRenderTrack();
+        if (renderTrack == null)
+            return;
+
+        if (lastTrackPaused && config.ClearOnPause)
+            return;
+
+        if (!IsTrackAllowed(renderTrack))
+            return;
+
+        var filterMatch = GetContentFilterMatch(renderTrack);
+        if (filterMatch != null && config.ContentFilterAction != 0)
+            return;
+
+        var paused = lastTrackPaused;
+        var fingerprint = BuildRenderFingerprint(renderTrack, paused);
+        ApplyHonorificTitle(BuildConfiguredTitle(renderTrack, paused), fingerprint);
     }
 
     private void OnFrameworkUpdate(IFramework framework)
@@ -992,6 +1068,17 @@ public sealed class Plugin : IDalamudPlugin
 
     private void ApplyHonorificTitle(string title, string fingerprint)
     {
+        if (ShouldAutoHideForCombat())
+        {
+            combatAutoHideActive = true;
+
+            if (hasAppliedTitle)
+                TryClearHonorific();
+
+            appliedFingerprint = null;
+            return;
+        }
+
         try
         {
             var supporterGradient = config.HonorificSupporterConfirmed && config.UseSupporterGradient;

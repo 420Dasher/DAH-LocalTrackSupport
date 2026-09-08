@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.0.6 - Combat Auto-Hide
+
+- Added one opt-in setting: `Hide Spotify title during combat`.
+- Entering combat clears only STH's Honorific title while Spotify polling continues normally.
+- Leaving combat restores the latest cached title immediately instead of waiting for the next Spotify API poll.
+- The setting is global rather than profile-specific.
+- Portable settings advance to format v2 and include the combat auto-hide preference.
+- Existing v1.0.5 portable settings remain import-compatible and leave the new preference unchanged.
+- Configuration schema advances from v10 to v11 with combat auto-hide disabled on migration.
+
 ## 1.0.5 - Profiles, Portable Settings and Resume Detection
 
 - Added up to five named profiles that capture title, playback, appearance and content-filter settings.
@@ -11,6 +21,7 @@
 - Paused playback now remains on the normal ~15-second polling cadence so playback resume is detected without a manual retry.
 - Truly idle/not-playing playback remains on the ~60-second cadence.
 - Existing v1.0.4 content filtering, rate-limit handling and Spotify cooldown behavior are preserved.
+
 ## 1.0.4 - Content Filter and Built-In Triggerwords
 
 - Added an optional content filter with custom blacklist entries and smart variation matching.

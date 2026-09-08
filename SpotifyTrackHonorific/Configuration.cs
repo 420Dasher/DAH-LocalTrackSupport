@@ -13,12 +13,17 @@ public sealed class Configuration : IPluginConfiguration
     public const string DefaultContentFilterFallback = "Triggerword censored";
     public const int MaxTitleProfiles = 5;
 
-    public int Version { get; set; } = 10;
+    public int Version { get; set; } = 11;
 
     public bool Enabled { get; set; } = true;
     public bool ShowNormalTracks { get; set; } = true;
     public bool ShowLocalTracks { get; set; } = true;
     public bool ClearOnPause { get; set; } = true;
+
+    // v11 optional combat auto-hide. Off by default so updating from v1.0.5
+    // preserves existing title behavior until the user explicitly enables it.
+    public bool AutoHideInCombat { get; set; } = false;
+
     public bool IsPrefix { get; set; } = false;
     public string TitleFormat { get; set; } = DefaultTitleFormat;
 
@@ -163,6 +168,14 @@ public sealed class Configuration : IPluginConfiguration
             // title, appearance, filter and Spotify connection settings stay untouched.
             TitleProfiles = new List<TitleProfile>();
             Version = 10;
+            changed = true;
+        }
+
+        if (Version < 11)
+        {
+            // Combat auto-hide is deliberately opt-in on migration.
+            AutoHideInCombat = false;
+            Version = 11;
             changed = true;
         }
 

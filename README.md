@@ -59,6 +59,7 @@ Open `/sth` again to configure:
 - bracket cleanup and smart 32-character fitting
 - title color and glow
 - optional Honorific supporter gradients and animations
+- optional automatic title hiding during combat
 - pause behavior and advanced options
 
 Example format:

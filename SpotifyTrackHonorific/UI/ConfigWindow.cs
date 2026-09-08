@@ -230,6 +230,14 @@ internal sealed class ConfigWindow : Window
             plugin.SettingsChanged();
         }
 
+        var hideInCombat = config.AutoHideInCombat;
+        if (ImGui.Checkbox("Hide Spotify title during combat", ref hideInCombat))
+        {
+            config.AutoHideInCombat = hideInCombat;
+            plugin.SettingsChanged();
+        }
+        HelpMarker("Only the Honorific title is hidden. Spotify polling continues normally, and the cached current title returns immediately when combat ends.");
+
         ImGui.Spacing();
         ImGui.Text("Quick formats");
         ImGui.Separator();
