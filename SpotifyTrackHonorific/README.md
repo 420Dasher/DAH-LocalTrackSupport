@@ -80,9 +80,9 @@ Honorific's own colored-title and animation settings must also permit the effect
 
 ### Filter
 
-Optional triggerword filtering for artist, track, and album metadata. Custom rules can be unscoped or prefixed with `artist:`, `track:`, or `album:`. Smart matching handles case, spacing, punctuation and common leetspeak forms.
+Optional triggerword filtering for artist, track, and album metadata. Custom rules can be unscoped or scoped to artist, track, or album. The Filter tab includes quick-add controls, duplicate prevention, search, per-entry removal, clean/sort tools, confirmed clearing, and a bulk raw editor. Smart matching handles case, spacing, punctuation and common leetspeak forms.
 
-The default action censors only the matching metadata field with `Triggerword censored`, so rotating `{cycle:...}` titles continue normally. A separate optional built-in list provides conservative common trigger terms and can be customized term-by-term without overwriting the user's custom rules.
+The matcher tester can validate all fields or one metadata field at a time so scoped custom rules are easy to verify. Built-in triggerwords remain intentionally all-fields unless individually disabled. The default action censors only the matching metadata field with `Triggerword censored`, so rotating `{cycle:...}` titles continue normally.
 
 ### Advanced
 
@@ -105,6 +105,9 @@ Temporary network errors, Spotify server errors, rate limits, and Development Mo
 
 If Spotify authorization becomes invalid, the UI asks the user to reconnect instead of retrying forever.
 
+## Version 1.0.8
+
+v1.0.8 improves custom blacklist management with scoped quick-add controls, duplicate prevention, search, per-entry removal, clean/sort tools, confirmed clearing, and a retained bulk editor. The matcher tester can now target all fields, artist only, track only, or album only so scoped rules are easy to validate. Built-in triggerwords remain intentionally all-fields. The underlying matching engine is unchanged.
 ## Version 1.0.7
 
 v1.0.7 adds a privacy-safe Copy Diagnostics action in the Advanced tab to make support and bug reports easier. The copied block summarizes plugin, Spotify, reliability, Honorific, playback, combat, formatting, and filtering state while deliberately excluding Spotify Client ID, OAuth tokens, track names, and artist names. Core playback polling and title behavior are unchanged.

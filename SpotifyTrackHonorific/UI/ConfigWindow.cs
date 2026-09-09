@@ -3,6 +3,7 @@ using Dalamud.Interface.Windowing;
 using SpotifyTrackHonorific.Filtering;
 using SpotifyTrackHonorific.Honorific;
 using System;
+using System.Linq;
 using System.Numerics;
 
 namespace SpotifyTrackHonorific.UI;
@@ -18,11 +19,17 @@ internal sealed class ConfigWindow : Window
     private bool confirmForgetSpotify;
     private bool confirmImportSettings;
     private string filterTestDraft = "$uicideboy$";
+    private int filterTestFieldIndex;
     private int selectedProfileIndex = -1;
     private string profileNameDraft = string.Empty;
     private string profileStatus = string.Empty;
     private string portableSettingsStatus = string.Empty;
     private string diagnosticsStatus = string.Empty;
+    private string customFilterAddDraft = string.Empty;
+    private string customFilterSearchDraft = string.Empty;
+    private string customFilterStatus = string.Empty;
+    private int customFilterScopeIndex;
+    private bool confirmClearCustomFilterEntries;
 
     public ConfigWindow(Plugin plugin)
         : base("SpotifyTrackHonorific Settings")
@@ -489,17 +496,168 @@ internal sealed class ConfigWindow : Window
 
         ImGui.Spacing();
         ImGui.Text("Custom blacklist entries");
-        ImGui.TextDisabled("One entry per line. Leave it plain to check artist + track + album.");
-        ImGui.TextDisabled("Optional prefixes: artist:, track:, album:");
+        ImGui.TextDisabled("Use quick-add for individual rules, or the bulk editor below for pasting many rules at once.");
+        ImGui.TextDisabled("Unscoped entries check artist + track + album. Scoped entries use artist:, track:, or album:.");
 
-        var entries = config.ContentFilterEntries;
-        if (ImGui.InputTextMultiline("##content-filter-entries", ref entries, 4096, new Vector2(-1, 160)))
+        var customEntries = ParseCustomFilterEntries(config.ContentFilterEntries);
+
+        ImGui.Spacing();
+        ImGui.Text("Quick add");
+        var scopeLabel = customFilterScopeIndex switch
         {
-            config.ContentFilterEntries = entries;
-            plugin.SettingsChanged();
+            1 => "Artist",
+            2 => "Track",
+            3 => "Album",
+            _ => "All fields",
+        };
+
+        ImGui.SetNextItemWidth(145);
+        if (ImGui.BeginCombo("##custom-filter-scope", scopeLabel))
+        {
+            if (ImGui.Selectable("All fields", customFilterScopeIndex == 0))
+                customFilterScopeIndex = 0;
+            if (ImGui.Selectable("Artist", customFilterScopeIndex == 1))
+                customFilterScopeIndex = 1;
+            if (ImGui.Selectable("Track", customFilterScopeIndex == 2))
+                customFilterScopeIndex = 2;
+            if (ImGui.Selectable("Album", customFilterScopeIndex == 3))
+                customFilterScopeIndex = 3;
+            ImGui.EndCombo();
         }
 
-        ImGui.TextDisabled("Example: artist: example artist");
+        ImGui.SameLine();
+        ImGui.SetNextItemWidth(300);
+        ImGui.InputText("##custom-filter-add", ref customFilterAddDraft, 256);
+        ImGui.SameLine();
+        if (ImGui.Button("Add entry"))
+        {
+            var candidate = BuildCustomFilterRule(customFilterScopeIndex, customFilterAddDraft);
+            if (string.IsNullOrWhiteSpace(candidate))
+            {
+                customFilterStatus = "Enter a blacklist term first.";
+            }
+            else if (ContainsCustomFilterEntry(customEntries, candidate))
+            {
+                customFilterStatus = $"'{candidate}' is already in the custom blacklist.";
+            }
+            else
+            {
+                var addedTerm = customFilterAddDraft.Trim();
+                customEntries.Add(candidate);
+                config.ContentFilterEntries = SerializeCustomFilterEntries(customEntries);
+                plugin.SettingsChanged();
+                customFilterAddDraft = string.Empty;
+
+                var builtInOverlap = ContentFilterMatcher.BuiltInTriggerWords
+                    .Any(entry => string.Equals(entry.Term, addedTerm, StringComparison.OrdinalIgnoreCase));
+
+                customFilterStatus = builtInOverlap && config.UseBuiltInContentFilterList
+                    ? $"Added '{candidate}'. Note: this term is also active in the built-in list, which remains all-fields until that built-in entry is disabled."
+                    : $"Added '{candidate}'.";
+            }
+        }
+
+        ImGui.TextDisabled("Quick-add prevents duplicate entries regardless of capitalization.");
+
+        ImGui.Spacing();
+        ImGui.Text("Find / manage entries");
+        ImGui.SetNextItemWidth(360);
+        ImGui.InputText("##custom-filter-search", ref customFilterSearchDraft, 256);
+        ImGui.SameLine();
+        ImGui.TextDisabled("Search");
+
+        var duplicateCount = CountDuplicateCustomFilterEntries(customEntries);
+        ImGui.TextDisabled($"{customEntries.Count} custom entr{(customEntries.Count == 1 ? "y" : "ies")}.");
+        if (duplicateCount > 0)
+            ImGui.TextWrapped($"{duplicateCount} duplicate entr{(duplicateCount == 1 ? "y was" : "ies were")} found. Use Clean + sort to remove duplicates.");
+
+        var removeEntryIndex = -1;
+        var visibleEntries = 0;
+        var search = customFilterSearchDraft.Trim();
+
+        for (var i = 0; i < customEntries.Count; i++)
+        {
+            var entry = customEntries[i];
+            if (!string.IsNullOrWhiteSpace(search) &&
+                entry.IndexOf(search, StringComparison.OrdinalIgnoreCase) < 0)
+                continue;
+
+            visibleEntries++;
+            ImGui.TextWrapped(entry);
+            ImGui.SameLine();
+            if (ImGui.SmallButton($"Remove##custom-filter-remove-{i}"))
+                removeEntryIndex = i;
+        }
+
+        if (visibleEntries == 0)
+        {
+            ImGui.TextDisabled(customEntries.Count == 0
+                ? "No custom blacklist entries saved."
+                : "No custom entries match this search.");
+        }
+
+        if (removeEntryIndex >= 0)
+        {
+            var removed = customEntries[removeEntryIndex];
+            customEntries.RemoveAt(removeEntryIndex);
+            config.ContentFilterEntries = SerializeCustomFilterEntries(customEntries);
+            plugin.SettingsChanged();
+            customFilterStatus = $"Removed '{removed}'.";
+        }
+
+        ImGui.Spacing();
+        if (ImGui.Button("Clean + sort"))
+        {
+            var beforeCount = customEntries.Count;
+            var cleaned = CleanSortCustomFilterEntries(customEntries);
+            config.ContentFilterEntries = SerializeCustomFilterEntries(cleaned);
+            plugin.SettingsChanged();
+            var removedCount = beforeCount - cleaned.Count;
+            customFilterStatus = removedCount > 0
+                ? $"Cleaned, sorted, and removed {removedCount} duplicate entr{(removedCount == 1 ? "y" : "ies")}."
+                : $"Cleaned and sorted {cleaned.Count} custom entr{(cleaned.Count == 1 ? "y" : "ies")}.";
+        }
+
+        ImGui.SameLine();
+        if (!confirmClearCustomFilterEntries)
+        {
+            if (ImGui.Button("Clear custom entries"))
+                confirmClearCustomFilterEntries = true;
+        }
+        else
+        {
+            if (ImGui.Button("Confirm clear"))
+            {
+                config.ContentFilterEntries = string.Empty;
+                plugin.SettingsChanged();
+                customFilterSearchDraft = string.Empty;
+                customFilterStatus = "All custom blacklist entries cleared.";
+                confirmClearCustomFilterEntries = false;
+            }
+
+            ImGui.SameLine();
+            if (ImGui.Button("Cancel##clear-custom-filter"))
+                confirmClearCustomFilterEntries = false;
+        }
+
+        if (!string.IsNullOrWhiteSpace(customFilterStatus))
+            ImGui.TextWrapped(customFilterStatus);
+
+        ImGui.Spacing();
+        if (ImGui.CollapsingHeader("Bulk edit / paste raw list"))
+        {
+            ImGui.TextDisabled("One entry per line. Optional prefixes: artist:, track:, album:");
+            var entries = config.ContentFilterEntries;
+            if (ImGui.InputTextMultiline("##content-filter-entries", ref entries, 4096, new Vector2(-1, 160)))
+            {
+                config.ContentFilterEntries = entries;
+                plugin.SettingsChanged();
+                customFilterStatus = "Raw custom blacklist updated. Use Clean + sort to normalize pasted entries.";
+            }
+
+            ImGui.TextDisabled("Example: artist: example artist");
+        }
+
         if (config.SmartContentFilterMatching)
             ImGui.TextDisabled("Smart matching applies to both the built-in preset and your custom entries.");
 
@@ -557,14 +715,122 @@ internal sealed class ConfigWindow : Window
         ImGui.Spacing();
         ImGui.Text("Test the matcher");
         ImGui.TextDisabled("Tests the active built-in preset and your custom entries without changing Spotify playback.");
+
+        var testFieldLabel = filterTestFieldIndex switch
+        {
+            1 => "Artist only",
+            2 => "Track only",
+            3 => "Album only",
+            _ => "All fields",
+        };
+
+        ImGui.SetNextItemWidth(145);
+        if (ImGui.BeginCombo("##content-filter-test-field", testFieldLabel))
+        {
+            if (ImGui.Selectable("All fields", filterTestFieldIndex == 0))
+                filterTestFieldIndex = 0;
+            if (ImGui.Selectable("Artist only", filterTestFieldIndex == 1))
+                filterTestFieldIndex = 1;
+            if (ImGui.Selectable("Track only", filterTestFieldIndex == 2))
+                filterTestFieldIndex = 2;
+            if (ImGui.Selectable("Album only", filterTestFieldIndex == 3))
+                filterTestFieldIndex = 3;
+            ImGui.EndCombo();
+        }
+
+        ImGui.SameLine();
         ImGui.SetNextItemWidth(360);
         ImGui.InputText("##content-filter-test", ref filterTestDraft, 256);
 
-        var testResult = plugin.TestContentFilterText(filterTestDraft);
+        var testResult = plugin.TestContentFilterText(filterTestDraft, filterTestFieldIndex);
         if (testResult.StartsWith("Blocked by", StringComparison.Ordinal))
             ImGui.TextWrapped($"MATCH: {testResult}");
         else
             ImGui.TextDisabled(testResult);
+
+        ImGui.TextDisabled("Scoped custom rules only match their selected metadata field.");
+        if (config.UseBuiltInContentFilterList)
+            ImGui.TextDisabled("Built-in triggerwords are intentionally all-fields. Disable a matching built-in term if you want only a scoped custom version of that term.");
+    }
+
+    private static System.Collections.Generic.List<string> ParseCustomFilterEntries(string raw)
+    {
+        var result = new System.Collections.Generic.List<string>();
+        if (string.IsNullOrWhiteSpace(raw))
+            return result;
+
+        var normalized = raw.Replace("\r\n", "\n").Replace('\r', '\n');
+        foreach (var line in normalized.Split('\n'))
+        {
+            var trimmed = line.Trim();
+            if (!string.IsNullOrWhiteSpace(trimmed))
+                result.Add(trimmed);
+        }
+
+        return result;
+    }
+
+    private static string SerializeCustomFilterEntries(System.Collections.Generic.List<string> entries) =>
+        string.Join(Environment.NewLine, entries);
+
+    private static string BuildCustomFilterRule(int scopeIndex, string text)
+    {
+        var term = (text ?? string.Empty).Trim();
+        if (string.IsNullOrWhiteSpace(term))
+            return string.Empty;
+
+        return scopeIndex switch
+        {
+            1 => $"artist: {term}",
+            2 => $"track: {term}",
+            3 => $"album: {term}",
+            _ => term,
+        };
+    }
+
+    private static bool ContainsCustomFilterEntry(
+        System.Collections.Generic.List<string> entries,
+        string candidate)
+    {
+        foreach (var entry in entries)
+        {
+            if (string.Equals(entry.Trim(), candidate.Trim(), StringComparison.OrdinalIgnoreCase))
+                return true;
+        }
+
+        return false;
+    }
+
+    private static int CountDuplicateCustomFilterEntries(System.Collections.Generic.List<string> entries)
+    {
+        var seen = new System.Collections.Generic.HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var duplicates = 0;
+
+        foreach (var entry in entries)
+        {
+            var trimmed = entry.Trim();
+            if (!string.IsNullOrWhiteSpace(trimmed) && !seen.Add(trimmed))
+                duplicates++;
+        }
+
+        return duplicates;
+    }
+
+    private static System.Collections.Generic.List<string> CleanSortCustomFilterEntries(
+        System.Collections.Generic.List<string> entries)
+    {
+        var seen = new System.Collections.Generic.HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var cleaned = new System.Collections.Generic.List<string>();
+
+        foreach (var entry in entries)
+        {
+            var trimmed = entry.Trim();
+            if (!string.IsNullOrWhiteSpace(trimmed) && seen.Add(trimmed))
+                cleaned.Add(trimmed);
+        }
+
+        cleaned.Sort(StringComparer.OrdinalIgnoreCase);
+        return cleaned;
     }
 
     private void DrawAppearanceTab()

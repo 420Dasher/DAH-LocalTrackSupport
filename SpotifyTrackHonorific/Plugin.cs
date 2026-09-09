@@ -22,7 +22,7 @@ namespace SpotifyTrackHonorific;
 
 public sealed class Plugin : IDalamudPlugin
 {
-    internal const string DisplayVersion = "1.0.7";
+    internal const string DisplayVersion = "1.0.8";
     private const string ShortCommand = "/sth";
     private const string LongCommand = "/spotifytrackhonorific";
     private static readonly TimeSpan NormalPollInterval = TimeSpan.FromSeconds(15);
@@ -280,14 +280,67 @@ public sealed class Plugin : IDalamudPlugin
         return string.Join(Environment.NewLine, lines);
     }
 
-    internal string TestContentFilterText(string text)
+    internal string TestContentFilterText(string text, int testFieldIndex)
     {
-        var match = ContentFilterMatcher.TestText(
-            config.ContentFilterEntries,
-            config.UseBuiltInContentFilterList,
-            config.DisabledBuiltInContentFilterEntries,
-            config.SmartContentFilterMatching,
-            text);
+        ContentFilterMatch? match;
+
+        if (testFieldIndex <= 0)
+        {
+            match = ContentFilterMatcher.TestText(
+                config.ContentFilterEntries,
+                config.UseBuiltInContentFilterList,
+                config.DisabledBuiltInContentFilterEntries,
+                config.SmartContentFilterMatching,
+                text);
+        }
+        else
+        {
+            var track = testFieldIndex switch
+            {
+                1 => new SpotifyTrackInfo(
+                    string.Empty,
+                    new[] { text },
+                    string.Empty,
+                    0,
+                    0,
+                    false,
+                    "content-filter-test-artist"),
+
+                2 => new SpotifyTrackInfo(
+                    text,
+                    new[] { string.Empty },
+                    string.Empty,
+                    0,
+                    0,
+                    false,
+                    "content-filter-test-track"),
+
+                3 => new SpotifyTrackInfo(
+                    string.Empty,
+                    new[] { string.Empty },
+                    text,
+                    0,
+                    0,
+                    false,
+                    "content-filter-test-album"),
+
+                _ => new SpotifyTrackInfo(
+                    text,
+                    new[] { text },
+                    text,
+                    0,
+                    0,
+                    false,
+                    "content-filter-test-all"),
+            };
+
+            match = ContentFilterMatcher.MatchTrack(
+                track,
+                config.ContentFilterEntries,
+                config.UseBuiltInContentFilterList,
+                config.DisabledBuiltInContentFilterEntries,
+                config.SmartContentFilterMatching);
+        }
 
         if (match == null)
             return "No blacklist match.";

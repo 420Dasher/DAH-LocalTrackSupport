@@ -1,11 +1,23 @@
 # Changelog
 
+## 1.0.8 - Blacklist UX
+
+- Reworked custom blacklist management with quick-add controls for all-fields, artist, track, and album scoped rules.
+- Added case-insensitive duplicate prevention when quick-adding custom rules.
+- Added search/filtering for saved custom blacklist entries and per-entry Remove buttons.
+- Added `Clean + sort` to trim entries, remove case-insensitive duplicates, and alphabetize the custom list.
+- Added a confirmed `Clear custom entries` action while retaining the raw multiline editor for bulk paste/edit workflows.
+- Improved the matcher test panel with All fields / Artist only / Track only / Album only testing so scoped rules can be validated without misleading cross-field matches.
+- Added clearer warnings when a custom scoped term overlaps an active built-in triggerword, since built-in triggerwords remain intentionally all-fields.
+- Fixed a development build compile issue by importing LINQ for the built-in overlap check.
+- Repaired documentation-only UTF-8 mojibake in the v1.0.7 changelog entry.
+- ContentFilterMatcher.cs, matching behavior, Spotify polling/recovery, Honorific rendering, and configuration schema remain unchanged.
 ## 1.0.7 - Copy Diagnostics
 
 - Added a one-click `Copy diagnostics` action to the Advanced tab for easier bug reports and support.
 - Diagnostics include plugin version, enable/auth state, Spotify state, polling reliability, Honorific detection, cached playback state, combat visibility settings, formatting/filter flags, and whether an error is currently present.
 - Diagnostic output deliberately excludes Spotify Client ID, OAuth tokens, track names, and artist names.
-- Fixed a development-only UTF-8 encoding regression discovered during v1.0.7 testing; the final release preserves the intended `â™ª` and `Â» ... Â«` UI/template symbols.
+- Fixed a development-only UTF-8 encoding regression discovered during v1.0.7 testing; the final release preserves the intended `♪` and `» ... «` UI/template symbols.
 - No Spotify polling, quota/backoff, content-filter matching, Honorific title rendering, authentication, or configuration-schema behavior was changed.
 ## 1.0.6 - Combat Auto-Hide
 
