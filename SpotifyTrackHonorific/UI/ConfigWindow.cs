@@ -2,6 +2,7 @@ using Dalamud.Bindings.ImGui;
 using Dalamud.Interface.Windowing;
 using SpotifyTrackHonorific.Filtering;
 using SpotifyTrackHonorific.Honorific;
+using SpotifyTrackHonorific.Formatting;
 using System;
 using System.Linq;
 using System.Numerics;
@@ -30,6 +31,9 @@ internal sealed class ConfigWindow : Window
     private string customFilterStatus = string.Empty;
     private int customFilterScopeIndex;
     private bool confirmClearCustomFilterEntries;
+    private int cycleBuilderSeconds = 10;
+    private string cycleBuilderEntriesDraft = "vibing to music|{track}|{artist}";
+    private string formatBuilderStatus = string.Empty;
 
     public ConfigWindow(Plugin plugin)
         : base("SpotifyTrackHonorific Settings")
@@ -283,6 +287,93 @@ internal sealed class ConfigWindow : Window
         }
 
         ImGui.Spacing();
+        ImGui.Text("Format builder");
+        ImGui.Separator();
+        ImGui.TextDisabled("Append supported Spotify variables without typing their tokens manually.");
+
+        var formatVariables = TitleTemplateFormatter.SupportedVariables
+            .Where(variable => !variable.StartsWith("{cycle:", StringComparison.OrdinalIgnoreCase))
+            .ToArray();
+
+        for (var i = 0; i < formatVariables.Length; i++)
+        {
+            var variable = formatVariables[i];
+            var label = variable switch
+            {
+                "{artist}" => "Artist",
+                "{artists}" => "Artists",
+                "{track}" => "Track",
+                "{album}" => "Album",
+                "{duration}" => "Duration",
+                "{elapsed}" => "Elapsed",
+                "{remaining}" => "Remaining",
+                "{is_local}" => "Local",
+                "{paused}" => "Paused",
+                _ => variable.Trim('{', '}'),
+            };
+
+            if (ImGui.SmallButton($"{label}##format-variable-{i}"))
+                AppendTitleFormatToken(variable);
+
+            if ((i + 1) % 3 != 0 && i + 1 < formatVariables.Length)
+                ImGui.SameLine();
+        }
+
+        ImGui.Spacing();
+        if (ImGui.Button("Copy format"))
+        {
+            ImGui.SetClipboardText(config.TitleFormat);
+            formatBuilderStatus = "Current title format copied to the clipboard.";
+        }
+
+        ImGui.SameLine();
+        if (ImGui.Button("Reset format to default"))
+        {
+            config.TitleFormat = Configuration.DefaultTitleFormat;
+            plugin.SettingsChanged();
+            formatBuilderStatus = "Title format reset to the default Artist - Track format.";
+        }
+
+        ImGui.Spacing();
+        if (ImGui.CollapsingHeader("Cycle builder"))
+        {
+            ImGui.TextDisabled("Build a rotating {cycle:...} token. Separate stages with |.");
+
+            var cycleSeconds = cycleBuilderSeconds;
+            ImGui.SetNextItemWidth(110);
+            if (ImGui.InputInt("Seconds per stage", ref cycleSeconds))
+                cycleBuilderSeconds = Math.Max(1, cycleSeconds);
+
+            ImGui.Text("Cycle stages");
+            ImGui.SetNextItemWidth(-1);
+            ImGui.InputText("##cycle-builder-entries", ref cycleBuilderEntriesDraft, 512);
+            ImGui.TextDisabled("Example: vibing to music|{track}|{artist}");
+
+            if (TryBuildCycleToken(cycleBuilderSeconds, cycleBuilderEntriesDraft, out var cycleToken, out var cycleError))
+            {
+                ImGui.TextWrapped($"Generated: {cycleToken}");
+                if (ImGui.Button("Append cycle"))
+                {
+                    AppendTitleFormatToken(cycleToken);
+                    formatBuilderStatus = "Cycle token appended to the title format.";
+                }
+            }
+            else
+            {
+                ImGui.TextWrapped($"Cycle builder: {cycleError}");
+            }
+
+            ImGui.TextDisabled("Nested {cycle:...} blocks are not supported.");
+        }
+
+        var cycleWarning = GetCycleSyntaxWarning(config.TitleFormat);
+        if (!string.IsNullOrWhiteSpace(cycleWarning))
+            ImGui.TextWrapped($"Format warning: {cycleWarning}");
+
+        if (!string.IsNullOrWhiteSpace(formatBuilderStatus))
+            ImGui.TextWrapped(formatBuilderStatus);
+
+        ImGui.Spacing();
         ImGui.Text("Title position");
         var prefix = config.IsPrefix;
         if (ImGui.RadioButton("Before character name (prefix)", prefix))
@@ -352,6 +443,124 @@ internal sealed class ConfigWindow : Window
     }
 
 
+    private void AppendTitleFormatToken(string token)
+    {
+        if (string.IsNullOrWhiteSpace(token))
+            return;
+
+        var config = plugin.Config;
+        var current = config.TitleFormat ?? string.Empty;
+
+        if (string.IsNullOrWhiteSpace(current))
+        {
+            config.TitleFormat = token;
+        }
+        else
+        {
+            var separator = char.IsWhiteSpace(current[^1]) ? string.Empty : " ";
+            config.TitleFormat = current + separator + token;
+        }
+
+        plugin.SettingsChanged();
+        formatBuilderStatus = $"Appended {token}.";
+    }
+
+    private static bool TryBuildCycleToken(
+        int secondsPerStage,
+        string entriesDraft,
+        out string token,
+        out string error)
+    {
+        token = string.Empty;
+        error = string.Empty;
+
+        if (secondsPerStage <= 0)
+        {
+            error = "Seconds per stage must be at least 1.";
+            return false;
+        }
+
+        var entries = (entriesDraft ?? string.Empty)
+            .Split('|', StringSplitOptions.None)
+            .Select(entry => entry.Trim())
+            .ToArray();
+
+        if (entries.Length == 0 || entries.All(string.IsNullOrWhiteSpace))
+        {
+            error = "Enter at least one cycle stage.";
+            return false;
+        }
+
+        if (entries.Any(entry => entry.Contains("{cycle:", StringComparison.OrdinalIgnoreCase)))
+        {
+            error = "Nested cycle blocks are not supported.";
+            return false;
+        }
+
+        token = $"{{cycle:{secondsPerStage}|{string.Join("|", entries)}}}";
+        return true;
+    }
+
+    private static string GetCycleSyntaxWarning(string format)
+    {
+        if (string.IsNullOrWhiteSpace(format) ||
+            !format.Contains("{cycle:", StringComparison.OrdinalIgnoreCase))
+            return string.Empty;
+
+        const string cyclePrefix = "{cycle:";
+        var cursor = 0;
+
+        while (cursor < format.Length)
+        {
+            var start = format.IndexOf(cyclePrefix, cursor, StringComparison.OrdinalIgnoreCase);
+            if (start < 0)
+                break;
+
+            var depth = 0;
+            var end = -1;
+            for (var i = start; i < format.Length; i++)
+            {
+                if (format[i] == '{')
+                {
+                    depth++;
+                    continue;
+                }
+
+                if (format[i] != '}')
+                    continue;
+
+                depth--;
+                if (depth == 0)
+                {
+                    end = i;
+                    break;
+                }
+            }
+
+            if (end < 0)
+                return "A cycle block is missing its closing }.";
+
+            var bodyStart = start + cyclePrefix.Length;
+            var body = format.Substring(bodyStart, end - bodyStart);
+            var parts = body.Split('|', StringSplitOptions.None);
+
+            if (parts.Length < 2)
+                return "A cycle block needs seconds and at least one stage, for example {cycle:10|{track}|{artist}}.";
+
+            if (!int.TryParse(parts[0].Trim(), out var seconds) || seconds <= 0)
+                return "Cycle seconds must be a positive whole number.";
+
+            if (parts.Skip(1).All(string.IsNullOrWhiteSpace))
+                return "A cycle block needs at least one non-empty stage.";
+
+            if (parts.Skip(1).Any(part => part.Contains("{cycle:", StringComparison.OrdinalIgnoreCase)))
+                return "Nested cycle blocks are not supported.";
+
+            cursor = end + 1;
+        }
+
+        return string.Empty;
+    }
     private void DrawSavedProfiles()
     {
         var profiles = plugin.SavedTitleProfiles;

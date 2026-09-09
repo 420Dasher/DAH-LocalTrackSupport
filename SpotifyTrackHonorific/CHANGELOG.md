@@ -1,5 +1,16 @@
 # Changelog
 
+## 1.0.9 - Title Format Builder
+
+- Added a Title-tab format builder with clickable insert buttons for the formatter's existing Spotify variables.
+- Variable buttons are sourced from `TitleTemplateFormatter.SupportedVariables` so the UI stays aligned with the formatter's supported token list.
+- Added one-click Copy format and Reset format to default actions.
+- Added a cycle builder with configurable seconds per stage, editable pipe-separated stages, generated-token preview, and one-click append.
+- Added non-destructive warnings for obvious malformed cycle syntax, including missing closing braces, invalid/non-positive seconds, missing stages, and unsupported nested cycle blocks.
+- Existing live preview updates immediately after builder changes and continues to use the normal formatting/filter/smart-fit path.
+- No configuration-schema migration is required.
+- `TitleTemplateFormatter.cs`, `ContentFilterMatcher.cs`, Spotify polling/recovery, Honorific rendering, profiles, and portable-settings format are unchanged.
+
 ## 1.0.8 - Blacklist UX
 
 - Reworked custom blacklist management with quick-add controls for all-fields, artist, track, and album scoped rules.

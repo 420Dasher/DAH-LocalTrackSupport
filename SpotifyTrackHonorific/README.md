@@ -50,7 +50,7 @@ Connection status, Spotify setup/reconnect controls, current track, retry contro
 
 ### Title
 
-Choose regular/local tracks, pause behavior, optional combat auto-hide, prefix/suffix placement, quick presets, custom templates, bracket cleanup, and smart fitting.
+Choose regular/local tracks, pause behavior, optional combat auto-hide, prefix/suffix placement, quick presets, custom templates, bracket cleanup, and smart fitting. The Title tab also includes a format builder with clickable variable insertion, copy/reset actions, a cycle builder, and basic cycle-syntax warnings.
 
 Useful variables:
 
@@ -104,6 +104,10 @@ Reliability/debug information, one-click privacy-safe diagnostics copying, manua
 Temporary network errors, Spotify server errors, rate limits, and Development Mode quota exhaustion do not immediately erase a valid title. The plugin keeps the last good title, distinguishes Spotify `QUOTA_EXCEEDED` responses from ordinary rate limits, honors the full server `Retry-After` interval, prevents manual retry from bypassing an active Spotify cooldown, and returns to normal polling after recovery.
 
 If Spotify authorization becomes invalid, the UI asks the user to reconnect instead of retrying forever.
+
+## Version 1.0.9
+
+v1.0.9 improves title-format editing with clickable variable insertion, Copy format, Reset format, and a cycle builder that generates `{cycle:...}` tokens from a seconds value and pipe-separated stages. The Title tab now also warns about obvious malformed cycle syntax while retaining the same formatter, live-preview path, saved settings, Spotify behavior, and Honorific rendering.
 
 ## Version 1.0.8
 
