@@ -34,6 +34,7 @@ internal sealed class ConfigWindow : Window
     private int cycleBuilderSeconds = 10;
     private string cycleBuilderEntriesDraft = "vibing to music|{track}|{artist}";
     private string formatBuilderStatus = string.Empty;
+    private string honorificCacheStatus = string.Empty;
 
     public ConfigWindow(Plugin plugin)
         : base("SpotifyTrackHonorific Settings")
@@ -149,6 +150,8 @@ internal sealed class ConfigWindow : Window
         ImGui.Text($"Honorific: {(plugin.HonorificDetected ? "Detected and ready" : "Not detected - make sure Honorific is installed and enabled")}");
         ImGui.TextWrapped($"Music: {plugin.NowPlayingText}");
 
+        DrawQuickProfiles();
+
         if (!string.IsNullOrWhiteSpace(plugin.ErrorText))
         {
             ImGui.Spacing();
@@ -212,6 +215,36 @@ internal sealed class ConfigWindow : Window
             plugin.TestHonorificTitle();
         ImGui.SameLine();
         ImGui.TextDisabled("Your Spotify title will return on the next successful update.");
+    }
+
+    private void DrawQuickProfiles()
+    {
+        var profiles = plugin.SavedTitleProfiles;
+
+        ImGui.Spacing();
+        ImGui.Text("Quick profiles");
+        ImGui.Separator();
+
+        if (profiles.Count == 0)
+        {
+            ImGui.TextDisabled("No saved profiles yet. Create them in the Title tab.");
+            return;
+        }
+
+        ImGui.Text($"Current profile: {plugin.ActiveProfileName}");
+        ImGui.TextDisabled("A profile becomes Custom as soon as its saved settings no longer exactly match.");
+
+        for (var i = 0; i < profiles.Count; i++)
+        {
+            if (ImGui.Button($"{profiles[i].Name}##quick-profile-{i}", new Vector2(220, 0)))
+                plugin.LoadTitleProfile(i, out profileStatus);
+
+            if (i % 2 == 0 && i + 1 < profiles.Count)
+                ImGui.SameLine();
+        }
+
+        if (!string.IsNullOrWhiteSpace(profileStatus))
+            ImGui.TextWrapped(profileStatus);
     }
 
     private void DrawTitleTab()
@@ -309,6 +342,7 @@ internal sealed class ConfigWindow : Window
                 "{remaining}" => "Remaining",
                 "{is_local}" => "Local",
                 "{paused}" => "Paused",
+                "{honorific}" => "Honorific",
                 _ => variable.Trim('{', '}'),
             };
 
@@ -374,6 +408,28 @@ internal sealed class ConfigWindow : Window
             ImGui.TextWrapped(formatBuilderStatus);
 
         ImGui.Spacing();
+        ImGui.Text("Original Honorific title");
+        ImGui.Separator();
+        ImGui.TextDisabled("Use {honorific} anywhere in the format, including as a {cycle:...} stage.");
+        ImGui.TextWrapped(string.IsNullOrWhiteSpace(plugin.CachedHonorificTitle)
+            ? "Cached original: none"
+            : $"Cached original: {plugin.CachedHonorificTitle}");
+        ImGui.TextDisabled("STH automatically tries to capture the existing Honorific title before its first Spotify title write.");
+
+        if (ImGui.Button("Cache current Honorific title"))
+            plugin.CacheCurrentHonorificTitle(out honorificCacheStatus);
+        HelpMarker("If STH is currently displaying its own Spotify title, this refuses to cache that output. Disable STH, set the title you want in Honorific, then press this button.");
+
+        ImGui.SameLine();
+        if (ImGui.Button("Clear cached title"))
+            plugin.ClearCachedHonorificTitle(out honorificCacheStatus);
+
+        if (!string.IsNullOrWhiteSpace(honorificCacheStatus))
+            ImGui.TextWrapped(honorificCacheStatus);
+
+        ImGui.TextDisabled("Cached title text is local-only. Profiles and portable settings keep the {honorific} token but do not export this character-specific text.");
+
+        ImGui.Spacing();
         ImGui.Text("Title position");
         var prefix = config.IsPrefix;
         if (ImGui.RadioButton("Before character name (prefix)", prefix))
@@ -431,6 +487,7 @@ internal sealed class ConfigWindow : Window
             ImGui.TextDisabled("{remaining} - time remaining");
             ImGui.TextDisabled("{is_local}  - true for Spotify local files");
             ImGui.TextDisabled("{paused}    - true while Spotify reports the track paused");
+            ImGui.TextDisabled("{honorific} - cached title that was active in Honorific before STH");
             ImGui.Spacing();
             ImGui.Text("Cycle format");
             ImGui.TextDisabled("{cycle:10|first|second|third}");

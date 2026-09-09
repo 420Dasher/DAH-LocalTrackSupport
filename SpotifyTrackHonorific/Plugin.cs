@@ -22,7 +22,7 @@ namespace SpotifyTrackHonorific;
 
 public sealed class Plugin : IDalamudPlugin
 {
-    internal const string DisplayVersion = "1.0.9";
+    internal const string DisplayVersion = "1.0.10";
     private const string ShortCommand = "/sth";
     private const string LongCommand = "/spotifytrackhonorific";
     private static readonly TimeSpan NormalPollInterval = TimeSpan.FromSeconds(15);
@@ -71,6 +71,9 @@ public sealed class Plugin : IDalamudPlugin
     private long spotifyCooldownUntilUtcTicks;
     private string? lastLoggedSpotifyError;
     private bool combatAutoHideActive;
+    private bool originalHonorificCaptureFinished;
+    private long nextOriginalHonorificCaptureAttemptUtcTicks;
+    private string? lastAppliedTitle;
 
     internal Configuration Config => config;
     internal bool IsAuthenticated => spotify.HasRefreshToken;
@@ -88,6 +91,20 @@ public sealed class Plugin : IDalamudPlugin
         : $"{lastTrack.ArtistText} - {lastTrack.Name}";
     internal bool HonorificDetected => HonorificGradientCatalog.GetSnapshot().HonorificTypesFound;
     internal string SpotifyFriendlyStatus => BuildSpotifyFriendlyStatus();
+    internal string CachedHonorificTitle => config.CachedHonorificTitle;
+    internal string ActiveProfileName
+    {
+        get
+        {
+            foreach (var profile in config.TitleProfiles)
+            {
+                if (profile.Matches(config))
+                    return profile.Name;
+            }
+
+            return "Custom";
+        }
+    }
 
     public Plugin()
     {
@@ -97,6 +114,7 @@ public sealed class Plugin : IDalamudPlugin
 
         spotify = new SpotifyApiService(config, SaveConfig);
         honorific = new HonorificBridge(PluginInterface);
+        originalHonorificCaptureFinished = !string.IsNullOrWhiteSpace(config.CachedHonorificTitle);
 
         configWindow = new ConfigWindow(this);
         windowSystem.AddWindow(configWindow);
@@ -151,7 +169,19 @@ public sealed class Plugin : IDalamudPlugin
         if (!config.Enabled)
         {
             combatAutoHideActive = false;
-            TryClearHonorific();
+            var honorificCleared = TryClearHonorific();
+
+            // A cache clear performed while STH owned the title intentionally
+            // pauses capture. Once STH is disabled and its IPC title is safely
+            // cleared, re-arm capture so the revealed Honorific title can be
+            // picked up automatically.
+            if (honorificCleared &&
+                string.IsNullOrWhiteSpace(config.CachedHonorificTitle))
+            {
+                originalHonorificCaptureFinished = false;
+                Interlocked.Exchange(ref nextOriginalHonorificCaptureAttemptUtcTicks, 0);
+            }
+
             return;
         }
 
@@ -267,6 +297,7 @@ public sealed class Plugin : IDalamudPlugin
             $"Clear on pause: {config.ClearOnPause}",
             $"Auto-hide in combat: {config.AutoHideInCombat}",
             $"Currently in combat: {Condition[ConditionFlag.InCombat]}",
+            $"Cached original Honorific title: {!string.IsNullOrWhiteSpace(config.CachedHonorificTitle)}",
             $"Smart-fit long titles: {config.SmartFitLongTitles}",
             $"Strip bracketed extras: {config.StripBracketedTrackParts}",
             $"Content filter enabled: {config.EnableContentFilter}",
@@ -420,6 +451,56 @@ public sealed class Plugin : IDalamudPlugin
         SaveConfig();
         message = $"Deleted profile '{name}'.";
         return true;
+    }
+
+    internal bool CacheCurrentHonorificTitle(out string message)
+    {
+        try
+        {
+            if (!honorific.TryGetCurrentTitle(out var currentTitle))
+            {
+                message = "Honorific has no current title to cache.";
+                return false;
+            }
+
+            if (hasAppliedTitle &&
+                !string.IsNullOrWhiteSpace(lastAppliedTitle) &&
+                string.Equals(currentTitle, lastAppliedTitle, StringComparison.Ordinal))
+            {
+                message = "That is STH's own active Spotify title. Disable STH, set the Honorific title you want, then cache it.";
+                return false;
+            }
+
+            config.CachedHonorificTitle = currentTitle;
+            originalHonorificCaptureFinished = true;
+            SettingsChanged();
+            message = $"Cached Honorific title: {currentTitle}";
+            return true;
+        }
+        catch (Exception ex)
+        {
+            Log.Debug($"Honorific.GetCharacterTitle IPC failed while manually caching: {ex.Message}");
+            message = "Could not read the current Honorific title. Make sure Honorific is installed and enabled.";
+            return false;
+        }
+    }
+
+    internal void ClearCachedHonorificTitle(out string message)
+    {
+        config.CachedHonorificTitle = string.Empty;
+
+        // If STH currently owns the visible title, keep auto-capture blocked so
+        // we cannot immediately cache our own Spotify output. Once STH has been
+        // disabled/cleared, hasAppliedTitle is false and auto-capture may resume.
+        originalHonorificCaptureFinished = hasAppliedTitle;
+
+        // Allow the framework retry loop to try immediately when capture is safe.
+        Interlocked.Exchange(ref nextOriginalHonorificCaptureAttemptUtcTicks, 0);
+
+        SettingsChanged();
+        message = hasAppliedTitle
+            ? "Cached Honorific title cleared. Auto-capture is paused while STH owns the active title."
+            : "Cached Honorific title cleared. Auto-capture is ready.";
     }
 
     internal string ExportPortableSettings()
@@ -608,6 +689,8 @@ public sealed class Plugin : IDalamudPlugin
 
     private void OnFrameworkUpdate(IFramework framework)
     {
+        TryAutoCaptureOriginalHonorificTitle();
+
         if (!config.Enabled)
         {
             if (hasAppliedTitle)
@@ -1084,7 +1167,12 @@ public sealed class Plugin : IDalamudPlugin
     private string BuildConfiguredTitle(SpotifyTrackInfo track, bool paused)
     {
         var renderTrack = GetContentFilteredTrack(track);
-        var formatted = TitleTemplateFormatter.Expand(config.TitleFormat, renderTrack, paused, config.StripBracketedTrackParts);
+        var formatted = TitleTemplateFormatter.Expand(
+            config.TitleFormat,
+            renderTrack,
+            paused,
+            config.StripBracketedTrackParts,
+            config.CachedHonorificTitle);
         return HonorificBridge.FitTitle(formatted, config.SmartFitLongTitles);
     }
 
@@ -1122,7 +1210,8 @@ public sealed class Plugin : IDalamudPlugin
             config.TitleFormat,
             track,
             lastTrack != null && lastTrackPaused,
-            config.StripBracketedTrackParts);
+            config.StripBracketedTrackParts,
+            config.CachedHonorificTitle);
     }
 
     private string BuildPreviewTitle() =>
@@ -1132,6 +1221,10 @@ public sealed class Plugin : IDalamudPlugin
     {
         var progressPart = TitleTemplateFormatter.UsesProgressVariable(config.TitleFormat)
             ? $"|progress:{track.ProgressMs / 1000}"
+            : string.Empty;
+
+        var honorificCachePart = config.TitleFormat.Contains("{honorific}", StringComparison.OrdinalIgnoreCase)
+            ? $"|cachedHonorific:{config.CachedHonorificTitle}"
             : string.Empty;
 
         var contentFilterPart =
@@ -1157,9 +1250,84 @@ public sealed class Plugin : IDalamudPlugin
             $"|gradientB:{config.GradientColorB.X:F4},{config.GradientColorB.Y:F4},{config.GradientColorB.Z:F4}" +
             $"|gradientC:{config.GradientColorC.X:F4},{config.GradientColorC.Y:F4},{config.GradientColorC.Z:F4}";
 
-        return $"{track.Fingerprint}|prefix:{config.IsPrefix}|paused:{paused}|strip:{config.StripBracketedTrackParts}|smartfit:{config.SmartFitLongTitles}|format:{config.TitleFormat}{stylePart}{supporterStylePart}{contentFilterPart}{progressPart}";
+        return $"{track.Fingerprint}|prefix:{config.IsPrefix}|paused:{paused}|strip:{config.StripBracketedTrackParts}|smartfit:{config.SmartFitLongTitles}|format:{config.TitleFormat}{honorificCachePart}{stylePart}{supporterStylePart}{contentFilterPart}{progressPart}";
     }
 
+    private void TryAutoCaptureOriginalHonorificTitle()
+    {
+        // While STH is disabled and no STH title is still applied, keep the
+        // cached Honorific title synchronized. This lets users change their
+        // normal Honorific title while STH is off without needing a manual
+        // clear/cache cycle. As soon as STH is enabled, the cached value freezes
+        // again and becomes the stable {honorific} source for Spotify output.
+        var syncWhileDisabled = !config.Enabled && !hasAppliedTitle;
+
+        if (!syncWhileDisabled)
+        {
+            if (originalHonorificCaptureFinished)
+                return;
+
+            if (!string.IsNullOrWhiteSpace(config.CachedHonorificTitle))
+            {
+                originalHonorificCaptureFinished = true;
+                return;
+            }
+        }
+
+        var nowTicks = DateTimeOffset.UtcNow.UtcDateTime.Ticks;
+        if (nowTicks < Interlocked.Read(ref nextOriginalHonorificCaptureAttemptUtcTicks))
+            return;
+
+        Interlocked.Exchange(
+            ref nextOriginalHonorificCaptureAttemptUtcTicks,
+            DateTimeOffset.UtcNow.AddSeconds(1).UtcDateTime.Ticks);
+
+        TryCaptureOriginalHonorificTitleBeforeFirstWrite(syncWhileDisabled);
+    }
+
+    private void TryCaptureOriginalHonorificTitleBeforeFirstWrite(bool refreshExistingCache = false)
+    {
+        if (!refreshExistingCache)
+        {
+            if (originalHonorificCaptureFinished)
+                return;
+
+            if (!string.IsNullOrWhiteSpace(config.CachedHonorificTitle))
+            {
+                originalHonorificCaptureFinished = true;
+                return;
+            }
+        }
+
+        try
+        {
+            if (honorific.TryGetCurrentTitle(out var currentTitle))
+            {
+                var changed = !string.Equals(
+                    config.CachedHonorificTitle,
+                    currentTitle,
+                    StringComparison.Ordinal);
+
+                config.CachedHonorificTitle = currentTitle;
+                originalHonorificCaptureFinished = true;
+
+                if (changed)
+                {
+                    SaveConfig();
+                    appliedFingerprint = null;
+
+                    Log.Information(
+                        refreshExistingCache
+                            ? "Synchronized cached Honorific title while STH is disabled."
+                            : "Cached the existing Honorific title before STH's first title write.");
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            Log.Debug($"Could not read the existing Honorific title before STH's first write: {ex.Message}");
+        }
+    }
     private void ApplyHonorificTitle(string title, string fingerprint)
     {
         if (ShouldAutoHideForCombat())
@@ -1175,6 +1343,20 @@ public sealed class Plugin : IDalamudPlugin
 
         try
         {
+            TryCaptureOriginalHonorificTitleBeforeFirstWrite();
+
+            if (!string.IsNullOrWhiteSpace(config.CachedHonorificTitle) &&
+                lastTrack != null &&
+                config.TitleFormat.Contains("{honorific}", StringComparison.OrdinalIgnoreCase))
+            {
+                var refreshedTrack = GetCurrentRenderTrack();
+                if (refreshedTrack != null)
+                {
+                    title = BuildConfiguredTitle(refreshedTrack, lastTrackPaused);
+                    fingerprint = BuildRenderFingerprint(refreshedTrack, lastTrackPaused);
+                }
+            }
+
             var supporterGradient = config.HonorificSupporterConfirmed && config.UseSupporterGradient;
             var color = config.UseTitleColor ? config.TitleColor : (System.Numerics.Vector3?)null;
             System.Numerics.Vector3? glow = null;
@@ -1218,6 +1400,8 @@ public sealed class Plugin : IDalamudPlugin
                 color3);
             appliedFingerprint = fingerprint;
             hasAppliedTitle = true;
+            lastAppliedTitle = title;
+            originalHonorificCaptureFinished = true;
             honorificErrorShown = false;
             Log.Information($"Applied Spotify title: {title}");
         }
@@ -1234,14 +1418,17 @@ public sealed class Plugin : IDalamudPlugin
         }
     }
 
-    private void TryClearHonorific()
+    private bool TryClearHonorific()
     {
         if (!hasAppliedTitle)
-            return;
+            return true;
+
+        var cleared = false;
 
         try
         {
             honorific.Clear();
+            cleared = true;
         }
         catch (Exception ex)
         {
@@ -1250,8 +1437,11 @@ public sealed class Plugin : IDalamudPlugin
         finally
         {
             hasAppliedTitle = false;
+            lastAppliedTitle = null;
             appliedFingerprint = null;
         }
+
+        return cleared;
     }
 
     private void OnCommand(string command, string args)

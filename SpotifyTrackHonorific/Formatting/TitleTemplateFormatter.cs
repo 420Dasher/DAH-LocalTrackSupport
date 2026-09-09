@@ -18,10 +18,16 @@ internal static class TitleTemplateFormatter
         "{remaining}",
         "{is_local}",
         "{paused}",
+        "{honorific}",
         "{cycle:SECONDS|first|second|...}"
     };
 
-    internal static string Expand(string? format, SpotifyTrackInfo track, bool paused, bool stripBracketedTrackParts = false)
+    internal static string Expand(
+        string? format,
+        SpotifyTrackInfo track,
+        bool paused,
+        bool stripBracketedTrackParts = false,
+        string? cachedHonorificTitle = null)
     {
         if (string.IsNullOrWhiteSpace(format))
             format = Configuration.DefaultTitleFormat;
@@ -48,6 +54,7 @@ internal static class TitleTemplateFormatter
             .Replace("{remaining}", FormatTime(remainingMs), StringComparison.OrdinalIgnoreCase)
             .Replace("{is_local}", track.IsLocal ? "true" : "false", StringComparison.OrdinalIgnoreCase)
             .Replace("{paused}", paused ? "true" : "false", StringComparison.OrdinalIgnoreCase)
+            .Replace("{honorific}", cachedHonorificTitle?.Trim() ?? string.Empty, StringComparison.OrdinalIgnoreCase)
             .Trim();
 
         return string.IsNullOrWhiteSpace(result)

@@ -13,7 +13,7 @@ public sealed class Configuration : IPluginConfiguration
     public const string DefaultContentFilterFallback = "Triggerword censored";
     public const int MaxTitleProfiles = 5;
 
-    public int Version { get; set; } = 11;
+    public int Version { get; set; } = 12;
 
     public bool Enabled { get; set; } = true;
     public bool ShowNormalTracks { get; set; } = true;
@@ -26,6 +26,11 @@ public sealed class Configuration : IPluginConfiguration
 
     public bool IsPrefix { get; set; } = false;
     public string TitleFormat { get; set; } = DefaultTitleFormat;
+
+    // v12 local-only snapshot of the Honorific title that existed before STH
+    // replaced it. This is intentionally not part of saved profiles or portable
+    // settings because it belongs to the current character/Honorific context.
+    public string CachedHonorificTitle { get; set; } = string.Empty;
 
     // v3 title-cleanup/presentation options.
     public bool StripBracketedTrackParts { get; set; } = false;
@@ -179,6 +184,16 @@ public sealed class Configuration : IPluginConfiguration
             changed = true;
         }
 
+        if (Version < 12)
+        {
+            // Existing users start with no cached pre-STH Honorific title. v1.0.10
+            // can capture one automatically before its first write, or the user can
+            // cache one manually from the Title tab.
+            CachedHonorificTitle = string.Empty;
+            Version = 12;
+            changed = true;
+        }
+
         // Honorific only applies ordinary glow when a main title colour is present.
         if (UseTitleGlow && !UseTitleColor)
         {
@@ -235,6 +250,7 @@ public sealed class Configuration : IPluginConfiguration
         SpotifyClientId ??= string.Empty;
         SpotifyRefreshToken ??= string.Empty;
         TitleFormat ??= DefaultTitleFormat;
+        CachedHonorificTitle ??= string.Empty;
         ContentFilterEntries ??= string.Empty;
         ContentFilterFallback ??= DefaultContentFilterFallback;
         DisabledBuiltInContentFilterEntries ??= string.Empty;

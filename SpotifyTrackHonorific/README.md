@@ -46,7 +46,7 @@ The **Home** tab should show Spotify as connected and display the detected track
 
 ### Home
 
-Connection status, Spotify setup/reconnect controls, current track, retry controls, and an Honorific test button.
+Connection status, Spotify setup/reconnect controls, current track, retry controls, an Honorific test button, and Quick profiles with current-profile detection.
 
 ### Title
 
@@ -63,6 +63,7 @@ Useful variables:
 - `{remaining}` - remaining time
 - `{is_local}` - `true` or `false`
 - `{paused}` - `true` or `false`
+- `{honorific}` - cached Honorific title that is synchronized while STH is disabled
 
 Example rotating title:
 
@@ -105,6 +106,9 @@ Temporary network errors, Spotify server errors, rate limits, and Development Mo
 
 If Spotify authorization becomes invalid, the UI asks the user to reconnect instead of retrying forever.
 
+## Version 1.0.10
+
+v1.0.10 adds Home-tab Quick profiles with current-profile detection and introduces `{honorific}` as a formatting variable, including inside cycle stages. While STH is disabled, the cached Honorific title follows changes made directly in Honorific; while STH is enabled, that value freezes for stable Spotify-title rotation. Manual cache/clear controls, self-title protection, and local persistence are included.
 ## Version 1.0.9
 
 v1.0.9 improves title-format editing with clickable variable insertion, Copy format, Reset format, and a cycle builder that generates `{cycle:...}` tokens from a seconds value and pipe-separated stages. The Title tab now also warns about obvious malformed cycle syntax while retaining the same formatter, live-preview path, saved settings, Spotify behavior, and Honorific rendering.

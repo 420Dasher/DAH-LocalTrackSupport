@@ -99,6 +99,33 @@ public sealed class TitleProfile
         config.DisabledBuiltInContentFilterEntries = DisabledBuiltInContentFilterEntries;
     }
 
+    public bool Matches(Configuration config) =>
+        ShowNormalTracks == config.ShowNormalTracks &&
+        ShowLocalTracks == config.ShowLocalTracks &&
+        ClearOnPause == config.ClearOnPause &&
+        IsPrefix == config.IsPrefix &&
+        string.Equals(TitleFormat, config.TitleFormat, StringComparison.Ordinal) &&
+        StripBracketedTrackParts == config.StripBracketedTrackParts &&
+        SmartFitLongTitles == config.SmartFitLongTitles &&
+        UseTitleColor == config.UseTitleColor &&
+        TitleColor.Equals(config.TitleColor) &&
+        UseTitleGlow == config.UseTitleGlow &&
+        TitleGlowColor.Equals(config.TitleGlowColor) &&
+        UseSupporterGradient == config.UseSupporterGradient &&
+        UseCustomDualGradient == config.UseCustomDualGradient &&
+        GradientColourSet == config.GradientColourSet &&
+        GradientAnimationStyle == config.GradientAnimationStyle &&
+        GradientColorA.Equals(config.GradientColorA) &&
+        GradientColorB.Equals(config.GradientColorB) &&
+        GradientColorC.Equals(config.GradientColorC) &&
+        EnableContentFilter == config.EnableContentFilter &&
+        SmartContentFilterMatching == config.SmartContentFilterMatching &&
+        string.Equals(ContentFilterEntries, config.ContentFilterEntries, StringComparison.Ordinal) &&
+        ContentFilterAction == config.ContentFilterAction &&
+        string.Equals(ContentFilterFallback, config.ContentFilterFallback, StringComparison.Ordinal) &&
+        UseBuiltInContentFilterList == config.UseBuiltInContentFilterList &&
+        string.Equals(DisabledBuiltInContentFilterEntries, config.DisabledBuiltInContentFilterEntries, StringComparison.Ordinal);
+
     public bool EnsureDefaults(int index)
     {
         var changed = false;

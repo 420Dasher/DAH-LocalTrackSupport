@@ -27,11 +27,13 @@ internal sealed class HonorificBridge
 
     private readonly ICallGateSubscriber<uint, string, object> setTitle;
     private readonly ICallGateSubscriber<uint, object> clearTitle;
+    private readonly ICallGateSubscriber<int, string> getTitle;
 
     public HonorificBridge(IDalamudPluginInterface pluginInterface)
     {
         setTitle = pluginInterface.GetIpcSubscriber<uint, string, object>("Honorific.SetCharacterTitle");
         clearTitle = pluginInterface.GetIpcSubscriber<uint, object>("Honorific.ClearCharacterTitle");
+        getTitle = pluginInterface.GetIpcSubscriber<int, string>("Honorific.GetCharacterTitle");
     }
 
     private static readonly JsonSerializerOptions PayloadJsonOptions = new()
@@ -70,6 +72,34 @@ internal sealed class HonorificBridge
     }
 
     public void Clear() => clearTitle.InvokeAction(0u);
+
+    public bool TryGetCurrentTitle(out string title)
+    {
+        title = string.Empty;
+
+        var rawJson = getTitle.InvokeFunc(0);
+        if (string.IsNullOrWhiteSpace(rawJson))
+            return false;
+
+        try
+        {
+            using var document = JsonDocument.Parse(rawJson);
+            if (!document.RootElement.TryGetProperty("Title", out var titleElement) ||
+                titleElement.ValueKind != JsonValueKind.String)
+                return false;
+
+            var currentTitle = titleElement.GetString();
+            if (string.IsNullOrWhiteSpace(currentTitle))
+                return false;
+
+            title = currentTitle.Trim();
+            return true;
+        }
+        catch (JsonException)
+        {
+            return false;
+        }
+    }
 
     public static string FitTitle(string title, bool smartFit = false)
     {

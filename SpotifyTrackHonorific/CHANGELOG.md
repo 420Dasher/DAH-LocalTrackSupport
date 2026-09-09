@@ -1,5 +1,16 @@
 # Changelog
 
+## 1.0.10 - Quick Profiles and Honorific Cycle Titles
+
+- Added Quick profiles to the Home tab with one-click saved-profile switching and a Current profile indicator that reports `Custom` when captured profile settings differ.
+- Added the `{honorific}` formatting variable, usable anywhere a normal title variable is accepted, including inside `{cycle:...}` stages.
+- Added a local cached Honorific-title value with manual Cache current Honorific title and Clear cached title controls.
+- Added automatic Honorific-title synchronization while STH is disabled so changing the normal Honorific title updates the cached `{honorific}` value without requiring a manual cache action.
+- The cached Honorific title freezes while STH is enabled, keeping the `{honorific}` cycle stage stable while Spotify output owns the visible title.
+- Added self-title protection so STH refuses to cache its own active Spotify title as the original Honorific title.
+- Cached Honorific text persists locally across plugin reloads but is intentionally excluded from saved profiles and portable settings.
+- Configuration schema advances from v11 to v12 for the local cached Honorific title. Portable-settings schema remains unchanged.
+- Spotify polling/recovery and content-filter matching are unchanged.
 ## 1.0.9 - Title Format Builder
 
 - Added a Title-tab format builder with clickable insert buttons for the formatter's existing Spotify variables.
