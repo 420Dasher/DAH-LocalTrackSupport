@@ -86,7 +86,7 @@ The default action censors only the matching metadata field with `Triggerword ce
 
 ### Advanced
 
-Reliability/debug information, manual retry/test/clear controls, command help, display reset, and Spotify authorization removal.
+Reliability/debug information, one-click privacy-safe diagnostics copying, manual retry/test/clear controls, command help, display reset, and Spotify authorization removal.
 
 ## Commands
 
@@ -105,6 +105,9 @@ Temporary network errors, Spotify server errors, rate limits, and Development Mo
 
 If Spotify authorization becomes invalid, the UI asks the user to reconnect instead of retrying forever.
 
+## Version 1.0.7
+
+v1.0.7 adds a privacy-safe Copy Diagnostics action in the Advanced tab to make support and bug reports easier. The copied block summarizes plugin, Spotify, reliability, Honorific, playback, combat, formatting, and filtering state while deliberately excluding Spotify Client ID, OAuth tokens, track names, and artist names. Core playback polling and title behavior are unchanged.
 ## Version 1.0.6
 
 v1.0.6 adds optional combat auto-hide. When enabled, SpotifyTrackHonorific removes its Honorific title as combat begins while Spotify polling continues normally, then restores the latest cached title immediately when combat ends. The setting is global rather than profile-specific. Portable settings advance to format v2 while remaining compatible with v1.0.5 exports.

@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.0.7 - Copy Diagnostics
+
+- Added a one-click `Copy diagnostics` action to the Advanced tab for easier bug reports and support.
+- Diagnostics include plugin version, enable/auth state, Spotify state, polling reliability, Honorific detection, cached playback state, combat visibility settings, formatting/filter flags, and whether an error is currently present.
+- Diagnostic output deliberately excludes Spotify Client ID, OAuth tokens, track names, and artist names.
+- Fixed a development-only UTF-8 encoding regression discovered during v1.0.7 testing; the final release preserves the intended `â™ª` and `Â» ... Â«` UI/template symbols.
+- No Spotify polling, quota/backoff, content-filter matching, Honorific title rendering, authentication, or configuration-schema behavior was changed.
 ## 1.0.6 - Combat Auto-Hide
 
 - Added one opt-in setting: `Hide Spotify title during combat`.

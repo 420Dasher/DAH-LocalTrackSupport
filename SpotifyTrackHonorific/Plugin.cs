@@ -22,7 +22,7 @@ namespace SpotifyTrackHonorific;
 
 public sealed class Plugin : IDalamudPlugin
 {
-    internal const string DisplayVersion = "1.0.6";
+    internal const string DisplayVersion = "1.0.7";
     private const string ShortCommand = "/sth";
     private const string LongCommand = "/spotifytrackhonorific";
     private static readonly TimeSpan NormalPollInterval = TimeSpan.FromSeconds(15);
@@ -238,6 +238,47 @@ public sealed class Plugin : IDalamudPlugin
     }
 
     internal void ClearPluginTitle() => TryClearHonorific();
+
+    internal string BuildDiagnosticsText()
+    {
+        var track = lastTrack;
+        var trackSource = track == null
+            ? "none"
+            : track.IsLocal
+                ? "local file"
+                : "Spotify";
+
+        var lines = new[]
+        {
+            "SpotifyTrackHonorific diagnostics",
+            $"Version: {DisplayVersion}",
+            $"Enabled: {config.Enabled}",
+            $"Spotify authenticated: {IsAuthenticated}",
+            $"Spotify status: {SpotifyFriendlyStatus}",
+            $"State: {lastState}",
+            $"Reliability: {BuildReliabilityText()}",
+            $"Honorific detected: {HonorificDetected}",
+            $"Track cached: {track != null}",
+            $"Playback paused: {lastTrackPaused}",
+            $"Track source: {trackSource}",
+            $"Title position: {(config.IsPrefix ? "prefix" : "suffix")}",
+            $"Show normal tracks: {config.ShowNormalTracks}",
+            $"Show local tracks: {config.ShowLocalTracks}",
+            $"Clear on pause: {config.ClearOnPause}",
+            $"Auto-hide in combat: {config.AutoHideInCombat}",
+            $"Currently in combat: {Condition[ConditionFlag.InCombat]}",
+            $"Smart-fit long titles: {config.SmartFitLongTitles}",
+            $"Strip bracketed extras: {config.StripBracketedTrackParts}",
+            $"Content filter enabled: {config.EnableContentFilter}",
+            $"Smart content-filter matching: {config.SmartContentFilterMatching}",
+            $"Content filter action: {config.ContentFilterAction}",
+            $"Supporter gradient enabled: {config.HonorificSupporterConfirmed && config.UseSupporterGradient}",
+            $"Last error present: {!string.IsNullOrWhiteSpace(lastError)}",
+            "Privacy: Client ID, OAuth tokens, track names and artist names are intentionally excluded."
+        };
+
+        return string.Join(Environment.NewLine, lines);
+    }
 
     internal string TestContentFilterText(string text)
     {
@@ -1311,3 +1352,4 @@ public sealed class Plugin : IDalamudPlugin
 
     private void SaveConfig() => PluginInterface.SavePluginConfig(config);
 }
+

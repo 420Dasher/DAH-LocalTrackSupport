@@ -22,6 +22,7 @@ internal sealed class ConfigWindow : Window
     private string profileNameDraft = string.Empty;
     private string profileStatus = string.Empty;
     private string portableSettingsStatus = string.Empty;
+    private string diagnosticsStatus = string.Empty;
 
     public ConfigWindow(Plugin plugin)
         : base("SpotifyTrackHonorific Settings")
@@ -795,6 +796,17 @@ internal sealed class ConfigWindow : Window
             plugin.ClearPluginTitle();
 
         ImGui.Spacing();
+        if (ImGui.Button("Copy diagnostics"))
+        {
+            ImGui.SetClipboardText(plugin.BuildDiagnosticsText());
+            diagnosticsStatus = "Diagnostics copied. Client ID, OAuth tokens, track names and artist names are excluded.";
+        }
+        ImGui.SameLine();
+        ImGui.TextDisabled("Safe to paste into a bug report.");
+        if (!string.IsNullOrWhiteSpace(diagnosticsStatus))
+            ImGui.TextWrapped(diagnosticsStatus);
+
+        ImGui.Spacing();
         ImGui.Text("Reset and connection data");
         ImGui.Separator();
 
@@ -926,3 +938,4 @@ internal sealed class ConfigWindow : Window
             ImGui.SetTooltip(text);
     }
 }
+
