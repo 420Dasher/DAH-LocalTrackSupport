@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.0.11 - Better Profile Management
+
+- Expanded saved-profile management with Update selected, Rename selected, Duplicate, Move up, and Move down actions.
+- Update selected overwrites the selected profile from the current settings while preserving its name.
+- Rename selected rejects duplicate profile names case-insensitively and keeps the existing 48-character name limit.
+- Duplicate clones the selected profile, inserts the copy directly after it, and generates a unique Copy / Copy 2 style name.
+- Reordering saved profiles also reorders the Home-tab Quick profile buttons because both use the same persisted profile list.
+- Existing Load profile, Save current, Delete profile, five-profile limit, profile persistence, and portable-profile serialization remain compatible.
+- Configuration schema remains v12; no migration is required.
+- Spotify polling/recovery, Honorific cached-title synchronization, content-filter matching, and portable-settings format are unchanged.
 ## 1.0.10 - Quick Profiles and Honorific Cycle Titles
 
 - Added Quick profiles to the Home tab with one-click saved-profile switching and a Current profile indicator that reports `Custom` when captured profile settings differ.

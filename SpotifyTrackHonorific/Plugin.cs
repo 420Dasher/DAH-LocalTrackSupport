@@ -22,7 +22,7 @@ namespace SpotifyTrackHonorific;
 
 public sealed class Plugin : IDalamudPlugin
 {
-    internal const string DisplayVersion = "1.0.10";
+    internal const string DisplayVersion = "1.0.11";
     private const string ShortCommand = "/sth";
     private const string LongCommand = "/spotifytrackhonorific";
     private static readonly TimeSpan NormalPollInterval = TimeSpan.FromSeconds(15);
@@ -453,6 +453,149 @@ public sealed class Plugin : IDalamudPlugin
         return true;
     }
 
+    internal bool UpdateTitleProfile(int profileIndex, out string message)
+    {
+        if (profileIndex < 0 || profileIndex >= config.TitleProfiles.Count)
+        {
+            message = "Choose a saved profile first.";
+            return false;
+        }
+
+        var name = config.TitleProfiles[profileIndex].Name;
+        config.TitleProfiles[profileIndex] = TitleProfile.Capture(config, name);
+        SaveConfig();
+        message = $"Updated profile '{name}' from the current settings.";
+        return true;
+    }
+
+    internal bool RenameTitleProfile(int profileIndex, string newName, out string message)
+    {
+        if (profileIndex < 0 || profileIndex >= config.TitleProfiles.Count)
+        {
+            message = "Choose a saved profile first.";
+            return false;
+        }
+
+        newName = (newName ?? string.Empty).Trim();
+        if (string.IsNullOrWhiteSpace(newName))
+        {
+            message = "Enter a profile name first.";
+            return false;
+        }
+
+        if (newName.Length > 48)
+            newName = newName[..48];
+
+        for (var i = 0; i < config.TitleProfiles.Count; i++)
+        {
+            if (i == profileIndex)
+                continue;
+
+            if (string.Equals(config.TitleProfiles[i].Name, newName, StringComparison.OrdinalIgnoreCase))
+            {
+                message = $"A profile named '{newName}' already exists.";
+                return false;
+            }
+        }
+
+        var oldName = config.TitleProfiles[profileIndex].Name;
+        config.TitleProfiles[profileIndex].Name = newName;
+        SaveConfig();
+        message = string.Equals(oldName, newName, StringComparison.Ordinal)
+            ? $"Profile name is already '{newName}'."
+            : $"Renamed profile '{oldName}' to '{newName}'.";
+        return true;
+    }
+
+    internal bool DuplicateTitleProfile(int profileIndex, out int duplicateIndex, out string message)
+    {
+        duplicateIndex = -1;
+
+        if (profileIndex < 0 || profileIndex >= config.TitleProfiles.Count)
+        {
+            message = "Choose a saved profile first.";
+            return false;
+        }
+
+        if (config.TitleProfiles.Count >= Configuration.MaxTitleProfiles)
+        {
+            message = $"You can save up to {Configuration.MaxTitleProfiles} profiles. Delete one first.";
+            return false;
+        }
+
+        var source = config.TitleProfiles[profileIndex];
+        var copyNumber = 1;
+        string copyName;
+
+        while (true)
+        {
+            var suffix = copyNumber == 1 ? " Copy" : $" Copy {copyNumber}";
+            var maxBaseLength = Math.Max(1, 48 - suffix.Length);
+            var baseName = source.Name.Length > maxBaseLength
+                ? source.Name[..maxBaseLength]
+                : source.Name;
+            copyName = baseName + suffix;
+
+            var exists = false;
+            for (var i = 0; i < config.TitleProfiles.Count; i++)
+            {
+                if (!string.Equals(config.TitleProfiles[i].Name, copyName, StringComparison.OrdinalIgnoreCase))
+                    continue;
+
+                exists = true;
+                break;
+            }
+
+            if (!exists)
+                break;
+
+            copyNumber++;
+        }
+
+        var copy = source.Clone();
+        copy.Name = copyName;
+        config.TitleProfiles.Insert(profileIndex + 1, copy);
+        SaveConfig();
+
+        duplicateIndex = profileIndex + 1;
+        message = $"Duplicated profile '{source.Name}' as '{copyName}'.";
+        return true;
+    }
+
+    internal bool MoveTitleProfile(int profileIndex, int direction, out int newIndex, out string message)
+    {
+        newIndex = profileIndex;
+
+        if (profileIndex < 0 || profileIndex >= config.TitleProfiles.Count)
+        {
+            message = "Choose a saved profile first.";
+            return false;
+        }
+
+        if (direction != -1 && direction != 1)
+        {
+            message = "Profile move direction is invalid.";
+            return false;
+        }
+
+        var targetIndex = profileIndex + direction;
+        if (targetIndex < 0 || targetIndex >= config.TitleProfiles.Count)
+        {
+            message = direction < 0
+                ? "That profile is already first."
+                : "That profile is already last.";
+            return false;
+        }
+
+        var profile = config.TitleProfiles[profileIndex];
+        config.TitleProfiles.RemoveAt(profileIndex);
+        config.TitleProfiles.Insert(targetIndex, profile);
+        SaveConfig();
+
+        newIndex = targetIndex;
+        message = $"Moved profile '{profile.Name}' {(direction < 0 ? "up" : "down")}.";
+        return true;
+    }
     internal bool CacheCurrentHonorificTitle(out string message)
     {
         try

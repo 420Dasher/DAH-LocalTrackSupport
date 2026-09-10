@@ -654,17 +654,60 @@ internal sealed class ConfigWindow : Window
                 plugin.LoadTitleProfile(selectedProfileIndex, out profileStatus);
 
             ImGui.SameLine();
+            if (ImGui.Button("Update selected"))
+                plugin.UpdateTitleProfile(selectedProfileIndex, out profileStatus);
+
+            ImGui.SameLine();
+            if (ImGui.Button("Duplicate"))
+            {
+                if (plugin.DuplicateTitleProfile(selectedProfileIndex, out var duplicateIndex, out profileStatus))
+                {
+                    selectedProfileIndex = duplicateIndex;
+                    profileNameDraft = plugin.SavedTitleProfiles[duplicateIndex].Name;
+                }
+            }
+
+            ImGui.Spacing();
+            var canMoveUp = selectedProfileIndex > 0;
+            var canMoveDown = selectedProfileIndex + 1 < profiles.Count;
+
+            if (!canMoveUp)
+                ImGui.BeginDisabled();
+            if (ImGui.Button("Move up"))
+            {
+                if (plugin.MoveTitleProfile(selectedProfileIndex, -1, out var movedIndex, out profileStatus))
+                    selectedProfileIndex = movedIndex;
+            }
+            if (!canMoveUp)
+                ImGui.EndDisabled();
+
+            ImGui.SameLine();
+
+            if (!canMoveDown)
+                ImGui.BeginDisabled();
+            if (ImGui.Button("Move down"))
+            {
+                if (plugin.MoveTitleProfile(selectedProfileIndex, 1, out var movedIndex, out profileStatus))
+                    selectedProfileIndex = movedIndex;
+            }
+            if (!canMoveDown)
+                ImGui.EndDisabled();
+
+            ImGui.SameLine();
             if (ImGui.Button("Delete profile"))
             {
                 plugin.DeleteTitleProfile(selectedProfileIndex, out profileStatus);
                 selectedProfileIndex = -1;
                 profileNameDraft = string.Empty;
             }
+
+            ImGui.TextDisabled("Profile order also controls the Quick profiles button order on Home.");
         }
 
         ImGui.Text("Profile name");
         ImGui.SetNextItemWidth(300);
         ImGui.InputText("##profile-name", ref profileNameDraft, 64);
+
         ImGui.SameLine();
         if (ImGui.Button("Save current"))
         {
@@ -676,7 +719,17 @@ internal sealed class ConfigWindow : Window
             }
         }
 
-        ImGui.TextDisabled($"{profiles.Count}/{Configuration.MaxTitleProfiles} profiles saved. Saving an existing name overwrites that profile.");
+        if (selectedProfileIndex >= 0 && selectedProfileIndex < profiles.Count)
+        {
+            ImGui.SameLine();
+            if (ImGui.Button("Rename selected"))
+            {
+                if (plugin.RenameTitleProfile(selectedProfileIndex, profileNameDraft, out profileStatus))
+                    profileNameDraft = plugin.SavedTitleProfiles[selectedProfileIndex].Name;
+            }
+        }
+
+        ImGui.TextDisabled($"{profiles.Count}/{Configuration.MaxTitleProfiles} profiles saved. Save current creates/overwrites by name; Update selected keeps the selected profile's name.");
         if (!string.IsNullOrWhiteSpace(profileStatus))
             ImGui.TextWrapped(profileStatus);
     }

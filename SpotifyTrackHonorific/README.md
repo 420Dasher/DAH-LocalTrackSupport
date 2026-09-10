@@ -106,6 +106,9 @@ Temporary network errors, Spotify server errors, rate limits, and Development Mo
 
 If Spotify authorization becomes invalid, the UI asks the user to reconnect instead of retrying forever.
 
+## Version 1.0.11
+
+v1.0.11 expands saved-profile management with one-click Update selected, Rename selected, Duplicate, Move up, and Move down controls. Reordering profiles also changes their Home-tab Quick profile order. The existing five-profile limit, persistence, profile format, Spotify behavior, Honorific-title caching, filtering, and portable-settings format remain unchanged.
 ## Version 1.0.10
 
 v1.0.10 adds Home-tab Quick profiles with current-profile detection and introduces `{honorific}` as a formatting variable, including inside cycle stages. While STH is disabled, the cached Honorific title follows changes made directly in Honorific; while STH is enabled, that value freezes for stable Spotify-title rotation. Manual cache/clear controls, self-title protection, and local persistence are included.

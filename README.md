@@ -58,6 +58,7 @@ Open `/sth` again to configure:
 - rotating `{cycle:...}` formats
 - cached Honorific-title reuse with `{honorific}`, including inside cycle stages
 - quick saved-profile switching from the Home tab
+- saved-profile rename, duplicate, update, and reorder controls
 - bracket cleanup and smart 32-character fitting
 - title color and glow
 - optional Honorific supporter gradients and animations
