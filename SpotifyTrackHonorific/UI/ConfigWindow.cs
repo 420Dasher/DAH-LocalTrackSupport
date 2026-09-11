@@ -41,8 +41,9 @@ internal sealed class ConfigWindow : Window
     {
         this.plugin = plugin;
         clientIdDraft = plugin.Config.SpotifyClientId;
-        Size = new Vector2(680, 720);
+        Size = new Vector2(760, 780);
         SizeCondition = ImGuiCond.FirstUseEver;
+        BgAlpha = 0.90f;
     }
 
     internal void SyncClientId() => clientIdDraft = plugin.Config.SpotifyClientId;
@@ -96,19 +97,16 @@ internal sealed class ConfigWindow : Window
 
     private void DrawHeader()
     {
-        ImGui.Text($"SpotifyTrackHonorific v{Plugin.DisplayVersion}");
-        ImGui.TextDisabled("Spotify music titles for Honorific");
-        ImGui.Spacing();
+        ImGui.Text($"SpotifyTrackHonorific  v{Plugin.DisplayVersion}");
 
-        ImGui.Text($"Spotify: {plugin.SpotifyFriendlyStatus}");
+        ImGui.TextDisabled($"Spotify: {plugin.SpotifyFriendlyStatus}");
         ImGui.SameLine();
-        ImGui.TextDisabled("   |   ");
+        ImGui.TextDisabled(" | ");
         ImGui.SameLine();
-        ImGui.Text($"Honorific: {(plugin.HonorificDetected ? "Detected" : "Not detected")}");
+        ImGui.TextDisabled($"Honorific: {(plugin.HonorificDetected ? "Ready" : "Not detected")}");
 
         ImGui.TextWrapped($"Now playing: {plugin.NowPlayingText}");
         ImGui.Separator();
-        ImGui.Spacing();
     }
 
     private void DrawWelcome()
@@ -135,8 +133,7 @@ internal sealed class ConfigWindow : Window
     {
         var config = plugin.Config;
 
-        ImGui.Text("Status");
-        ImGui.Separator();
+        DrawSectionHeader("Overview");
 
         var enabled = config.Enabled;
         if (ImGui.Checkbox("Enable Spotify title updates", ref enabled))
@@ -144,48 +141,74 @@ internal sealed class ConfigWindow : Window
             config.Enabled = enabled;
             plugin.SettingsChanged();
         }
-        HelpMarker("Turn this off to stop Spotify polling and remove this plugin's Honorific title without removing your saved Spotify connection.");
+        HelpMarker("Turn this off to stop Spotify polling and remove this plugin's Honorific title without removing the saved Spotify connection.");
 
-        ImGui.Text($"Spotify: {plugin.SpotifyFriendlyStatus}");
-        ImGui.Text($"Honorific: {(plugin.HonorificDetected ? "Detected and ready" : "Not detected - make sure Honorific is installed and enabled")}");
-        ImGui.TextWrapped($"Music: {plugin.NowPlayingText}");
-
-        DrawQuickProfiles();
 
         if (!string.IsNullOrWhiteSpace(plugin.ErrorText))
         {
             ImGui.Spacing();
-            if (!plugin.IsAuthenticated)
+            ImGui.TextWrapped(plugin.IsAuthenticated
+                ? "Spotify is temporarily unavailable. The last valid title is kept while STH retries."
+                : "Spotify connection needs attention. Reconnect Spotify below.");
+        }
+
+        DrawQuickProfiles();
+
+        if (!plugin.IsAuthenticated)
+        {
+            DrawSectionHeader(
+                "Spotify setup",
+                "Connect STH to your own Spotify Developer app. No client secret is required.");
+            DrawSpotifyConnectionSetup();
+        }
+        else
+        {
+            DrawSectionHeader(
+                "Spotify connection",
+                "Connected. Setup details stay out of the way unless you need to reconnect.");
+
+            if (ImGui.CollapsingHeader("Connection settings / reconnect"))
+                DrawSpotifyConnectionSetup();
+
+            if (config.Enabled && !string.IsNullOrWhiteSpace(plugin.ErrorText))
             {
-                ImGui.TextWrapped("Spotify connection needs attention. Your saved authorization could no longer be used.");
-            }
-            else
-            {
-                ImGui.TextWrapped("Spotify is temporarily unavailable. Your last valid title is kept while the plugin retries automatically.");
+                if (ImGui.Button("Retry Spotify now"))
+                    plugin.RetrySpotifyNow();
             }
         }
 
-        ImGui.Spacing();
-        ImGui.Text("Spotify connection");
-        ImGui.Separator();
-        ImGui.TextWrapped("Spotify requires a Client ID from your own Spotify Developer app. No client secret is needed.");
+        DrawSectionHeader(
+            "Honorific integration",
+            plugin.HonorificDetected
+                ? "Honorific is detected and ready."
+                : "Honorific must be installed and enabled for STH titles to appear.");
 
+        if (ImGui.Button("Test Honorific title"))
+            plugin.TestHonorificTitle();
+
+        ImGui.SameLine();
+        ImGui.TextDisabled("The Spotify title returns on the next successful update.");
+    }
+
+    private void DrawSpotifyConnectionSetup()
+    {
         ImGui.Text("Spotify app Client ID");
-        HelpMarker("Open your Spotify Developer app, copy its Client ID, and paste it here. This identifies the app; it is not your Spotify password.");
+        HelpMarker("Copy the Client ID from your Spotify Developer app. This is not your Spotify password.");
         ImGui.SetNextItemWidth(-1);
         ImGui.InputText("##spotify-client-id", ref clientIdDraft, 128);
 
         ImGui.Spacing();
-        ImGui.Text("Callback address to register in Spotify");
-        HelpMarker("Spotify redirects your browser back to this local address after you approve access. Add this exact address as a Redirect URI in the Spotify Developer app.");
+        ImGui.Text("Callback address");
+        HelpMarker("Add this exact address as a Redirect URI in the Spotify Developer app.");
         ImGui.TextWrapped(plugin.RedirectUriText);
+
         if (ImGui.Button("Copy callback address"))
             ImGui.SetClipboardText(plugin.RedirectUriText);
 
-        ImGui.Spacing();
+        ImGui.SameLine();
         if (plugin.IsAuthenticating)
         {
-            ImGui.TextWrapped("Connecting Spotify... Finish the authorization in the browser window that opened.");
+            ImGui.TextDisabled("Connecting... finish authorization in your browser.");
         }
         else
         {
@@ -193,46 +216,22 @@ internal sealed class ConfigWindow : Window
             if (ImGui.Button(connectLabel))
                 plugin.StartAuthentication(clientIdDraft);
         }
-
-        if (plugin.IsAuthenticated)
-        {
-            ImGui.SameLine();
-            ImGui.TextDisabled("Connected");
-        }
-
-        if (config.Enabled && plugin.IsAuthenticated && !string.IsNullOrWhiteSpace(plugin.ErrorText))
-        {
-            ImGui.Spacing();
-            if (ImGui.Button("Retry now"))
-                plugin.RetrySpotifyNow();
-        }
-
-        ImGui.Spacing();
-        ImGui.Text("Honorific");
-        ImGui.Separator();
-        ImGui.TextWrapped("Honorific must be installed and enabled. The plugin sends only your formatted title and appearance settings to Honorific.");
-        if (ImGui.Button("Test Honorific title"))
-            plugin.TestHonorificTitle();
-        ImGui.SameLine();
-        ImGui.TextDisabled("Your Spotify title will return on the next successful update.");
     }
 
     private void DrawQuickProfiles()
     {
         var profiles = plugin.SavedTitleProfiles;
 
-        ImGui.Spacing();
-        ImGui.Text("Quick profiles");
-        ImGui.Separator();
+        DrawSectionHeader("Quick profiles");
 
         if (profiles.Count == 0)
         {
-            ImGui.TextDisabled("No saved profiles yet. Create them in the Title tab.");
+            ImGui.TextDisabled("No saved profiles yet. Create one in the Title tab.");
             return;
         }
 
-        ImGui.Text($"Current profile: {plugin.ActiveProfileName}");
-        ImGui.TextDisabled("A profile becomes Custom as soon as its saved settings no longer exactly match.");
+        ImGui.Text($"Current: {plugin.ActiveProfileName}");
+        ImGui.TextDisabled("Changing a captured setting makes the current profile Custom.");
 
         for (var i = 0; i < profiles.Count; i++)
         {
@@ -244,15 +243,16 @@ internal sealed class ConfigWindow : Window
         }
 
         if (!string.IsNullOrWhiteSpace(profileStatus))
-            ImGui.TextWrapped(profileStatus);
+            ImGui.TextDisabled(profileStatus);
     }
 
     private void DrawTitleTab()
     {
         var config = plugin.Config;
 
-        ImGui.Text("What should be shown?");
-        ImGui.Separator();
+        DrawSectionHeader(
+            "Playback and visibility",
+            "Choose which Spotify playback states are allowed to produce an Honorific title.");
 
         var normalTracks = config.ShowNormalTracks;
         if (ImGui.Checkbox("Show regular Spotify tracks", ref normalTracks))
@@ -269,7 +269,7 @@ internal sealed class ConfigWindow : Window
         }
 
         var clearOnPause = config.ClearOnPause;
-        if (ImGui.Checkbox("Hide the title when playback is paused or stopped", ref clearOnPause))
+        if (ImGui.Checkbox("Hide title while playback is paused or stopped", ref clearOnPause))
         {
             config.ClearOnPause = clearOnPause;
             plugin.SettingsChanged();
@@ -281,36 +281,38 @@ internal sealed class ConfigWindow : Window
             config.AutoHideInCombat = hideInCombat;
             plugin.SettingsChanged();
         }
-        HelpMarker("Only the Honorific title is hidden. Spotify polling continues normally, and the cached current title returns immediately when combat ends.");
+        HelpMarker("Only the Honorific title is hidden. Spotify polling continues and the cached title returns immediately after combat.");
 
-        ImGui.Spacing();
-        ImGui.Text("Quick formats");
-        ImGui.Separator();
+        DrawSavedProfiles();
 
-        if (ImGui.Button("♪ Artist - Track"))
+        DrawSectionHeader(
+            "Title format",
+            "Start from a preset or edit the format directly.");
+
+        if (ImGui.Button("Artist - Track"))
         {
             config.TitleFormat = Configuration.DefaultTitleFormat;
             plugin.SettingsChanged();
         }
         ImGui.SameLine();
+
         if (ImGui.Button("Track only"))
         {
             config.TitleFormat = "{track}";
             plugin.SettingsChanged();
         }
         ImGui.SameLine();
+
         if (ImGui.Button("Rotating"))
         {
             config.TitleFormat = RotatingPreset;
             plugin.SettingsChanged();
         }
-        HelpMarker("Rotating alternates between 'vibing to music', the track, and the artist every 10 playback seconds.");
-
-        DrawSavedProfiles();
+        HelpMarker("Rotating alternates between a short status, track, and artist every 10 playback seconds.");
 
         ImGui.Spacing();
-        ImGui.Text("Custom title format");
-        HelpMarker("You can type normal text and insert values such as {artist} and {track}. Use Advanced formatting help below for the complete list.");
+        ImGui.Text("Custom format");
+
         var format = config.TitleFormat;
         ImGui.SetNextItemWidth(-1);
         if (ImGui.InputText("##title-format", ref format, 512))
@@ -319,69 +321,72 @@ internal sealed class ConfigWindow : Window
             plugin.SettingsChanged();
         }
 
-        ImGui.Spacing();
-        ImGui.Text("Format builder");
-        ImGui.Separator();
-        ImGui.TextDisabled("Append supported Spotify variables without typing their tokens manually.");
+        var cycleWarning = GetCycleSyntaxWarning(config.TitleFormat);
+        if (!string.IsNullOrWhiteSpace(cycleWarning))
+            ImGui.TextWrapped($"Format warning: {cycleWarning}");
 
-        var formatVariables = TitleTemplateFormatter.SupportedVariables
-            .Where(variable => !variable.StartsWith("{cycle:", StringComparison.OrdinalIgnoreCase))
-            .ToArray();
+        DrawLivePreview();
 
-        for (var i = 0; i < formatVariables.Length; i++)
+        if (ImGui.CollapsingHeader("Format tools and cycle builder"))
         {
-            var variable = formatVariables[i];
-            var label = variable switch
+            ImGui.TextDisabled("Insert a supported variable into the current format.");
+
+            var formatVariables = TitleTemplateFormatter.SupportedVariables
+                .Where(variable => !variable.StartsWith("{cycle:", StringComparison.OrdinalIgnoreCase))
+                .ToArray();
+
+            for (var i = 0; i < formatVariables.Length; i++)
             {
-                "{artist}" => "Artist",
-                "{artists}" => "Artists",
-                "{track}" => "Track",
-                "{album}" => "Album",
-                "{duration}" => "Duration",
-                "{elapsed}" => "Elapsed",
-                "{remaining}" => "Remaining",
-                "{is_local}" => "Local",
-                "{paused}" => "Paused",
-                "{honorific}" => "Honorific",
-                _ => variable.Trim('{', '}'),
-            };
+                var variable = formatVariables[i];
+                var label = variable switch
+                {
+                    "{artist}" => "Artist",
+                    "{artists}" => "Artists",
+                    "{track}" => "Track",
+                    "{album}" => "Album",
+                    "{duration}" => "Duration",
+                    "{elapsed}" => "Elapsed",
+                    "{remaining}" => "Remaining",
+                    "{is_local}" => "Local",
+                    "{paused}" => "Paused",
+                    "{honorific}" => "Honorific",
+                    _ => variable.Trim('{', '}'),
+                };
 
-            if (ImGui.SmallButton($"{label}##format-variable-{i}"))
-                AppendTitleFormatToken(variable);
+                if (ImGui.SmallButton($"{label}##format-variable-{i}"))
+                    AppendTitleFormatToken(variable);
 
-            if ((i + 1) % 3 != 0 && i + 1 < formatVariables.Length)
-                ImGui.SameLine();
-        }
+                if ((i + 1) % 4 != 0 && i + 1 < formatVariables.Length)
+                    ImGui.SameLine();
+            }
 
-        ImGui.Spacing();
-        if (ImGui.Button("Copy format"))
-        {
-            ImGui.SetClipboardText(config.TitleFormat);
-            formatBuilderStatus = "Current title format copied to the clipboard.";
-        }
+            ImGui.Spacing();
+            if (ImGui.Button("Copy format"))
+            {
+                ImGui.SetClipboardText(config.TitleFormat);
+                formatBuilderStatus = "Current title format copied to the clipboard.";
+            }
 
-        ImGui.SameLine();
-        if (ImGui.Button("Reset format to default"))
-        {
-            config.TitleFormat = Configuration.DefaultTitleFormat;
-            plugin.SettingsChanged();
-            formatBuilderStatus = "Title format reset to the default Artist - Track format.";
-        }
+            ImGui.SameLine();
+            if (ImGui.Button("Reset format"))
+            {
+                config.TitleFormat = Configuration.DefaultTitleFormat;
+                plugin.SettingsChanged();
+                formatBuilderStatus = "Title format reset to the default Artist - Track format.";
+            }
 
-        ImGui.Spacing();
-        if (ImGui.CollapsingHeader("Cycle builder"))
-        {
-            ImGui.TextDisabled("Build a rotating {cycle:...} token. Separate stages with |.");
+            ImGui.Spacing();
+            ImGui.Text("Cycle builder");
 
             var cycleSeconds = cycleBuilderSeconds;
             ImGui.SetNextItemWidth(110);
             if (ImGui.InputInt("Seconds per stage", ref cycleSeconds))
                 cycleBuilderSeconds = Math.Max(1, cycleSeconds);
 
-            ImGui.Text("Cycle stages");
+            ImGui.Text("Stages");
             ImGui.SetNextItemWidth(-1);
             ImGui.InputText("##cycle-builder-entries", ref cycleBuilderEntriesDraft, 512);
-            ImGui.TextDisabled("Example: vibing to music|{track}|{artist}");
+            ImGui.TextDisabled("Separate stages with |. Example: vibing to music|{track}|{artist}");
 
             if (TryBuildCycleToken(cycleBuilderSeconds, cycleBuilderEntriesDraft, out var cycleToken, out var cycleError))
             {
@@ -397,46 +402,48 @@ internal sealed class ConfigWindow : Window
                 ImGui.TextWrapped($"Cycle builder: {cycleError}");
             }
 
-            ImGui.TextDisabled("Nested {cycle:...} blocks are not supported.");
+            ImGui.TextDisabled("Nested cycle blocks are not supported.");
         }
 
-        var cycleWarning = GetCycleSyntaxWarning(config.TitleFormat);
-        if (!string.IsNullOrWhiteSpace(cycleWarning))
-            ImGui.TextWrapped($"Format warning: {cycleWarning}");
-
         if (!string.IsNullOrWhiteSpace(formatBuilderStatus))
-            ImGui.TextWrapped(formatBuilderStatus);
+            ImGui.TextDisabled(formatBuilderStatus);
 
         ImGui.Spacing();
-        ImGui.Text("Original Honorific title");
-        ImGui.Separator();
-        ImGui.TextDisabled("Use {honorific} anywhere in the format, including as a {cycle:...} stage.");
-        ImGui.TextWrapped(string.IsNullOrWhiteSpace(plugin.CachedHonorificTitle)
-            ? "Cached original: none"
-            : $"Cached original: {plugin.CachedHonorificTitle}");
-        ImGui.TextDisabled("STH automatically tries to capture the existing Honorific title before its first Spotify title write.");
+        if (ImGui.CollapsingHeader("Original Honorific title"))
+        {
+            DrawMutedWrapped("The {honorific} variable reuses the title that was active before STH.");
 
-        if (ImGui.Button("Cache current Honorific title"))
-            plugin.CacheCurrentHonorificTitle(out honorificCacheStatus);
-        HelpMarker("If STH is currently displaying its own Spotify title, this refuses to cache that output. Disable STH, set the title you want in Honorific, then press this button.");
+            ImGui.TextWrapped(string.IsNullOrWhiteSpace(plugin.CachedHonorificTitle)
+                ? "Cached original: none"
+                : $"Cached original: {plugin.CachedHonorificTitle}");
 
-        ImGui.SameLine();
-        if (ImGui.Button("Clear cached title"))
-            plugin.ClearCachedHonorificTitle(out honorificCacheStatus);
+            if (ImGui.Button("Cache current Honorific title"))
+                plugin.CacheCurrentHonorificTitle(out honorificCacheStatus);
+            HelpMarker("If STH currently owns the visible title, disable STH and set the desired title in Honorific before caching it.");
 
-        if (!string.IsNullOrWhiteSpace(honorificCacheStatus))
-            ImGui.TextWrapped(honorificCacheStatus);
+            ImGui.SameLine();
+            if (ImGui.Button("Clear cached title"))
+                plugin.ClearCachedHonorificTitle(out honorificCacheStatus);
 
-        ImGui.TextDisabled("Cached title text is local-only. Profiles and portable settings keep the {honorific} token but do not export this character-specific text.");
+            if (!string.IsNullOrWhiteSpace(honorificCacheStatus))
+                ImGui.TextDisabled(honorificCacheStatus);
 
-        ImGui.Spacing();
+            ImGui.TextDisabled("The cached title is local-only and is not exported with profiles or portable settings.");
+        }
+
+        DrawSectionHeader("Position and cleanup");
+
         ImGui.Text("Title position");
         var prefix = config.IsPrefix;
+
         if (ImGui.RadioButton("Before character name (prefix)", prefix))
         {
             config.IsPrefix = true;
             plugin.SettingsChanged();
         }
+
+        ImGui.SameLine();
+
         if (ImGui.RadioButton("After character name (suffix)", !prefix))
         {
             config.IsPrefix = false;
@@ -444,8 +451,6 @@ internal sealed class ConfigWindow : Window
         }
 
         ImGui.Spacing();
-        ImGui.Text("Automatic cleanup");
-        ImGui.Separator();
 
         var stripBracketed = config.StripBracketedTrackParts;
         if (ImGui.Checkbox("Remove bracketed extras from track names", ref stripBracketed))
@@ -453,7 +458,7 @@ internal sealed class ConfigWindow : Window
             config.StripBracketedTrackParts = stripBracketed;
             plugin.SettingsChanged();
         }
-        HelpMarker("For example, 'Song Name (Remastered 2026)' becomes 'Song Name'. Removes (...), [...], and {...} sections from the track name.");
+        HelpMarker("Removes bracketed additions such as remaster labels from the track name.");
 
         var smartFit = config.SmartFitLongTitles;
         if (ImGui.Checkbox("Smart-fit long titles", ref smartFit))
@@ -461,44 +466,49 @@ internal sealed class ConfigWindow : Window
             config.SmartFitLongTitles = smartFit;
             plugin.SettingsChanged();
         }
-        HelpMarker("Honorific allows 32 characters. Smart-fit prefers word boundaries, preserves wrappers like » ... «, and avoids dangling separators such as '-...'.");
+        HelpMarker("Fits the result to Honorific's 32-character limit while preferring clean word and separator boundaries.");
 
         ImGui.Spacing();
-        ImGui.Text("Live preview");
-        ImGui.Separator();
-        var original = plugin.PreviewExpandedTitle;
-        var displayed = plugin.PreviewTitle;
-        ImGui.TextDisabled($"Source: {(plugin.PreviewUsesCurrentTrack ? "Current Spotify track" : "Built-in example track")} | Position: {(config.IsPrefix ? "Prefix" : "Suffix")}");
-        ImGui.TextWrapped($"Honorific receives: {displayed}");
-        if (!string.Equals(original, displayed, StringComparison.Ordinal))
-            ImGui.TextWrapped($"Before smart-fit: {original}");
-        ImGui.TextDisabled($"Honorific limit: {displayed.Length} / {HonorificBridge.MaxTitleLength} characters");
-        ImGui.TextDisabled("The preview uses the same formatting, content-filter and smart-fit path as the real title. Cycle/progress stages update live while this window is open.");
-
-        ImGui.Spacing();
-        if (ImGui.CollapsingHeader("Advanced formatting help"))
+        if (ImGui.CollapsingHeader("Formatting reference"))
         {
             ImGui.TextDisabled("{artist}    - primary artist");
-            ImGui.TextDisabled("{artists}   - all artists, comma-separated");
+            ImGui.TextDisabled("{artists}   - all artists");
             ImGui.TextDisabled("{track}     - track title");
             ImGui.TextDisabled("{album}     - album name");
             ImGui.TextDisabled("{duration}  - total track time");
             ImGui.TextDisabled("{elapsed}   - current playback position");
             ImGui.TextDisabled("{remaining} - time remaining");
             ImGui.TextDisabled("{is_local}  - true for Spotify local files");
-            ImGui.TextDisabled("{paused}    - true while Spotify reports the track paused");
-            ImGui.TextDisabled("{honorific} - cached title that was active in Honorific before STH");
+            ImGui.TextDisabled("{paused}    - true while Spotify reports paused");
+            ImGui.TextDisabled("{honorific} - cached pre-STH Honorific title");
             ImGui.Spacing();
             ImGui.Text("Cycle format");
             ImGui.TextDisabled("{cycle:10|first|second|third}");
-            ImGui.TextWrapped("Each entry is shown for the chosen number of playback seconds, then repeats. Entries may contain normal variables.");
-            ImGui.TextDisabled("Example: » {cycle:10|vibing to music|{track}|{artist}} «");
-            ImGui.Spacing();
-            ImGui.TextWrapped("Timing note: Spotify is normally checked about every 15 seconds while music is playing (60 seconds while idle) to reduce Development Mode quota usage. Progress and cycle templates advance locally about once per second between API polls; actual track changes can take up to roughly one Spotify polling interval to appear.");
-            ImGui.TextDisabled("Variables are case-insensitive. Unknown variables stay visible so formatting mistakes are easy to spot.");
+            ImGui.TextWrapped("Each stage is shown for the chosen number of playback seconds, then repeats. Stages may contain normal variables.");
+            ImGui.TextDisabled("Spotify polling remains quota-friendly; cycle and progress values advance locally between polls.");
         }
     }
 
+    private void DrawLivePreview()
+    {
+        var config = plugin.Config;
+        var original = plugin.PreviewExpandedTitle;
+        var displayed = plugin.PreviewTitle;
+
+        ImGui.Spacing();
+        ImGui.Text("Live preview");
+        ImGui.Separator();
+
+        ImGui.TextWrapped($"Honorific receives: {displayed}");
+
+        if (!string.Equals(original, displayed, StringComparison.Ordinal))
+            ImGui.TextWrapped($"Before smart-fit: {original}");
+
+        ImGui.TextDisabled(
+            $"Source: {(plugin.PreviewUsesCurrentTrack ? "Current Spotify track" : "Built-in example track")} | " +
+            $"Position: {(config.IsPrefix ? "Prefix" : "Suffix")} | " +
+            $"Characters: {displayed.Length}/{HonorificBridge.MaxTitleLength}");
+    }
 
     private void AppendTitleFormatToken(string token)
     {
@@ -621,19 +631,19 @@ internal sealed class ConfigWindow : Window
     private void DrawSavedProfiles()
     {
         var profiles = plugin.SavedTitleProfiles;
+
         if (selectedProfileIndex >= profiles.Count)
             selectedProfileIndex = -1;
 
-        ImGui.Spacing();
-        ImGui.Text("Saved profiles");
-        ImGui.Separator();
-        ImGui.TextDisabled("Profiles capture title, playback, appearance and filter settings. Spotify connection data is never stored in a profile.");
+        DrawSectionHeader(
+            "Saved profiles",
+            "Profiles capture title, playback, appearance, and filter settings. Spotify connection data is never stored.");
 
         var selectedLabel = selectedProfileIndex >= 0 && selectedProfileIndex < profiles.Count
             ? profiles[selectedProfileIndex].Name
             : "Choose a profile";
 
-        ImGui.SetNextItemWidth(300);
+        ImGui.SetNextItemWidth(280);
         if (ImGui.BeginCombo("##saved-title-profile", selectedLabel))
         {
             for (var i = 0; i < profiles.Count; i++)
@@ -644,76 +654,36 @@ internal sealed class ConfigWindow : Window
                     profileNameDraft = profiles[i].Name;
                 }
             }
+
             ImGui.EndCombo();
         }
 
         if (selectedProfileIndex >= 0 && selectedProfileIndex < profiles.Count)
         {
             ImGui.SameLine();
-            if (ImGui.Button("Load profile"))
+
+            if (ImGui.Button("Load"))
                 plugin.LoadTitleProfile(selectedProfileIndex, out profileStatus);
 
             ImGui.SameLine();
-            if (ImGui.Button("Update selected"))
+
+            if (ImGui.Button("Update"))
                 plugin.UpdateTitleProfile(selectedProfileIndex, out profileStatus);
-
-            ImGui.SameLine();
-            if (ImGui.Button("Duplicate"))
-            {
-                if (plugin.DuplicateTitleProfile(selectedProfileIndex, out var duplicateIndex, out profileStatus))
-                {
-                    selectedProfileIndex = duplicateIndex;
-                    profileNameDraft = plugin.SavedTitleProfiles[duplicateIndex].Name;
-                }
-            }
-
-            ImGui.Spacing();
-            var canMoveUp = selectedProfileIndex > 0;
-            var canMoveDown = selectedProfileIndex + 1 < profiles.Count;
-
-            if (!canMoveUp)
-                ImGui.BeginDisabled();
-            if (ImGui.Button("Move up"))
-            {
-                if (plugin.MoveTitleProfile(selectedProfileIndex, -1, out var movedIndex, out profileStatus))
-                    selectedProfileIndex = movedIndex;
-            }
-            if (!canMoveUp)
-                ImGui.EndDisabled();
-
-            ImGui.SameLine();
-
-            if (!canMoveDown)
-                ImGui.BeginDisabled();
-            if (ImGui.Button("Move down"))
-            {
-                if (plugin.MoveTitleProfile(selectedProfileIndex, 1, out var movedIndex, out profileStatus))
-                    selectedProfileIndex = movedIndex;
-            }
-            if (!canMoveDown)
-                ImGui.EndDisabled();
-
-            ImGui.SameLine();
-            if (ImGui.Button("Delete profile"))
-            {
-                plugin.DeleteTitleProfile(selectedProfileIndex, out profileStatus);
-                selectedProfileIndex = -1;
-                profileNameDraft = string.Empty;
-            }
-
-            ImGui.TextDisabled("Profile order also controls the Quick profiles button order on Home.");
         }
 
+        ImGui.Spacing();
         ImGui.Text("Profile name");
-        ImGui.SetNextItemWidth(300);
+        ImGui.SetNextItemWidth(280);
         ImGui.InputText("##profile-name", ref profileNameDraft, 64);
 
         ImGui.SameLine();
+
         if (ImGui.Button("Save current"))
         {
             if (plugin.SaveTitleProfile(profileNameDraft, out var savedIndex, out profileStatus))
             {
                 selectedProfileIndex = savedIndex;
+
                 if (savedIndex >= 0 && savedIndex < plugin.SavedTitleProfiles.Count)
                     profileNameDraft = plugin.SavedTitleProfiles[savedIndex].Name;
             }
@@ -721,30 +691,85 @@ internal sealed class ConfigWindow : Window
 
         if (selectedProfileIndex >= 0 && selectedProfileIndex < profiles.Count)
         {
-            ImGui.SameLine();
-            if (ImGui.Button("Rename selected"))
+            if (ImGui.CollapsingHeader("Manage selected profile"))
             {
-                if (plugin.RenameTitleProfile(selectedProfileIndex, profileNameDraft, out profileStatus))
-                    profileNameDraft = plugin.SavedTitleProfiles[selectedProfileIndex].Name;
+                if (ImGui.Button("Rename selected"))
+                {
+                    if (plugin.RenameTitleProfile(selectedProfileIndex, profileNameDraft, out profileStatus))
+                        profileNameDraft = plugin.SavedTitleProfiles[selectedProfileIndex].Name;
+                }
+
+                ImGui.SameLine();
+
+                if (ImGui.Button("Duplicate"))
+                {
+                    if (plugin.DuplicateTitleProfile(selectedProfileIndex, out var duplicateIndex, out profileStatus))
+                    {
+                        selectedProfileIndex = duplicateIndex;
+                        profileNameDraft = plugin.SavedTitleProfiles[duplicateIndex].Name;
+                    }
+                }
+
+                var canMoveUp = selectedProfileIndex > 0;
+                var canMoveDown = selectedProfileIndex + 1 < profiles.Count;
+
+                ImGui.Spacing();
+
+                if (!canMoveUp)
+                    ImGui.BeginDisabled();
+
+                if (ImGui.SmallButton("Move up"))
+                {
+                    if (plugin.MoveTitleProfile(selectedProfileIndex, -1, out var movedIndex, out profileStatus))
+                        selectedProfileIndex = movedIndex;
+                }
+
+                if (!canMoveUp)
+                    ImGui.EndDisabled();
+
+                ImGui.SameLine();
+
+                if (!canMoveDown)
+                    ImGui.BeginDisabled();
+
+                if (ImGui.SmallButton("Move down"))
+                {
+                    if (plugin.MoveTitleProfile(selectedProfileIndex, 1, out var movedIndex, out profileStatus))
+                        selectedProfileIndex = movedIndex;
+                }
+
+                if (!canMoveDown)
+                    ImGui.EndDisabled();
+
+                ImGui.SameLine();
+
+                if (ImGui.SmallButton("Delete profile"))
+                {
+                    plugin.DeleteTitleProfile(selectedProfileIndex, out profileStatus);
+                    selectedProfileIndex = -1;
+                    profileNameDraft = string.Empty;
+                }
+
+                ImGui.TextDisabled("Profile order is also the Quick profiles order on Home.");
             }
         }
 
-        ImGui.TextDisabled($"{profiles.Count}/{Configuration.MaxTitleProfiles} profiles saved. Save current creates/overwrites by name; Update selected keeps the selected profile's name.");
+        ImGui.TextDisabled($"{profiles.Count}/{Configuration.MaxTitleProfiles} profiles saved.");
+
         if (!string.IsNullOrWhiteSpace(profileStatus))
-            ImGui.TextWrapped(profileStatus);
+            ImGui.TextDisabled(profileStatus);
     }
 
     private void DrawFilterTab()
     {
         var config = plugin.Config;
 
-        ImGui.Text("Content filter");
-        ImGui.Separator();
-        ImGui.TextWrapped("Censor artist, track, or album names you do not want exposed while keeping your normal title format and cycles running.");
-        ImGui.Spacing();
+        DrawSectionHeader(
+            "Filter status",
+            "Censor selected Spotify metadata without breaking the rest of your title format or cycle.");
 
         var enabled = config.EnableContentFilter;
-        if (ImGui.Checkbox("Enable blacklist", ref enabled))
+        if (ImGui.Checkbox("Enable content filter", ref enabled))
         {
             config.EnableContentFilter = enabled;
             plugin.SettingsChanged();
@@ -756,10 +781,11 @@ internal sealed class ConfigWindow : Window
             config.SmartContentFilterMatching = smart;
             plugin.SettingsChanged();
         }
-        HelpMarker("Also catches common obfuscation such as $ -> s, 0 -> o, @ -> a, punctuation/spacing changes, and conservative small typos on longer entries.");
+        HelpMarker("Also catches common obfuscation, punctuation and spacing changes, and conservative small typos on longer entries.");
 
-        ImGui.Spacing();
-        ImGui.Text("Built-in triggerwords");
+        DrawSectionHeader(
+            "Built-in protection",
+            "Optional conservative starter list. Custom rules stay separate.");
 
         var useBuiltIn = config.UseBuiltInContentFilterList;
         if (ImGui.Checkbox("Use built-in triggerword list", ref useBuiltIn))
@@ -773,17 +799,18 @@ internal sealed class ConfigWindow : Window
         ImGui.TextDisabled(useBuiltIn
             ? $"{activeBuiltIns}/{ContentFilterMatcher.BuiltInTriggerWords.Count} active"
             : $"{activeBuiltIns}/{ContentFilterMatcher.BuiltInTriggerWords.Count} selected (preset off)");
-        ImGui.TextDisabled("A conservative starter preset for common high-sensitivity terms. Your custom entries stay completely separate.");
 
-        if (ImGui.TreeNode("View / customize built-in list"))
+        if (ImGui.CollapsingHeader("Customize built-in list"))
         {
             string? lastCategory = null;
+
             foreach (var entry in ContentFilterMatcher.BuiltInTriggerWords)
             {
                 if (!string.Equals(lastCategory, entry.Category, StringComparison.Ordinal))
                 {
                     if (lastCategory != null)
                         ImGui.Spacing();
+
                     ImGui.TextDisabled(entry.Category);
                     lastCategory = entry.Category;
                 }
@@ -803,25 +830,19 @@ internal sealed class ConfigWindow : Window
             }
 
             ImGui.Spacing();
+
             if (ImGui.Button("Restore built-in defaults"))
             {
                 config.DisabledBuiltInContentFilterEntries = string.Empty;
                 plugin.SettingsChanged();
             }
-            ImGui.SameLine();
-            ImGui.TextDisabled("Re-enables every built-in term. Custom rules are untouched.");
-            ImGui.TreePop();
         }
 
-        ImGui.Spacing();
-        ImGui.Text("Custom blacklist entries");
-        ImGui.TextDisabled("Use quick-add for individual rules, or the bulk editor below for pasting many rules at once.");
-        ImGui.TextDisabled("Unscoped entries check artist + track + album. Scoped entries use artist:, track:, or album:.");
+        DrawSectionHeader(
+            "Custom rules",
+            "Quick-add a rule for all metadata, or target artist, track, or album.");
 
         var customEntries = ParseCustomFilterEntries(config.ContentFilterEntries);
-
-        ImGui.Spacing();
-        ImGui.Text("Quick add");
         var scopeLabel = customFilterScopeIndex switch
         {
             1 => "Artist",
@@ -831,6 +852,7 @@ internal sealed class ConfigWindow : Window
         };
 
         ImGui.SetNextItemWidth(145);
+
         if (ImGui.BeginCombo("##custom-filter-scope", scopeLabel))
         {
             if (ImGui.Selectable("All fields", customFilterScopeIndex == 0))
@@ -841,16 +863,20 @@ internal sealed class ConfigWindow : Window
                 customFilterScopeIndex = 2;
             if (ImGui.Selectable("Album", customFilterScopeIndex == 3))
                 customFilterScopeIndex = 3;
+
             ImGui.EndCombo();
         }
 
         ImGui.SameLine();
-        ImGui.SetNextItemWidth(300);
+        ImGui.SetNextItemWidth(320);
         ImGui.InputText("##custom-filter-add", ref customFilterAddDraft, 256);
+
         ImGui.SameLine();
-        if (ImGui.Button("Add entry"))
+
+        if (ImGui.Button("Add"))
         {
             var candidate = BuildCustomFilterRule(customFilterScopeIndex, customFilterAddDraft);
+
             if (string.IsNullOrWhiteSpace(candidate))
             {
                 customFilterStatus = "Enter a blacklist term first.";
@@ -871,48 +897,62 @@ internal sealed class ConfigWindow : Window
                     .Any(entry => string.Equals(entry.Term, addedTerm, StringComparison.OrdinalIgnoreCase));
 
                 customFilterStatus = builtInOverlap && config.UseBuiltInContentFilterList
-                    ? $"Added '{candidate}'. Note: this term is also active in the built-in list, which remains all-fields until that built-in entry is disabled."
+                    ? $"Added '{candidate}'. The same term is also active in the all-fields built-in list."
                     : $"Added '{candidate}'.";
             }
         }
 
-        ImGui.TextDisabled("Quick-add prevents duplicate entries regardless of capitalization.");
-
         ImGui.Spacing();
-        ImGui.Text("Find / manage entries");
-        ImGui.SetNextItemWidth(360);
+        ImGui.Text("Search custom rules");
+        ImGui.SetNextItemWidth(320);
         ImGui.InputText("##custom-filter-search", ref customFilterSearchDraft, 256);
-        ImGui.SameLine();
-        ImGui.TextDisabled("Search");
 
         var duplicateCount = CountDuplicateCustomFilterEntries(customEntries);
         ImGui.TextDisabled($"{customEntries.Count} custom entr{(customEntries.Count == 1 ? "y" : "ies")}.");
+
         if (duplicateCount > 0)
-            ImGui.TextWrapped($"{duplicateCount} duplicate entr{(duplicateCount == 1 ? "y was" : "ies were")} found. Use Clean + sort to remove duplicates.");
+            ImGui.TextWrapped($"{duplicateCount} duplicate entr{(duplicateCount == 1 ? "y" : "ies")} found. Clean + sort will remove them.");
 
         var removeEntryIndex = -1;
         var visibleEntries = 0;
         var search = customFilterSearchDraft.Trim();
 
-        for (var i = 0; i < customEntries.Count; i++)
+        if (ImGui.BeginTable(
+            "##custom-filter-table",
+            2,
+            ImGuiTableFlags.SizingStretchProp | ImGuiTableFlags.RowBg))
         {
-            var entry = customEntries[i];
-            if (!string.IsNullOrWhiteSpace(search) &&
-                entry.IndexOf(search, StringComparison.OrdinalIgnoreCase) < 0)
-                continue;
+            ImGui.TableSetupColumn("Rule", ImGuiTableColumnFlags.WidthStretch);
+            ImGui.TableSetupColumn("Action", ImGuiTableColumnFlags.WidthFixed, 80);
 
-            visibleEntries++;
-            ImGui.TextWrapped(entry);
-            ImGui.SameLine();
-            if (ImGui.SmallButton($"Remove##custom-filter-remove-{i}"))
-                removeEntryIndex = i;
+            for (var i = 0; i < customEntries.Count; i++)
+            {
+                var entry = customEntries[i];
+
+                if (!string.IsNullOrWhiteSpace(search) &&
+                    entry.IndexOf(search, StringComparison.OrdinalIgnoreCase) < 0)
+                    continue;
+
+                visibleEntries++;
+                ImGui.TableNextRow();
+
+                ImGui.TableSetColumnIndex(0);
+                ImGui.TextWrapped(entry);
+
+                ImGui.TableSetColumnIndex(1);
+
+                if (ImGui.SmallButton($"Remove##custom-filter-remove-{i}"))
+                    removeEntryIndex = i;
+            }
+
+            ImGui.EndTable();
         }
 
         if (visibleEntries == 0)
         {
             ImGui.TextDisabled(customEntries.Count == 0
-                ? "No custom blacklist entries saved."
-                : "No custom entries match this search.");
+                ? "No custom rules saved."
+                : "No custom rules match this search.");
         }
 
         if (removeEntryIndex >= 0)
@@ -925,12 +965,14 @@ internal sealed class ConfigWindow : Window
         }
 
         ImGui.Spacing();
-        if (ImGui.Button("Clean + sort"))
+
+        if (ImGui.SmallButton("Clean + sort"))
         {
             var beforeCount = customEntries.Count;
             var cleaned = CleanSortCustomFilterEntries(customEntries);
             config.ContentFilterEntries = SerializeCustomFilterEntries(cleaned);
             plugin.SettingsChanged();
+
             var removedCount = beforeCount - cleaned.Count;
             customFilterStatus = removedCount > 0
                 ? $"Cleaned, sorted, and removed {removedCount} duplicate entr{(removedCount == 1 ? "y" : "ies")}."
@@ -938,14 +980,15 @@ internal sealed class ConfigWindow : Window
         }
 
         ImGui.SameLine();
+
         if (!confirmClearCustomFilterEntries)
         {
-            if (ImGui.Button("Clear custom entries"))
+            if (ImGui.SmallButton("Clear custom rules"))
                 confirmClearCustomFilterEntries = true;
         }
         else
         {
-            if (ImGui.Button("Confirm clear"))
+            if (ImGui.SmallButton("Confirm clear"))
             {
                 config.ContentFilterEntries = string.Empty;
                 plugin.SettingsChanged();
@@ -955,33 +998,30 @@ internal sealed class ConfigWindow : Window
             }
 
             ImGui.SameLine();
-            if (ImGui.Button("Cancel##clear-custom-filter"))
+
+            if (ImGui.SmallButton("Cancel##clear-custom-filter"))
                 confirmClearCustomFilterEntries = false;
         }
 
         if (!string.IsNullOrWhiteSpace(customFilterStatus))
-            ImGui.TextWrapped(customFilterStatus);
+            ImGui.TextDisabled(customFilterStatus);
 
-        ImGui.Spacing();
         if (ImGui.CollapsingHeader("Bulk edit / paste raw list"))
         {
-            ImGui.TextDisabled("One entry per line. Optional prefixes: artist:, track:, album:");
+            ImGui.TextDisabled("One rule per line. Optional prefixes: artist:, track:, album:");
+
             var entries = config.ContentFilterEntries;
-            if (ImGui.InputTextMultiline("##content-filter-entries", ref entries, 4096, new Vector2(-1, 160)))
+
+            if (ImGui.InputTextMultiline("##content-filter-entries", ref entries, 4096, new Vector2(-1, 150)))
             {
                 config.ContentFilterEntries = entries;
                 plugin.SettingsChanged();
                 customFilterStatus = "Raw custom blacklist updated. Use Clean + sort to normalize pasted entries.";
             }
-
-            ImGui.TextDisabled("Example: artist: example artist");
         }
 
-        if (config.SmartContentFilterMatching)
-            ImGui.TextDisabled("Smart matching applies to both the built-in preset and your custom entries.");
+        DrawSectionHeader("Match behavior");
 
-        ImGui.Spacing();
-        ImGui.Text("When a blacklist entry matches");
         var actionLabel = config.ContentFilterAction switch
         {
             1 => "Clear Spotify title",
@@ -990,6 +1030,7 @@ internal sealed class ConfigWindow : Window
         };
 
         ImGui.SetNextItemWidth(260);
+
         if (ImGui.BeginCombo("##content-filter-action", actionLabel))
         {
             if (ImGui.Selectable("Censor matching fields", config.ContentFilterAction == 0))
@@ -997,79 +1038,89 @@ internal sealed class ConfigWindow : Window
                 config.ContentFilterAction = 0;
                 plugin.SettingsChanged();
             }
+
             if (ImGui.Selectable("Clear Spotify title", config.ContentFilterAction == 1))
             {
                 config.ContentFilterAction = 1;
                 plugin.SettingsChanged();
             }
+
             if (ImGui.Selectable("Keep previous title", config.ContentFilterAction == 2))
             {
                 config.ContentFilterAction = 2;
                 plugin.SettingsChanged();
             }
+
             ImGui.EndCombo();
         }
 
         if (config.ContentFilterAction == 0)
         {
-            ImGui.TextWrapped("Only the matching metadata field is replaced. Other fields and {cycle:...} stages continue normally.");
-            ImGui.TextDisabled("Example: $uicideboy$ -> Triggerword censored, while {track} and normal cycle text remain untouched.");
+            ImGui.TextDisabled("Only the matching metadata field is replaced. Other fields and cycle stages continue normally.");
+
             ImGui.Text("Replacement text");
+
             var fallback = config.ContentFilterFallback;
-            ImGui.SetNextItemWidth(360);
+            ImGui.SetNextItemWidth(320);
+
             if (ImGui.InputText("##content-filter-fallback", ref fallback, 128))
             {
                 config.ContentFilterFallback = fallback;
                 plugin.SettingsChanged();
             }
+
             ImGui.SameLine();
+
             if (ImGui.Button("Default##filter-fallback"))
             {
                 config.ContentFilterFallback = Configuration.DefaultContentFilterFallback;
                 plugin.SettingsChanged();
             }
-            ImGui.TextDisabled("Default: Triggerword censored");
         }
 
         ImGui.Spacing();
-        ImGui.Text("Test the matcher");
-        ImGui.TextDisabled("Tests the active built-in preset and your custom entries without changing Spotify playback.");
 
-        var testFieldLabel = filterTestFieldIndex switch
+        if (ImGui.CollapsingHeader("Matcher test"))
         {
-            1 => "Artist only",
-            2 => "Track only",
-            3 => "Album only",
-            _ => "All fields",
-        };
+            ImGui.TextDisabled("Test the active rules without changing Spotify playback.");
 
-        ImGui.SetNextItemWidth(145);
-        if (ImGui.BeginCombo("##content-filter-test-field", testFieldLabel))
-        {
-            if (ImGui.Selectable("All fields", filterTestFieldIndex == 0))
-                filterTestFieldIndex = 0;
-            if (ImGui.Selectable("Artist only", filterTestFieldIndex == 1))
-                filterTestFieldIndex = 1;
-            if (ImGui.Selectable("Track only", filterTestFieldIndex == 2))
-                filterTestFieldIndex = 2;
-            if (ImGui.Selectable("Album only", filterTestFieldIndex == 3))
-                filterTestFieldIndex = 3;
-            ImGui.EndCombo();
+            var testFieldLabel = filterTestFieldIndex switch
+            {
+                1 => "Artist only",
+                2 => "Track only",
+                3 => "Album only",
+                _ => "All fields",
+            };
+
+            ImGui.SetNextItemWidth(145);
+
+            if (ImGui.BeginCombo("##content-filter-test-field", testFieldLabel))
+            {
+                if (ImGui.Selectable("All fields", filterTestFieldIndex == 0))
+                    filterTestFieldIndex = 0;
+                if (ImGui.Selectable("Artist only", filterTestFieldIndex == 1))
+                    filterTestFieldIndex = 1;
+                if (ImGui.Selectable("Track only", filterTestFieldIndex == 2))
+                    filterTestFieldIndex = 2;
+                if (ImGui.Selectable("Album only", filterTestFieldIndex == 3))
+                    filterTestFieldIndex = 3;
+
+                ImGui.EndCombo();
+            }
+
+            ImGui.SameLine();
+            ImGui.SetNextItemWidth(320);
+            ImGui.InputText("##content-filter-test", ref filterTestDraft, 256);
+
+            var testResult = plugin.TestContentFilterText(filterTestDraft, filterTestFieldIndex);
+
+            if (testResult.StartsWith("Blocked by", StringComparison.Ordinal))
+                ImGui.TextWrapped($"MATCH: {testResult}");
+            else
+                ImGui.TextDisabled(testResult);
+
+            ImGui.TextDisabled("Built-in terms are all-fields; scoped custom rules only match their selected field.");
         }
-
-        ImGui.SameLine();
-        ImGui.SetNextItemWidth(360);
-        ImGui.InputText("##content-filter-test", ref filterTestDraft, 256);
-
-        var testResult = plugin.TestContentFilterText(filterTestDraft, filterTestFieldIndex);
-        if (testResult.StartsWith("Blocked by", StringComparison.Ordinal))
-            ImGui.TextWrapped($"MATCH: {testResult}");
-        else
-            ImGui.TextDisabled(testResult);
-
-        ImGui.TextDisabled("Scoped custom rules only match their selected metadata field.");
-        if (config.UseBuiltInContentFilterList)
-            ImGui.TextDisabled("Built-in triggerwords are intentionally all-fields. Disable a matching built-in term if you want only a scoped custom version of that term.");
     }
 
     private static System.Collections.Generic.List<string> ParseCustomFilterEntries(string raw)
@@ -1156,23 +1207,30 @@ internal sealed class ConfigWindow : Window
     {
         var config = plugin.Config;
 
-        ImGui.Text("Standard appearance");
-        ImGui.Separator();
+        DrawSectionHeader(
+            "Standard appearance",
+            "Optional normal Honorific color and glow.");
 
         var useColor = config.UseTitleColor;
+
         if (ImGui.Checkbox("Use a custom title color", ref useColor))
         {
             config.UseTitleColor = useColor;
+
             if (!useColor)
                 config.UseTitleGlow = false;
+
             plugin.SettingsChanged();
         }
 
         if (config.UseTitleColor)
         {
+            ImGui.Text("Title color");
+
             var titleColor = config.TitleColor;
-            ImGui.SetNextItemWidth(280);
-            if (ImGui.ColorEdit3("Title color", ref titleColor))
+            ImGui.SetNextItemWidth(300);
+
+            if (ImGui.ColorEdit3("##title-color", ref titleColor))
             {
                 config.TitleColor = titleColor;
                 plugin.SettingsChanged();
@@ -1181,6 +1239,7 @@ internal sealed class ConfigWindow : Window
             if (!config.UseSupporterGradient)
             {
                 var useGlow = config.UseTitleGlow;
+
                 if (ImGui.Checkbox("Add a glow", ref useGlow))
                 {
                     config.UseTitleGlow = useGlow;
@@ -1189,9 +1248,12 @@ internal sealed class ConfigWindow : Window
 
                 if (config.UseTitleGlow)
                 {
+                    ImGui.Text("Glow color");
+
                     var glowColor = config.TitleGlowColor;
-                    ImGui.SetNextItemWidth(280);
-                    if (ImGui.ColorEdit3("Glow color", ref glowColor))
+                    ImGui.SetNextItemWidth(300);
+
+                    if (ImGui.ColorEdit3("##glow-color", ref glowColor))
                     {
                         config.TitleGlowColor = glowColor;
                         plugin.SettingsChanged();
@@ -1204,29 +1266,38 @@ internal sealed class ConfigWindow : Window
             }
         }
 
-        ImGui.TextWrapped("Honorific's own 'Display Coloured Titles' option must be enabled for colors to be visible.");
+        ImGui.TextDisabled("Honorific must have Display Coloured Titles enabled for colors to be visible.");
 
-        ImGui.Spacing();
-        ImGui.Text("Honorific supporter effects");
-        ImGui.Separator();
-        ImGui.TextWrapped("Honorific marks gradients and animations as supporter features. SpotifyTrackHonorific follows Honorific's trust-based approach and does not verify supporter status.");
+        DrawSectionHeader(
+            "Honorific supporter effects",
+            "Gradient and animation controls follow Honorific's trust-based supporter access.");
 
         var supporterConfirmed = config.HonorificSupporterConfirmed;
+
         if (ImGui.Checkbox("I confirm I have access to Honorific supporter features", ref supporterConfirmed))
         {
             config.HonorificSupporterConfirmed = supporterConfirmed;
+
             if (!supporterConfirmed)
                 config.UseSupporterGradient = false;
+
             plugin.SettingsChanged();
         }
 
         if (config.HonorificSupporterConfirmed)
+        {
             DrawSupporterAppearance();
+        }
         else
-            ImGui.TextDisabled("Supporter controls stay hidden until you confirm access above.");
+        {
+            ImGui.TextDisabled("Confirm access above to reveal supporter gradient and animation controls.");
+        }
 
         ImGui.Spacing();
-        if (ImGui.Button("Reset appearance"))
+        ImGui.Separator();
+        ImGui.Spacing();
+
+        if (ImGui.SmallButton("Reset appearance"))
             ResetAppearance();
     }
 
@@ -1235,11 +1306,14 @@ internal sealed class ConfigWindow : Window
         var config = plugin.Config;
 
         var useGradient = config.UseSupporterGradient;
+
         if (ImGui.Checkbox("Use a gradient", ref useGradient))
         {
             config.UseSupporterGradient = useGradient;
+
             if (useGradient)
                 config.UseTitleGlow = false;
+
             plugin.SettingsChanged();
         }
 
@@ -1247,10 +1321,14 @@ internal sealed class ConfigWindow : Window
             return;
 
         var gradientCatalog = HonorificGradientCatalog.GetSnapshot();
+        var sourceLabel = config.UseCustomDualGradient
+            ? "Custom three-color gradient"
+            : "Honorific preset";
 
-        var sourceLabel = config.UseCustomDualGradient ? "Custom three-color gradient" : "Honorific preset";
+        ImGui.Text("Gradient type");
         ImGui.SetNextItemWidth(320);
-        if (ImGui.BeginCombo("Gradient type", sourceLabel))
+
+        if (ImGui.BeginCombo("##gradient-type", sourceLabel))
         {
             if (ImGui.Selectable("Custom three-color gradient", config.UseCustomDualGradient))
             {
@@ -1263,30 +1341,37 @@ internal sealed class ConfigWindow : Window
                 config.UseCustomDualGradient = false;
                 plugin.SettingsChanged();
             }
+
             ImGui.EndCombo();
         }
 
         if (config.UseCustomDualGradient)
         {
+            ImGui.Text("Gradient color A");
             var colorA = config.GradientColorA;
-            ImGui.SetNextItemWidth(280);
-            if (ImGui.ColorEdit3("Gradient color A", ref colorA))
+            ImGui.SetNextItemWidth(300);
+
+            if (ImGui.ColorEdit3("##gradient-color-a", ref colorA))
             {
                 config.GradientColorA = colorA;
                 plugin.SettingsChanged();
             }
 
+            ImGui.Text("Gradient color B");
             var colorB = config.GradientColorB;
-            ImGui.SetNextItemWidth(280);
-            if (ImGui.ColorEdit3("Gradient color B", ref colorB))
+            ImGui.SetNextItemWidth(300);
+
+            if (ImGui.ColorEdit3("##gradient-color-b", ref colorB))
             {
                 config.GradientColorB = colorB;
                 plugin.SettingsChanged();
             }
 
+            ImGui.Text("Gradient color C");
             var colorC = config.GradientColorC;
-            ImGui.SetNextItemWidth(280);
-            if (ImGui.ColorEdit3("Gradient color C", ref colorC))
+            ImGui.SetNextItemWidth(300);
+
+            if (ImGui.ColorEdit3("##gradient-color-c", ref colorC))
             {
                 config.GradientColorC = colorC;
                 plugin.SettingsChanged();
@@ -1295,6 +1380,7 @@ internal sealed class ConfigWindow : Window
         else if (gradientCatalog.PresetsAvailable)
         {
             var presetLabel = "Choose a preset";
+
             foreach (var option in gradientCatalog.Presets)
             {
                 if (option.Value == config.GradientColourSet)
@@ -1304,8 +1390,10 @@ internal sealed class ConfigWindow : Window
                 }
             }
 
+            ImGui.Text("Gradient preset");
             ImGui.SetNextItemWidth(320);
-            if (ImGui.BeginCombo("Gradient preset", presetLabel))
+
+            if (ImGui.BeginCombo("##gradient-preset", presetLabel))
             {
                 foreach (var option in gradientCatalog.Presets)
                 {
@@ -1315,17 +1403,20 @@ internal sealed class ConfigWindow : Window
                         plugin.SettingsChanged();
                     }
                 }
+
                 ImGui.EndCombo();
             }
         }
         else
         {
             ImGui.TextWrapped("Honorific's gradient presets are not available yet. Make sure Honorific is loaded and enabled.");
+
             if (ImGui.Button("Refresh Honorific options"))
                 HonorificGradientCatalog.ForceRefresh();
         }
 
         var animationLabel = "Choose a style";
+
         foreach (var option in gradientCatalog.AnimationStyles)
         {
             if (option.Value == config.GradientAnimationStyle)
@@ -1335,8 +1426,10 @@ internal sealed class ConfigWindow : Window
             }
         }
 
+        ImGui.Text("Animation style");
         ImGui.SetNextItemWidth(320);
-        if (ImGui.BeginCombo("Animation style", animationLabel))
+
+        if (ImGui.BeginCombo("##gradient-animation-style", animationLabel))
         {
             foreach (var option in gradientCatalog.AnimationStyles)
             {
@@ -1347,121 +1440,139 @@ internal sealed class ConfigWindow : Window
                     plugin.SettingsChanged();
                 }
             }
+
             ImGui.EndCombo();
         }
-        HelpMarker("The names come directly from your installed Honorific version. Honorific's 'Allow title animations' option must also be enabled for animated styles to move.");
+
+        HelpMarker("The names come directly from your installed Honorific version. Honorific's Allow title animations option must also be enabled for animated styles to move.");
     }
 
     private void DrawAdvancedTab()
     {
         var config = plugin.Config;
 
-        ImGui.Text("Connection details");
-        ImGui.Separator();
-        ImGui.Text($"Spotify state: {plugin.StateText}");
-        ImGui.TextWrapped($"Connection health: {plugin.ReliabilityText}");
-        if (!string.IsNullOrWhiteSpace(plugin.ErrorText))
-        {
-            if (ImGui.CollapsingHeader("Technical error details"))
-                ImGui.TextWrapped(plugin.ErrorText);
-        }
-        ImGui.TextDisabled("Playing/paused: approximately 15-second checks | idle: approximately 60-second checks");
-        ImGui.TextDisabled("Temporary failures automatically back off up to 120 seconds; Spotify rate-limit retry times are respected.");
+        DrawSectionHeader("Connection health");
 
-        ImGui.Spacing();
-        ImGui.Text("Manual tools");
-        ImGui.Separator();
-        if (ImGui.Button("Retry Spotify now"))
+        ImGui.Text($"Spotify state: {plugin.StateText}");
+        ImGui.TextWrapped($"Health: {plugin.ReliabilityText}");
+        ImGui.TextDisabled("Playing/paused checks: about 15s | idle checks: about 60s");
+
+        if (!string.IsNullOrWhiteSpace(plugin.ErrorText) &&
+            ImGui.CollapsingHeader("Technical error details"))
+        {
+            ImGui.TextWrapped(plugin.ErrorText);
+        }
+
+        DrawSectionHeader("Tools");
+
+        if (ImGui.Button("Retry Spotify"))
             plugin.RetrySpotifyNow();
+
         ImGui.SameLine();
-        if (ImGui.Button("Test Honorific title"))
+
+        if (ImGui.Button("Test Honorific"))
             plugin.TestHonorificTitle();
+
         ImGui.SameLine();
-        if (ImGui.Button("Clear this plugin's title"))
+
+        if (ImGui.Button("Clear STH title"))
             plugin.ClearPluginTitle();
 
         ImGui.Spacing();
+
         if (ImGui.Button("Copy diagnostics"))
         {
             ImGui.SetClipboardText(plugin.BuildDiagnosticsText());
-            diagnosticsStatus = "Diagnostics copied. Client ID, OAuth tokens, track names and artist names are excluded.";
+            diagnosticsStatus = "Diagnostics copied. Client ID, OAuth tokens, track names, and artist names are excluded.";
         }
+
         ImGui.SameLine();
         ImGui.TextDisabled("Safe to paste into a bug report.");
+
         if (!string.IsNullOrWhiteSpace(diagnosticsStatus))
-            ImGui.TextWrapped(diagnosticsStatus);
-
-        ImGui.Spacing();
-        ImGui.Text("Reset and connection data");
-        ImGui.Separator();
-
-        if (!confirmResetDisplay)
-        {
-            if (ImGui.Button("Reset display settings"))
-                confirmResetDisplay = true;
-            ImGui.SameLine();
-            ImGui.TextDisabled("Keeps Spotify authorization and supporter confirmation.");
-        }
-        else
-        {
-            ImGui.TextWrapped("Reset title, playback, and appearance settings to defaults? Your Spotify connection and supporter confirmation will be kept.");
-            if (ImGui.Button("Confirm display reset"))
-            {
-                plugin.ResetDisplaySettings();
-                confirmResetDisplay = false;
-            }
-            ImGui.SameLine();
-            if (ImGui.Button("Cancel##reset-display"))
-                confirmResetDisplay = false;
-        }
-
-        ImGui.Spacing();
-        if (!confirmForgetSpotify)
-        {
-            if (ImGui.Button("Forget Spotify connection"))
-                confirmForgetSpotify = true;
-            ImGui.SameLine();
-            ImGui.TextDisabled("Removes the saved authorization token but keeps your Client ID for easy reconnecting.");
-        }
-        else
-        {
-            ImGui.TextWrapped("Forget the saved Spotify authorization? You will need to connect Spotify again. Your Client ID will remain saved.");
-            if (ImGui.Button("Confirm forget Spotify"))
-            {
-                plugin.ForgetSpotifyConnection(clearClientId: false);
-                confirmForgetSpotify = false;
-            }
-            ImGui.SameLine();
-            if (ImGui.Button("Cancel##forget-spotify"))
-                confirmForgetSpotify = false;
-        }
-
-        if (config.SpotifyAuthorizedAtUtc != DateTime.MinValue)
-            ImGui.TextDisabled($"Spotify authorization saved: {config.SpotifyAuthorizedAtUtc:u}");
+            ImGui.TextDisabled(diagnosticsStatus);
 
         DrawPortableSettings();
 
         ImGui.Spacing();
+
+        if (ImGui.CollapsingHeader("Reset / connection data"))
+        {
+            if (!confirmResetDisplay)
+            {
+                if (ImGui.Button("Reset display settings"))
+                    confirmResetDisplay = true;
+
+                ImGui.SameLine();
+                ImGui.TextDisabled("Keeps Spotify authorization and supporter confirmation.");
+            }
+            else
+            {
+                ImGui.TextWrapped("Reset title, playback, and appearance settings to defaults?");
+
+                if (ImGui.Button("Confirm display reset"))
+                {
+                    plugin.ResetDisplaySettings();
+                    confirmResetDisplay = false;
+                }
+
+                ImGui.SameLine();
+
+                if (ImGui.Button("Cancel##reset-display"))
+                    confirmResetDisplay = false;
+            }
+
+            ImGui.Spacing();
+
+            if (!confirmForgetSpotify)
+            {
+                if (ImGui.Button("Forget Spotify connection"))
+                    confirmForgetSpotify = true;
+
+                ImGui.SameLine();
+                ImGui.TextDisabled("Removes authorization but keeps the Client ID.");
+            }
+            else
+            {
+                ImGui.TextWrapped("Forget the saved Spotify authorization? You will need to connect Spotify again.");
+
+                if (ImGui.Button("Confirm forget Spotify"))
+                {
+                    plugin.ForgetSpotifyConnection(clearClientId: false);
+                    confirmForgetSpotify = false;
+                }
+
+                ImGui.SameLine();
+
+                if (ImGui.Button("Cancel##forget-spotify"))
+                    confirmForgetSpotify = false;
+            }
+
+            if (config.SpotifyAuthorizedAtUtc != DateTime.MinValue)
+                ImGui.TextDisabled($"Authorization saved: {config.SpotifyAuthorizedAtUtc:u}");
+        }
+
+        ImGui.Spacing();
+
         if (ImGui.CollapsingHeader("Command-line tools"))
         {
-            ImGui.TextDisabled("/sth              - open these settings");
-            ImGui.TextDisabled("/sth status       - show connection/reliability status in chat");
-            ImGui.TextDisabled("/sth now          - show the currently detected track/title");
-            ImGui.TextDisabled("/sth retry        - retry Spotify immediately");
-            ImGui.TextDisabled("/sth ipc-test     - send a test title to Honorific");
-            ImGui.TextDisabled("/sth clear        - clear this plugin's Honorific title");
-            ImGui.TextDisabled("/sth enable       - enable Spotify title updates");
-            ImGui.TextDisabled("/sth disable      - disable Spotify title updates");
-            ImGui.TextDisabled("/sth auth <id>    - manually start Spotify authorization");
+            ImGui.TextDisabled("/sth              - open settings");
+            ImGui.TextDisabled("/sth status       - connection/reliability status");
+            ImGui.TextDisabled("/sth now          - current detected track/title");
+            ImGui.TextDisabled("/sth retry        - retry Spotify");
+            ImGui.TextDisabled("/sth ipc-test     - test Honorific");
+            ImGui.TextDisabled("/sth clear        - clear STH title");
+            ImGui.TextDisabled("/sth enable       - enable title updates");
+            ImGui.TextDisabled("/sth disable      - disable title updates");
+            ImGui.TextDisabled("/sth auth <id>    - start Spotify authorization");
         }
     }
 
     private void DrawPortableSettings()
     {
-        ImGui.Spacing();
-        ImGui.Text("Backup / transfer settings");
-        ImGui.Separator();
-        ImGui.TextWrapped("Portable settings include your current title, appearance, filter setup and saved profiles. Spotify Client ID/token and supporter entitlement confirmation are never exported.");
+        DrawSectionHeader(
+            "Backup / transfer",
+            "Portable settings include display, filter, and saved profiles. Spotify credentials and supporter confirmation are never exported.");
 
         if (ImGui.Button("Copy portable settings"))
         {
@@ -1473,12 +1584,14 @@ internal sealed class ConfigWindow : Window
         if (!confirmImportSettings)
         {
             ImGui.SameLine();
+
             if (ImGui.Button("Import from clipboard"))
                 confirmImportSettings = true;
         }
         else
         {
-            ImGui.TextWrapped("Importing replaces the current display/filter settings and saved profiles. Spotify authorization and supporter confirmation stay untouched.");
+            ImGui.TextWrapped("Import replaces current display/filter settings and saved profiles.");
+
             if (ImGui.Button("Confirm import"))
             {
                 var clipboard = ImGui.GetClipboardText() ?? string.Empty;
@@ -1487,13 +1600,15 @@ internal sealed class ConfigWindow : Window
                 selectedProfileIndex = -1;
                 profileNameDraft = string.Empty;
             }
+
             ImGui.SameLine();
+
             if (ImGui.Button("Cancel##portable-import"))
                 confirmImportSettings = false;
         }
 
         if (!string.IsNullOrWhiteSpace(portableSettingsStatus))
-            ImGui.TextWrapped(portableSettingsStatus);
+            ImGui.TextDisabled(portableSettingsStatus);
     }
 
     private void ResetAppearance()
@@ -1513,6 +1628,23 @@ internal sealed class ConfigWindow : Window
         config.GradientColorC = new Vector3(0.35f, 0.70f, 1.00f);
         // Keep supporter confirmation: entitlement is not an appearance setting.
         plugin.SettingsChanged();
+    }
+
+    private static void DrawSectionHeader(string title, string? description = null)
+    {
+        ImGui.Spacing();
+        ImGui.Text(title);
+        ImGui.Separator();
+
+        if (!string.IsNullOrWhiteSpace(description))
+            DrawMutedWrapped(description);
+    }
+
+    private static void DrawMutedWrapped(string text)
+    {
+        ImGui.PushTextWrapPos(0f);
+        ImGui.TextDisabled(text);
+        ImGui.PopTextWrapPos();
     }
 
     private static void HelpMarker(string text)
