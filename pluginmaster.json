@@ -3,7 +3,7 @@
         "Author":  "Dash + AI",
         "Name":  "SpotifyTrackHonorific",
         "InternalName":  "SpotifyTrackHonorific",
-        "AssemblyVersion":  "1.0.12.0",
+        "AssemblyVersion":  "1.0.13.0",
         "Description":  "Shows your current Spotify track as an Honorific title, including local files, formatting, cleanup, styling, supporter effects, reliability handling, content filtering, saved profiles, portable settings, and optional combat auto-hide.",
         "ApplicableVersion":  "any",
         "Tags":  [
@@ -19,7 +19,7 @@
         "CanUnloadAsync":  false,
         "LoadPriority":  0,
         "Punchline":  "Show your Spotify track as an Honorific title.",
-        "Changelog":  "SpotifyTrackHonorific 1.0.12 refreshes the settings UI for clearer navigation, stronger visual hierarchy, cleaner profile/filter controls, and improved readability.",
+        "Changelog":  "SpotifyTrackHonorific 1.0.13 adds optional PatMeHonorific compatibility so temporary emote-counter titles can take priority and Spotify titles resume automatically afterward.",
         "AcceptsFeedback":  false,
         "DownloadLinkInstall":  "https://raw.githubusercontent.com/420Dasher/DAH-LocalTrackSupport/main/plugins/SpotifyTrackHonorific/latest.zip",
         "IsHide":  false,

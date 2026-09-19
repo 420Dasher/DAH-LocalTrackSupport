@@ -13,7 +13,7 @@ public sealed class Configuration : IPluginConfiguration
     public const string DefaultContentFilterFallback = "Triggerword censored";
     public const int MaxTitleProfiles = 5;
 
-    public int Version { get; set; } = 12;
+    public int Version { get; set; } = 13;
 
     public bool Enabled { get; set; } = true;
     public bool ShowNormalTracks { get; set; } = true;
@@ -23,6 +23,10 @@ public sealed class Configuration : IPluginConfiguration
     // v11 optional combat auto-hide. Off by default so updating from v1.0.5
     // preserves existing title behavior until the user explicitly enables it.
     public bool AutoHideInCombat { get; set; } = false;
+
+    // v13 optional interoperability with temporary Honorific-title writers such
+    // as PatMeHonorific. Off by default to preserve existing STH ownership rules.
+    public bool EnablePatMeHonorificSupport { get; set; } = false;
 
     public bool IsPrefix { get; set; } = false;
     public string TitleFormat { get; set; } = DefaultTitleFormat;
@@ -191,6 +195,14 @@ public sealed class Configuration : IPluginConfiguration
             // cache one manually from the Title tab.
             CachedHonorificTitle = string.Empty;
             Version = 12;
+            changed = true;
+        }
+
+        if (Version < 13)
+        {
+            // PatMeHonorific interoperability is deliberately opt-in.
+            EnablePatMeHonorificSupport = false;
+            Version = 13;
             changed = true;
         }
 

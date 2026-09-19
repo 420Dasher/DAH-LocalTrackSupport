@@ -188,6 +188,23 @@ internal sealed class ConfigWindow : Window
 
         ImGui.SameLine();
         ImGui.TextDisabled("The Spotify title returns on the next successful update.");
+
+        ImGui.Spacing();
+
+        var patMeSupport = config.EnablePatMeHonorificSupport;
+        if (ImGui.Checkbox("PatMeHonorific compatibility", ref patMeSupport))
+        {
+            config.EnablePatMeHonorificSupport = patMeSupport;
+            plugin.SettingsChanged();
+        }
+        HelpMarker("Lets PatMeHonorific temporarily replace STH with its emote-counter title. STH yields while that temporary title is active and restores the Spotify title after PatMeHonorific clears it.");
+
+        if (config.EnablePatMeHonorificSupport)
+        {
+            ImGui.TextDisabled(plugin.PatMeHonorificYieldActive
+                ? "PatMeHonorific: temporary counter title active - STH is yielding."
+                : "PatMeHonorific: compatibility ready.");
+        }
     }
 
     private void DrawSpotifyConnectionSetup()

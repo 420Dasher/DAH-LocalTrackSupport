@@ -22,7 +22,7 @@ namespace SpotifyTrackHonorific;
 
 public sealed class Plugin : IDalamudPlugin
 {
-    internal const string DisplayVersion = "1.0.12";
+    internal const string DisplayVersion = "1.0.13";
     private const string ShortCommand = "/sth";
     private const string LongCommand = "/spotifytrackhonorific";
     private static readonly TimeSpan NormalPollInterval = TimeSpan.FromSeconds(15);
@@ -74,6 +74,8 @@ public sealed class Plugin : IDalamudPlugin
     private bool originalHonorificCaptureFinished;
     private long nextOriginalHonorificCaptureAttemptUtcTicks;
     private string? lastAppliedTitle;
+    private bool patMeHonorificOverrideActive;
+    private bool suppressHonorificTitleChanged;
 
     internal Configuration Config => config;
     internal bool IsAuthenticated => spotify.HasRefreshToken;
@@ -92,6 +94,7 @@ public sealed class Plugin : IDalamudPlugin
     internal bool HonorificDetected => HonorificGradientCatalog.GetSnapshot().HonorificTypesFound;
     internal string SpotifyFriendlyStatus => BuildSpotifyFriendlyStatus();
     internal string CachedHonorificTitle => config.CachedHonorificTitle;
+    internal bool PatMeHonorificYieldActive => patMeHonorificOverrideActive;
     internal string ActiveProfileName
     {
         get
@@ -114,6 +117,7 @@ public sealed class Plugin : IDalamudPlugin
 
         spotify = new SpotifyApiService(config, SaveConfig);
         honorific = new HonorificBridge(PluginInterface);
+        honorific.LocalTitleChanged += OnHonorificLocalTitleChanged;
         originalHonorificCaptureFinished = !string.IsNullOrWhiteSpace(config.CachedHonorificTitle);
 
         configWindow = new ConfigWindow(this);
@@ -152,7 +156,9 @@ public sealed class Plugin : IDalamudPlugin
         CommandManager.RemoveHandler(LongCommand);
         windowSystem.RemoveAllWindows();
 
+        honorific.LocalTitleChanged -= OnHonorificLocalTitleChanged;
         TryClearHonorific();
+        honorific.Dispose();
         spotify.Dispose();
         lifetimeCts.Dispose();
     }
@@ -166,8 +172,12 @@ public sealed class Plugin : IDalamudPlugin
         SchedulePollNow();
         appliedFingerprint = null;
 
+        if (!config.EnablePatMeHonorificSupport)
+            patMeHonorificOverrideActive = false;
+
         if (!config.Enabled)
         {
+            patMeHonorificOverrideActive = false;
             combatAutoHideActive = false;
             var honorificCleared = TryClearHonorific();
 
@@ -298,6 +308,8 @@ public sealed class Plugin : IDalamudPlugin
             $"Auto-hide in combat: {config.AutoHideInCombat}",
             $"Currently in combat: {Condition[ConditionFlag.InCombat]}",
             $"Cached original Honorific title: {!string.IsNullOrWhiteSpace(config.CachedHonorificTitle)}",
+            $"PatMeHonorific support: {config.EnablePatMeHonorificSupport}",
+            $"Yielding to temporary Honorific title: {patMeHonorificOverrideActive}",
             $"Smart-fit long titles: {config.SmartFitLongTitles}",
             $"Strip bracketed extras: {config.StripBracketedTrackParts}",
             $"Content filter enabled: {config.EnableContentFilter}",
@@ -803,10 +815,10 @@ public sealed class Plugin : IDalamudPlugin
 
         combatAutoHideActive = false;
         appliedFingerprint = null;
-        RestoreCachedTitleAfterCombat();
+        RestoreCurrentSpotifyTitle();
     }
 
-    private void RestoreCachedTitleAfterCombat()
+    private void RestoreCurrentSpotifyTitle()
     {
         if (!config.Enabled || ShouldAutoHideForCombat())
             return;
@@ -1471,8 +1483,74 @@ public sealed class Plugin : IDalamudPlugin
             Log.Debug($"Could not read the existing Honorific title before STH's first write: {ex.Message}");
         }
     }
+    private void OnHonorificLocalTitleChanged(string title)
+    {
+        if (suppressHonorificTitleChanged)
+            return;
+
+        if (!config.EnablePatMeHonorificSupport || !config.Enabled)
+        {
+            patMeHonorificOverrideActive = false;
+            return;
+        }
+
+        title = (title ?? string.Empty).Trim();
+
+        if (!string.IsNullOrWhiteSpace(title))
+        {
+            if (!string.IsNullOrWhiteSpace(lastAppliedTitle) &&
+                string.Equals(title, lastAppliedTitle, StringComparison.Ordinal))
+                return;
+
+            if (patMeHonorificOverrideActive)
+            {
+                // ClearCharacterTitle normally reveals the regular Honorific/vanilla
+                // title instead of producing an empty title-change event. When that
+                // cached original title returns, PatMe's temporary override has ended.
+                if (!string.IsNullOrWhiteSpace(config.CachedHonorificTitle) &&
+                    string.Equals(title, config.CachedHonorificTitle, StringComparison.Ordinal))
+                {
+                    patMeHonorificOverrideActive = false;
+                    appliedFingerprint = null;
+                    Log.Information("PatMeHonorific compatibility: regular Honorific title returned; restoring Spotify title.");
+                    RestoreCurrentSpotifyTitle();
+                }
+
+                // Other non-empty changes are still considered temporary PatMe output.
+                return;
+            }
+
+            // Yield only when STH owned the visible title immediately before this
+            // external write. That avoids treating a normal persistent Honorific
+            // title as a PatMeHonorific override during startup.
+            if (!hasAppliedTitle)
+                return;
+
+            Log.Information($"PatMeHonorific compatibility: yielding to temporary Honorific title '{title}'.");
+
+            patMeHonorificOverrideActive = true;
+            hasAppliedTitle = false;
+            appliedFingerprint = null;
+            return;
+        }
+
+        if (!patMeHonorificOverrideActive)
+            return;
+
+        patMeHonorificOverrideActive = false;
+        appliedFingerprint = null;
+        Log.Information("PatMeHonorific compatibility: temporary Honorific title cleared; restoring Spotify title.");
+        RestoreCurrentSpotifyTitle();
+    }
+
     private void ApplyHonorificTitle(string title, string fingerprint)
     {
+        if (config.EnablePatMeHonorificSupport && patMeHonorificOverrideActive)
+        {
+            appliedFingerprint = null;
+            return;
+        }
+
         if (ShouldAutoHideForCombat())
         {
             combatAutoHideActive = true;
@@ -1533,14 +1611,22 @@ public sealed class Plugin : IDalamudPlugin
                 glow = config.TitleGlowColor;
             }
 
-            honorific.Set(
-                title,
-                config.IsPrefix,
-                color,
-                glow,
-                gradientColourSet,
-                gradientAnimationStyle,
-                color3);
+            suppressHonorificTitleChanged = true;
+            try
+            {
+                honorific.Set(
+                    title,
+                    config.IsPrefix,
+                    color,
+                    glow,
+                    gradientColourSet,
+                    gradientAnimationStyle,
+                    color3);
+            }
+            finally
+            {
+                suppressHonorificTitleChanged = false;
+            }
             appliedFingerprint = fingerprint;
             hasAppliedTitle = true;
             lastAppliedTitle = title;
@@ -1570,8 +1656,16 @@ public sealed class Plugin : IDalamudPlugin
 
         try
         {
-            honorific.Clear();
-            cleared = true;
+            suppressHonorificTitleChanged = true;
+            try
+            {
+                honorific.Clear();
+                cleared = true;
+            }
+            finally
+            {
+                suppressHonorificTitleChanged = false;
+            }
         }
         catch (Exception ex)
         {

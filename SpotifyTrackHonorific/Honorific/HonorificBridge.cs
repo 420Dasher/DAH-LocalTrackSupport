@@ -7,7 +7,7 @@ using System.Numerics;
 
 namespace SpotifyTrackHonorific.Honorific;
 
-internal sealed class HonorificBridge
+internal sealed class HonorificBridge : IDisposable
 {
     // Honorific currently enforces a 32-character title limit.
     public const int MaxTitleLength = 32;
@@ -28,12 +28,17 @@ internal sealed class HonorificBridge
     private readonly ICallGateSubscriber<uint, string, object> setTitle;
     private readonly ICallGateSubscriber<uint, object> clearTitle;
     private readonly ICallGateSubscriber<int, string> getTitle;
+    private readonly ICallGateSubscriber<string, object> localTitleChanged;
+
+    public event Action<string>? LocalTitleChanged;
 
     public HonorificBridge(IDalamudPluginInterface pluginInterface)
     {
         setTitle = pluginInterface.GetIpcSubscriber<uint, string, object>("Honorific.SetCharacterTitle");
         clearTitle = pluginInterface.GetIpcSubscriber<uint, object>("Honorific.ClearCharacterTitle");
         getTitle = pluginInterface.GetIpcSubscriber<int, string>("Honorific.GetCharacterTitle");
+        localTitleChanged = pluginInterface.GetIpcSubscriber<string, object>("Honorific.LocalCharacterTitleChanged");
+        localTitleChanged.Subscribe(OnLocalTitleChanged);
     }
 
     private static readonly JsonSerializerOptions PayloadJsonOptions = new()
@@ -72,6 +77,32 @@ internal sealed class HonorificBridge
     }
 
     public void Clear() => clearTitle.InvokeAction(0u);
+
+    public void Dispose() => localTitleChanged.Unsubscribe(OnLocalTitleChanged);
+
+    private void OnLocalTitleChanged(string rawJson)
+    {
+        var title = string.Empty;
+
+        if (!string.IsNullOrWhiteSpace(rawJson))
+        {
+            try
+            {
+                using var document = JsonDocument.Parse(rawJson);
+                if (document.RootElement.TryGetProperty("Title", out var titleElement) &&
+                    titleElement.ValueKind == JsonValueKind.String)
+                {
+                    title = titleElement.GetString()?.Trim() ?? string.Empty;
+                }
+            }
+            catch (JsonException)
+            {
+                // Empty/malformed notifications are treated as a cleared title.
+            }
+        }
+
+        LocalTitleChanged?.Invoke(title);
+    }
 
     public bool TryGetCurrentTitle(out string title)
     {
