@@ -1,0 +1,13 @@
+{
+  "Author": "Dash + AI",
+  "Name": "Retainer Undercut",
+  "Punchline": "Fast, safe retainer repricing with preview-first automation.",
+  "Description": "Preview and apply retainer market repricing with strict HQ/NQ separation, multi-retainer runs, Matchlist protection, per-item rules, safety guards, Price Recovery, and run history.",
+  "ApplicableVersion": "any",
+  "DalamudApiLevel": 15,
+  "Tags": [
+    "retainer",
+    "market board",
+    "utility"
+  ]
+}

@@ -1,4 +1,4 @@
-[
+﻿[
     {
         "Author":  "Dash + AI",
         "Name":  "SpotifyTrackHonorific",
@@ -55,5 +55,32 @@
         "Punchline":  "Discontinued - replaced by SpotifyTrackHonorific.",
         "Changelog":  "This legacy DAH-based fork is discontinued. Use SpotifyTrackHonorific instead.",
         "IsHide":  false
+    },
+    {
+        "Author":  "Dash + AI",
+        "Name":  "Retainer Undercut",
+        "InternalName":  "RetainerUndercut",
+        "AssemblyVersion":  "0.1.0.0",
+        "Description":  "Preview and apply retainer market repricing with strict HQ/NQ separation, multi-retainer runs, Matchlist protection, per-item rules, safety guards, Price Recovery, and run history.",
+        "ApplicableVersion":  "any",
+        "Tags":  [
+                     "retainer",
+                     "market board",
+                     "utility"
+                 ],
+        "IconUrl":  "https://raw.githubusercontent.com/420Dasher/DAH-LocalTrackSupport/main/plugins/RetainerUndercut/icon.png",
+        "DalamudApiLevel":  15,
+        "LoadRequiredState":  0,
+        "LoadSync":  false,
+        "CanUnloadAsync":  false,
+        "LoadPriority":  0,
+        "Punchline":  "Fast, safe retainer repricing with preview-first automation.",
+        "Changelog":  "Initial stable release of Retainer Undercut.",
+        "AcceptsFeedback":  false,
+        "DownloadLinkInstall":  "https://raw.githubusercontent.com/420Dasher/DAH-LocalTrackSupport/main/plugins/RetainerUndercut/latest.zip",
+        "IsHide":  false,
+        "IsTestingExclusive":  false,
+        "DownloadLinkTesting":  "https://raw.githubusercontent.com/420Dasher/DAH-LocalTrackSupport/main/plugins/RetainerUndercut/latest.zip",
+        "DownloadLinkUpdate":  "https://raw.githubusercontent.com/420Dasher/DAH-LocalTrackSupport/main/plugins/RetainerUndercut/latest.zip"
     }
 ]
