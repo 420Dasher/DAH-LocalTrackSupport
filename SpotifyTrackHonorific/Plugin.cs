@@ -14,6 +14,7 @@ using SpotifyTrackHonorific.UI;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.IO;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
@@ -22,12 +23,16 @@ namespace SpotifyTrackHonorific;
 
 public sealed class Plugin : IDalamudPlugin
 {
-    internal const string DisplayVersion = "1.0.13";
+    internal const string DisplayVersion = "1.0.14";
     private const string ShortCommand = "/sth";
     private const string LongCommand = "/spotifytrackhonorific";
     private static readonly TimeSpan NormalPollInterval = TimeSpan.FromSeconds(15);
     private static readonly TimeSpan IdlePollInterval = TimeSpan.FromSeconds(60);
     private static readonly TimeSpan LocalRenderRefreshInterval = TimeSpan.FromSeconds(1);
+    private static readonly TimeSpan CharacterSelectCheckInterval = TimeSpan.FromMilliseconds(250);
+    private static readonly TimeSpan CharacterSelectSettleDelay = TimeSpan.FromMilliseconds(500);
+    private static readonly TimeSpan CharacterSelectCaptureRetryInterval = TimeSpan.FromMilliseconds(500);
+    private static readonly TimeSpan CharacterSelectCaptureWindow = TimeSpan.FromSeconds(8);
     private const int FailureBackoffBaseSeconds = 5;
     private const int FailureBackoffMaxSeconds = 120;
     private const int RateLimitFallbackSeconds = 30;
@@ -46,10 +51,13 @@ public sealed class Plugin : IDalamudPlugin
     [PluginService] private static IPluginLog Log { get; set; } = null!;
     [PluginService] private static IFramework Framework { get; set; } = null!;
     [PluginService] private static ICondition Condition { get; set; } = null!;
+    [PluginService] private static IClientState ClientState { get; set; } = null!;
 
     private readonly Configuration config;
     private readonly SpotifyApiService spotify;
     private readonly HonorificBridge honorific;
+    private readonly Dalamud.Plugin.Ipc.ICallGateSubscriber<string> characterSelectGetCurrentCharacter;
+    private readonly Dalamud.Plugin.Ipc.ICallGateSubscriber<string, string, object> characterSelectCharacterChanged;
     private readonly CancellationTokenSource lifetimeCts = new();
     private readonly WindowSystem windowSystem = new("SpotifyTrackHonorific");
     private readonly ConfigWindow configWindow;
@@ -76,6 +84,22 @@ public sealed class Plugin : IDalamudPlugin
     private string? lastAppliedTitle;
     private bool patMeHonorificOverrideActive;
     private bool suppressHonorificTitleChanged;
+    private string? lastCharacterSelectProfile;
+    private bool characterSelectProfileKnown;
+    private long nextCharacterSelectCheckUtcTicks;
+    private long pendingCharacterSelectCaptureUtcTicks;
+    private long characterSelectCaptureDeadlineUtcTicks;
+    private string characterSelectPreviousHonorificTitle = string.Empty;
+    private bool characterSelectRecaptureActive;
+    private int characterSelectEventCount;
+    private int characterSelectPollChangeCount;
+    private string characterSelectLastSignal = "none";
+    private string? characterSelectLastIpcError;
+    private string? characterSelectSessionInfoPath;
+    private string? lastCharacterSelectSessionProfile;
+    private bool characterSelectSessionProfileKnown;
+    private long lastCharacterSelectSessionWriteUtcTicks;
+    private int characterSelectSessionChangeCount;
 
     internal Configuration Config => config;
     internal bool IsAuthenticated => spotify.HasRefreshToken;
@@ -118,6 +142,30 @@ public sealed class Plugin : IDalamudPlugin
         spotify = new SpotifyApiService(config, SaveConfig);
         honorific = new HonorificBridge(PluginInterface);
         honorific.LocalTitleChanged += OnHonorificLocalTitleChanged;
+        characterSelectGetCurrentCharacter = PluginInterface.GetIpcSubscriber<string>("CharacterSelect.GetCurrentCharacter");
+        characterSelectCharacterChanged = PluginInterface.GetIpcSubscriber<string, string, object>("CharacterSelect.OnCharacterChanged");
+        characterSelectCharacterChanged.Subscribe(OnCharacterSelectChanged);
+
+        try
+        {
+            var pluginConfigDirectory = PluginInterface.GetPluginConfigDirectory();
+            var pluginConfigsRoot = Directory.GetParent(pluginConfigDirectory)?.FullName;
+
+            if (!string.IsNullOrWhiteSpace(pluginConfigsRoot))
+            {
+                characterSelectSessionInfoPath = Path.Combine(
+                    pluginConfigsRoot,
+                    "CharacterSelectPlugin",
+                    "session_info.txt");
+
+                Log.Information(
+                    $"Character Select+ session fallback path: {characterSelectSessionInfoPath}");
+            }
+        }
+        catch (Exception ex)
+        {
+            Log.Debug($"Could not initialize Character Select+ session fallback path: {ex.Message}");
+        }
         originalHonorificCaptureFinished = !string.IsNullOrWhiteSpace(config.CachedHonorificTitle);
 
         configWindow = new ConfigWindow(this);
@@ -135,9 +183,16 @@ public sealed class Plugin : IDalamudPlugin
 
         Framework.Update += OnFrameworkUpdate;
         Condition.ConditionChange += OnConditionChange;
+        ClientState.Login += OnClientLogin;
+        ClientState.Logout += OnClientLogout;
         PluginInterface.UiBuilder.Draw += windowSystem.Draw;
         PluginInterface.UiBuilder.OpenConfigUi += OpenConfigUi;
         PluginInterface.UiBuilder.OpenMainUi += OpenConfigUi;
+
+        // A dev-plugin reload can happen while already logged in, so treat the
+        // current character as a fresh session too.
+        if (ClientState.IsLoggedIn)
+            ResetForCharacterSessionStart();
 
         ChatGui.Print($"SpotifyTrackHonorific v{DisplayVersion} loaded. Use /sth to open settings.");
     }
@@ -148,6 +203,8 @@ public sealed class Plugin : IDalamudPlugin
 
         Framework.Update -= OnFrameworkUpdate;
         Condition.ConditionChange -= OnConditionChange;
+        ClientState.Login -= OnClientLogin;
+        ClientState.Logout -= OnClientLogout;
         PluginInterface.UiBuilder.Draw -= windowSystem.Draw;
         PluginInterface.UiBuilder.OpenConfigUi -= OpenConfigUi;
         PluginInterface.UiBuilder.OpenMainUi -= OpenConfigUi;
@@ -155,7 +212,7 @@ public sealed class Plugin : IDalamudPlugin
         CommandManager.RemoveHandler(ShortCommand);
         CommandManager.RemoveHandler(LongCommand);
         windowSystem.RemoveAllWindows();
-
+        characterSelectCharacterChanged.Unsubscribe(OnCharacterSelectChanged);
         honorific.LocalTitleChanged -= OnHonorificLocalTitleChanged;
         TryClearHonorific();
         honorific.Dispose();
@@ -820,6 +877,9 @@ public sealed class Plugin : IDalamudPlugin
 
     private void RestoreCurrentSpotifyTitle()
     {
+        if (characterSelectRecaptureActive)
+            return;
+
         if (!config.Enabled || ShouldAutoHideForCombat())
             return;
 
@@ -842,8 +902,343 @@ public sealed class Plugin : IDalamudPlugin
         ApplyHonorificTitle(BuildConfiguredTitle(renderTrack, paused), fingerprint);
     }
 
+    private void OnClientLogin()
+    {
+        ResetForCharacterSessionStart();
+    }
+
+    private void OnClientLogout(int type, int code)
+    {
+        // Clear our assignment while the outgoing local player still exists,
+        // then forget all ownership/fingerprint state tied to that character.
+        if (hasAppliedTitle)
+            TryClearHonorific();
+
+        ResetCharacterRuntimeState();
+        Log.Information("Character logout detected; STH character-specific title state reset.");
+    }
+
+    private void ResetForCharacterSessionStart()
+    {
+        ResetCharacterRuntimeState();
+
+        // The cached normal Honorific title belongs to the selected character.
+        // Drop the previous character's cache and recapture before STH writes.
+        if (!string.IsNullOrWhiteSpace(config.CachedHonorificTitle))
+        {
+            config.CachedHonorificTitle = string.Empty;
+            SaveConfig();
+        }
+
+        // Login fires when the local player object exists. Try immediately;
+        // if Honorific is slightly later, the existing once-per-second retry
+        // path in TryAutoCaptureOriginalHonorificTitle keeps trying.
+        TryCaptureOriginalHonorificTitleBeforeFirstWrite();
+
+        // Force a fresh Spotify render for the new local character. Keeping the
+        // previous lastTrack would let local progress refresh write too early.
+        ScheduleNextPoll(TimeSpan.FromSeconds(2));
+
+        Log.Information("Character login detected; refreshed STH state for the selected character.");
+    }
+
+    private void ResetCharacterRuntimeState()
+    {
+        appliedFingerprint = null;
+        hasAppliedTitle = false;
+        lastAppliedTitle = null;
+        patMeHonorificOverrideActive = false;
+        combatAutoHideActive = false;
+
+        lastTrack = null;
+        lastTrackPaused = false;
+        lastTrackObservedUtcTicks = 0;
+        Interlocked.Exchange(ref nextLocalRenderUtcTicks, 0);
+
+        originalHonorificCaptureFinished = false;
+        Interlocked.Exchange(ref nextOriginalHonorificCaptureAttemptUtcTicks, 0);
+
+        lastCharacterSelectProfile = null;
+        characterSelectProfileKnown = false;
+        Interlocked.Exchange(ref nextCharacterSelectCheckUtcTicks, 0);
+        Interlocked.Exchange(ref pendingCharacterSelectCaptureUtcTicks, 0);
+        Interlocked.Exchange(ref characterSelectCaptureDeadlineUtcTicks, 0);
+        characterSelectPreviousHonorificTitle = string.Empty;
+        characterSelectRecaptureActive = false;
+        characterSelectEventCount = 0;
+        characterSelectPollChangeCount = 0;
+        characterSelectLastSignal = "none";
+        characterSelectLastIpcError = null;
+        lastCharacterSelectSessionProfile = null;
+        characterSelectSessionProfileKnown = false;
+        lastCharacterSelectSessionWriteUtcTicks = 0;
+        characterSelectSessionChangeCount = 0;
+    }
+    private void OnCharacterSelectChanged(string characterName, string designName)
+    {
+        var profile = (characterName ?? string.Empty).Trim();
+        var design = (designName ?? string.Empty).Trim();
+
+        lastCharacterSelectProfile = profile;
+        characterSelectProfileKnown = true;
+        characterSelectEventCount++;
+        characterSelectLastIpcError = null;
+        characterSelectLastSignal = string.IsNullOrWhiteSpace(design)
+            ? $"event:{profile}"
+            : $"event:{profile}/{design}";
+
+        Log.Information(
+            $"Character Select+ IPC event received: profile='{profile}', design='{design}'.");
+
+        if (!config.Enabled)
+            return;
+
+        BeginCharacterSelectHonorificRecapture(
+            string.IsNullOrWhiteSpace(design)
+                ? $"Character Select+ switched to '{profile}'"
+                : $"Character Select+ switched to '{profile}' / '{design}'");
+    }
+
+    private void BeginCharacterSelectHonorificRecapture(string reason)
+    {
+        var now = DateTimeOffset.UtcNow;
+
+        characterSelectPreviousHonorificTitle = config.CachedHonorificTitle ?? string.Empty;
+        characterSelectRecaptureActive = true;
+        appliedFingerprint = null;
+
+        // CS+ announces the profile/design change before it executes its macro.
+        // Drop STH's IPC assignment immediately and KEEP it dropped while that
+        // macro runs. This intentionally mirrors manually disabling STH, which is
+        // already known to expose CS+'s new forced Honorific title correctly.
+        if (hasAppliedTitle && !TryClearHonorific())
+        {
+            characterSelectRecaptureActive = false;
+            characterSelectPreviousHonorificTitle = string.Empty;
+            Log.Warning("Character Select+ compatibility: could not relinquish STH Honorific title.");
+            return;
+        }
+
+        Interlocked.Exchange(
+            ref pendingCharacterSelectCaptureUtcTicks,
+            now.Add(CharacterSelectSettleDelay).UtcDateTime.Ticks);
+
+        Interlocked.Exchange(
+            ref characterSelectCaptureDeadlineUtcTicks,
+            now.Add(CharacterSelectCaptureWindow).UtcDateTime.Ticks);
+
+        Log.Information($"{reason}; STH Honorific title relinquished while waiting for CS+.");
+    }
+    private void TryDetectCharacterSelectSessionFileChange()
+    {
+        var path = characterSelectSessionInfoPath;
+        if (string.IsNullOrWhiteSpace(path) || !File.Exists(path))
+            return;
+
+        try
+        {
+            var writeTicks = File.GetLastWriteTimeUtc(path).Ticks;
+            if (characterSelectSessionProfileKnown &&
+                writeTicks == lastCharacterSelectSessionWriteUtcTicks)
+                return;
+
+            var currentProfile = (File.ReadAllText(path) ?? string.Empty).Trim();
+
+            if (!characterSelectSessionProfileKnown)
+            {
+                lastCharacterSelectSessionProfile = currentProfile;
+                lastCharacterSelectSessionWriteUtcTicks = writeTicks;
+                characterSelectSessionProfileKnown = true;
+                lastCharacterSelectProfile = currentProfile;
+                characterSelectProfileKnown = true;
+                characterSelectLastSignal = $"session-init:{currentProfile}";
+
+                Log.Information(
+                    $"Character Select+ session fallback initialized: profile='{currentProfile}'.");
+
+                return;
+            }
+
+            if (writeTicks == lastCharacterSelectSessionWriteUtcTicks)
+                return;
+
+            var previousProfile = lastCharacterSelectSessionProfile ?? string.Empty;
+
+            lastCharacterSelectSessionWriteUtcTicks = writeTicks;
+            lastCharacterSelectSessionProfile = currentProfile;
+            lastCharacterSelectProfile = currentProfile;
+            characterSelectProfileKnown = true;
+            characterSelectSessionChangeCount++;
+            characterSelectLastSignal = $"session:{previousProfile}->{currentProfile}";
+
+            Log.Information(
+                $"Character Select+ session fallback detected: '{previousProfile}' -> '{currentProfile}'.");
+
+            if (config.Enabled && !characterSelectRecaptureActive)
+            {
+                BeginCharacterSelectHonorificRecapture(
+                    $"Character Select+ session fallback detected '{previousProfile}' -> '{currentProfile}'");
+            }
+        }
+        catch (Exception ex)
+        {
+            Log.Debug($"Character Select+ session fallback read failed: {ex.Message}");
+        }
+    }
+    private void TryDetectCharacterSelectProfileChange()
+    {
+        var nowTicks = DateTimeOffset.UtcNow.UtcDateTime.Ticks;
+
+        var pendingCaptureTicks = Interlocked.Read(ref pendingCharacterSelectCaptureUtcTicks);
+        if (pendingCaptureTicks > 0 && nowTicks >= pendingCaptureTicks)
+        {
+            Interlocked.Exchange(ref pendingCharacterSelectCaptureUtcTicks, 0);
+            RefreshHonorificAfterCharacterSelectProfileChange();
+        }
+
+        if (nowTicks < Interlocked.Read(ref nextCharacterSelectCheckUtcTicks))
+            return;
+
+        Interlocked.Exchange(
+            ref nextCharacterSelectCheckUtcTicks,
+            DateTimeOffset.UtcNow.Add(CharacterSelectCheckInterval).UtcDateTime.Ticks);
+
+        try
+        {
+            var currentProfile = (characterSelectGetCurrentCharacter.InvokeFunc() ?? string.Empty).Trim();
+            characterSelectLastIpcError = null;
+
+            if (characterSelectSessionProfileKnown &&
+                string.IsNullOrWhiteSpace(currentProfile))
+                return;
+
+            if (!characterSelectProfileKnown)
+            {
+                lastCharacterSelectProfile = currentProfile;
+                characterSelectProfileKnown = true;
+                characterSelectLastSignal = $"poll-init:{currentProfile}";
+
+                Log.Information(
+                    $"Character Select+ polling initialized: profile='{currentProfile}'.");
+
+                return;
+            }
+
+            if (string.Equals(currentProfile, lastCharacterSelectProfile, StringComparison.Ordinal))
+                return;
+
+            var previousProfile = lastCharacterSelectProfile ?? string.Empty;
+            lastCharacterSelectProfile = currentProfile;
+            characterSelectPollChangeCount++;
+            characterSelectLastSignal = $"poll:{previousProfile}->{currentProfile}";
+
+            Log.Information(
+                $"Character Select+ polling change detected: '{previousProfile}' -> '{currentProfile}'.");
+
+            if (config.Enabled && !characterSelectRecaptureActive)
+            {
+                BeginCharacterSelectHonorificRecapture(
+                    $"Character Select+ polling fallback detected '{previousProfile}' -> '{currentProfile}'");
+            }
+        }
+        catch (Exception ex)
+        {
+            var error = ex.GetBaseException().Message;
+
+            if (!string.Equals(characterSelectLastIpcError, error, StringComparison.Ordinal))
+                Log.Warning($"Character Select+ GetCurrentCharacter IPC unavailable: {error}");
+
+            characterSelectLastIpcError = error;
+        }
+    }
+
+    private void RefreshHonorificAfterCharacterSelectProfileChange()
+    {
+        if (!characterSelectRecaptureActive)
+            return;
+
+        var nowTicks = DateTimeOffset.UtcNow.UtcDateTime.Ticks;
+        var deadlineTicks = Interlocked.Read(ref characterSelectCaptureDeadlineUtcTicks);
+        var deadlineReached = deadlineTicks > 0 && nowTicks >= deadlineTicks;
+
+        try
+        {
+            var hasUnderlyingTitle = honorific.TryGetCurrentTitle(out var currentTitle);
+            currentTitle = hasUnderlyingTitle ? currentTitle.Trim() : string.Empty;
+
+            Log.Information(
+                $"Character Select+ recapture probe: hasTitle={hasUnderlyingTitle}, " +
+                $"current='{currentTitle}', previous='{characterSelectPreviousHonorificTitle}', " +
+                $"deadlineReached={deadlineReached}.");
+
+            var changedFromPrevious =
+                hasUnderlyingTitle &&
+                !string.Equals(
+                    currentTitle,
+                    characterSelectPreviousHonorificTitle,
+                    StringComparison.Ordinal);
+
+            // A different underlying title means CS+'s Honorific macro has landed.
+            // If nothing changes, keep STH relinquished until the timeout; this also
+            // handles profiles whose Honorific command is delayed by other macro work.
+            if (!changedFromPrevious && !deadlineReached)
+            {
+                Interlocked.Exchange(
+                    ref pendingCharacterSelectCaptureUtcTicks,
+                    DateTimeOffset.UtcNow.Add(CharacterSelectCaptureRetryInterval).UtcDateTime.Ticks);
+                return;
+            }
+
+            var changedCache = !string.Equals(
+                config.CachedHonorificTitle,
+                currentTitle,
+                StringComparison.Ordinal);
+
+            config.CachedHonorificTitle = currentTitle;
+            originalHonorificCaptureFinished = true;
+            appliedFingerprint = null;
+
+            if (changedCache)
+                SaveConfig();
+
+            characterSelectRecaptureActive = false;
+            characterSelectPreviousHonorificTitle = string.Empty;
+            Interlocked.Exchange(ref pendingCharacterSelectCaptureUtcTicks, 0);
+            Interlocked.Exchange(ref characterSelectCaptureDeadlineUtcTicks, 0);
+
+            if (string.IsNullOrWhiteSpace(currentTitle))
+                Log.Information("Character Select+ compatibility: underlying Honorific title is empty.");
+            else
+                Log.Information($"Character Select+ compatibility: cached underlying Honorific title '{currentTitle}'.");
+
+            RestoreCurrentSpotifyTitle();
+        }
+        catch (Exception ex)
+        {
+            Log.Debug($"Character Select+ Honorific recapture failed: {ex.Message}");
+
+            if (!deadlineReached)
+            {
+                Interlocked.Exchange(
+                    ref pendingCharacterSelectCaptureUtcTicks,
+                    DateTimeOffset.UtcNow.Add(CharacterSelectCaptureRetryInterval).UtcDateTime.Ticks);
+                return;
+            }
+
+            // Do not destroy a known-good cache just because the IPC read failed.
+            characterSelectRecaptureActive = false;
+            characterSelectPreviousHonorificTitle = string.Empty;
+            Interlocked.Exchange(ref pendingCharacterSelectCaptureUtcTicks, 0);
+            Interlocked.Exchange(ref characterSelectCaptureDeadlineUtcTicks, 0);
+            appliedFingerprint = null;
+
+            RestoreCurrentSpotifyTitle();
+        }
+    }
     private void OnFrameworkUpdate(IFramework framework)
     {
+        TryDetectCharacterSelectSessionFileChange();
+        TryDetectCharacterSelectProfileChange();
         TryAutoCaptureOriginalHonorificTitle();
 
         if (!config.Enabled)
@@ -1410,6 +1805,8 @@ public sealed class Plugin : IDalamudPlugin
 
     private void TryAutoCaptureOriginalHonorificTitle()
     {
+        if (characterSelectRecaptureActive)
+            return;
         // While STH is disabled and no STH title is still applied, keep the
         // cached Honorific title synchronized. This lets users change their
         // normal Honorific title while STH is off without needing a manual
@@ -1488,13 +1885,24 @@ public sealed class Plugin : IDalamudPlugin
         if (suppressHonorificTitleChanged)
             return;
 
+        title = (title ?? string.Empty).Trim();
+
+        // During a CS+ hand-off, Honorific may report the old title, a temporary
+        // clear, and then the new forced title. Wake our recapture loop immediately
+        // and let the framework-thread read decide what is actually underneath.
+        if (characterSelectRecaptureActive)
+        {
+            Interlocked.Exchange(
+                ref pendingCharacterSelectCaptureUtcTicks,
+                DateTimeOffset.UtcNow.UtcDateTime.Ticks);
+            return;
+        }
+
         if (!config.EnablePatMeHonorificSupport || !config.Enabled)
         {
             patMeHonorificOverrideActive = false;
             return;
         }
-
-        title = (title ?? string.Empty).Trim();
 
         if (!string.IsNullOrWhiteSpace(title))
         {
@@ -1545,6 +1953,12 @@ public sealed class Plugin : IDalamudPlugin
 
     private void ApplyHonorificTitle(string title, string fingerprint)
     {
+        if (characterSelectRecaptureActive)
+        {
+            appliedFingerprint = null;
+            return;
+        }
+
         if (config.EnablePatMeHonorificSupport && patMeHonorificOverrideActive)
         {
             appliedFingerprint = null;
@@ -1800,6 +2214,12 @@ public sealed class Plugin : IDalamudPlugin
         var enabled = config.Enabled ? "enabled" : "disabled";
         ChatGui.Print($"SpotifyTrackHonorific v{DisplayVersion}: {enabled}, {auth}. State: {lastState}.");
         ChatGui.Print($"Reliability: {BuildReliabilityText()}.");
+        ChatGui.Print(
+            $"Character Select+: profile='{lastCharacterSelectProfile ?? "(unknown)"}', " +
+            $"signal='{characterSelectLastSignal}', events={characterSelectEventCount}, " +
+            $"pollChanges={characterSelectPollChangeCount}, sessionChanges={characterSelectSessionChangeCount}, " +
+            $"recapture={characterSelectRecaptureActive}, " +
+            $"ipcError='{characterSelectLastIpcError ?? "none"}'.");
         if (!string.IsNullOrWhiteSpace(lastError))
             ChatGui.PrintError($"Last error: {lastError}", "SpotifyTrackHonorific");
     }

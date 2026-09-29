@@ -1,4 +1,14 @@
 # Changelog
+## 1.0.14 - Character Select+ Compatibility
+
+- Added automatic Character Select+ profile-switch detection for the normal Character Grid workflow.
+- STH now temporarily relinquishes its Honorific IPC title during a Character Select+ switch so the newly forced underlying Honorific title can be captured correctly.
+- Added a session-file fallback for Character Select+ workflows where its current-character IPC remains empty and its character-changed IPC event is not emitted.
+- Character switches now refresh the cached {honorific} title automatically without requiring STH to be toggled off and on.
+- Kept the existing Character Select+ IPC event and polling paths as compatibility fallbacks for workflows that do provide them.
+- Reduced session-file overhead by only reading it when its write timestamp changes.
+- Improved /sth status Character Select+ diagnostics with separate session-change tracking while ignoring empty IPC polling results once the session fallback is active.
+- No Spotify polling, authentication, content filtering, saved-profile format, portable-settings format, or configuration-schema behavior was changed.
 
 ## 1.0.11 - Better Profile Management
 
