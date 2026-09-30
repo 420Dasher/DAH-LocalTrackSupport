@@ -1,4 +1,17 @@
 # Changelog
+## 1.0.15 - UI Refresh
+
+- Refreshed the settings window with a cleaner native Dalamud-style layout and more consistent spacing.
+- Added a compact status header for title updates, Spotify, Honorific, and the active profile.
+- Reworked the Dashboard around title updates, playback behavior, quick profiles, connection tools, and compatibility options.
+- Moved detailed saved-profile management behind the Dashboard quick-profile section.
+- Simplified the Title tab so title formatting and live preview are the primary focus.
+- Reworked the format builder with separate controls for inserting variables into the final Custom format and into cycle stages.
+- Improved the cycle builder with clearer stage instructions, stage-variable buttons, a cycle preview, and one-click insertion of the finished cycle into Custom format.
+- Reorganized the Filter tab around filtering status, rule sources, custom rules, match behavior, and rule testing.
+- Moved custom-rule cleanup, clearing, and bulk editing into a collapsed management section.
+- Kept advanced Honorific, formatting-reference, built-in-rule customization, and testing controls collapsed until needed.
+- No Spotify polling, authentication, Honorific IPC, Character Select+ compatibility, content-filter matching logic, saved-profile format, portable-settings format, or configuration-schema behavior was changed.
 ## 1.0.14 - Character Select+ Compatibility
 
 - Added automatic Character Select+ profile-switch detection for the normal Character Grid workflow.
