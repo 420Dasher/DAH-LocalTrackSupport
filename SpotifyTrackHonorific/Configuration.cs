@@ -13,7 +13,7 @@ public sealed class Configuration : IPluginConfiguration
     public const string DefaultContentFilterFallback = "Triggerword censored";
     public const int MaxTitleProfiles = 5;
 
-    public int Version { get; set; } = 13;
+    public int Version { get; set; } = 14;
 
     public bool Enabled { get; set; } = true;
     public bool ShowNormalTracks { get; set; } = true;
@@ -89,6 +89,10 @@ public sealed class Configuration : IPluginConfiguration
     // v10 saved display profiles. Profiles intentionally exclude Spotify credentials,
     // onboarding state, the global enabled toggle, and supporter entitlement confirmation.
     public List<TitleProfile> TitleProfiles { get; set; } = new();
+
+    // v14 remembers which saved profile currently owns the loaded display settings.
+    // Empty means the current captured settings are Custom.
+    public string ActiveTitleProfileName { get; set; } = string.Empty;
 
     public bool EnsureDefaults()
     {
@@ -206,6 +210,15 @@ public sealed class Configuration : IPluginConfiguration
             changed = true;
         }
 
+        if (Version < 14)
+        {
+            // Older builds inferred the active profile only from an exact settings
+            // comparison. Start empty and let Plugin reconcile it from saved profiles.
+            ActiveTitleProfileName = string.Empty;
+            Version = 14;
+            changed = true;
+        }
+
         // Honorific only applies ordinary glow when a main title colour is present.
         if (UseTitleGlow && !UseTitleColor)
         {
@@ -267,6 +280,7 @@ public sealed class Configuration : IPluginConfiguration
         ContentFilterFallback ??= DefaultContentFilterFallback;
         DisabledBuiltInContentFilterEntries ??= string.Empty;
         TitleProfiles ??= new List<TitleProfile>();
+        ActiveTitleProfileName ??= string.Empty;
 
         if (TitleProfiles.Count > MaxTitleProfiles)
         {

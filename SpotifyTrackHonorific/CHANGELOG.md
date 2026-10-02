@@ -1,4 +1,15 @@
 # Changelog
+## 1.0.16 - Profile Persistence and Honorific Compatibility
+
+- Saved profile identity now persists across plugin reloads instead of relying only on an exact settings comparison at startup.
+- Loading, saving, updating, renaming, and deleting saved profiles now keep the active-profile indicator synchronized correctly.
+- Changing settings captured by the active profile still changes the indicator to `Custom`, and that state persists across reloads.
+- Configuration schema advances from v13 to v14 for the persisted active saved-profile identity.
+- Updated Honorific compatibility for Honorific 1.7.5.1 and newer delayed/rate-limited local-title change announcements.
+- STH now verifies Honorific's current title before treating a delayed title-change announcement as an external temporary override.
+- Reduced redundant Honorific IPC writes while cycle formatting remains on the same visible stage.
+- Verified `{honorific}` cycle stages continue rotating correctly with PatMeHonorific compatibility enabled.
+- Spotify polling, authentication, content-filter matching, Character Select+ compatibility, and portable-settings format are otherwise unchanged.
 ## 1.0.15 - UI Refresh
 
 - Refreshed the settings window with a cleaner native Dalamud-style layout and more consistent spacing.

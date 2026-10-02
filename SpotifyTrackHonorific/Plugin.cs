@@ -23,7 +23,7 @@ namespace SpotifyTrackHonorific;
 
 public sealed class Plugin : IDalamudPlugin
 {
-    internal const string DisplayVersion = "1.0.15";
+    internal const string DisplayVersion = "1.0.16";
     private const string ShortCommand = "/sth";
     private const string LongCommand = "/spotifytrackhonorific";
     private static readonly TimeSpan NormalPollInterval = TimeSpan.FromSeconds(15);
@@ -123,6 +123,20 @@ public sealed class Plugin : IDalamudPlugin
     {
         get
         {
+            if (!string.IsNullOrWhiteSpace(config.ActiveTitleProfileName))
+            {
+                foreach (var profile in config.TitleProfiles)
+                {
+                    if (string.Equals(
+                        profile.Name,
+                        config.ActiveTitleProfileName,
+                        StringComparison.OrdinalIgnoreCase))
+                    {
+                        return profile.Name;
+                    }
+                }
+            }
+
             foreach (var profile in config.TitleProfiles)
             {
                 if (profile.Matches(config))
@@ -136,8 +150,12 @@ public sealed class Plugin : IDalamudPlugin
     public Plugin()
     {
         config = PluginInterface.GetPluginConfig() as Configuration ?? new Configuration();
+
         if (config.EnsureDefaults())
+        {
+            ReconcileActiveTitleProfile();
             SaveConfig();
+        }
 
         spotify = new SpotifyApiService(config, SaveConfig);
         honorific = new HonorificBridge(PluginInterface);
@@ -225,9 +243,11 @@ public sealed class Plugin : IDalamudPlugin
     internal void SettingsChanged()
     {
         config.EnsureDefaults();
+        ReconcileActiveTitleProfile();
         SaveConfig();
         SchedulePollNow();
         appliedFingerprint = null;
+        lastAppliedTitle = null;
 
         if (!config.EnablePatMeHonorificSupport)
             patMeHonorificOverrideActive = false;
@@ -297,6 +317,41 @@ public sealed class Plugin : IDalamudPlugin
             TryClearHonorific();
     }
 
+    private void ReconcileActiveTitleProfile()
+    {
+        if (!string.IsNullOrWhiteSpace(config.ActiveTitleProfileName))
+        {
+            foreach (var profile in config.TitleProfiles)
+            {
+                if (!string.Equals(
+                    profile.Name,
+                    config.ActiveTitleProfileName,
+                    StringComparison.OrdinalIgnoreCase))
+                {
+                    continue;
+                }
+
+                if (profile.Matches(config))
+                {
+                    config.ActiveTitleProfileName = profile.Name;
+                    return;
+                }
+
+                break;
+            }
+        }
+
+        foreach (var profile in config.TitleProfiles)
+        {
+            if (!profile.Matches(config))
+                continue;
+
+            config.ActiveTitleProfileName = profile.Name;
+            return;
+        }
+
+        config.ActiveTitleProfileName = string.Empty;
+    }
     internal void StartAuthentication(string clientId)
     {
         if (string.IsNullOrWhiteSpace(clientId))
@@ -469,6 +524,7 @@ public sealed class Plugin : IDalamudPlugin
                 continue;
 
             config.TitleProfiles[i] = TitleProfile.Capture(config, name);
+            config.ActiveTitleProfileName = name;
             SaveConfig();
             profileIndex = i;
             message = $"Updated profile '{name}'.";
@@ -482,6 +538,7 @@ public sealed class Plugin : IDalamudPlugin
         }
 
         config.TitleProfiles.Add(TitleProfile.Capture(config, name));
+        config.ActiveTitleProfileName = name;
         SaveConfig();
         profileIndex = config.TitleProfiles.Count - 1;
         message = $"Saved profile '{name}'.";
@@ -499,6 +556,7 @@ public sealed class Plugin : IDalamudPlugin
         var profile = config.TitleProfiles[profileIndex];
         var requestedSupporterGradient = profile.UseSupporterGradient;
         profile.ApplyTo(config);
+        config.ActiveTitleProfileName = profile.Name;
         SettingsChanged();
 
         message = requestedSupporterGradient && !config.HonorificSupporterConfirmed
@@ -517,6 +575,16 @@ public sealed class Plugin : IDalamudPlugin
 
         var name = config.TitleProfiles[profileIndex].Name;
         config.TitleProfiles.RemoveAt(profileIndex);
+
+        if (string.Equals(
+            config.ActiveTitleProfileName,
+            name,
+            StringComparison.OrdinalIgnoreCase))
+        {
+            config.ActiveTitleProfileName = string.Empty;
+        }
+
+        ReconcileActiveTitleProfile();
         SaveConfig();
         message = $"Deleted profile '{name}'.";
         return true;
@@ -532,6 +600,7 @@ public sealed class Plugin : IDalamudPlugin
 
         var name = config.TitleProfiles[profileIndex].Name;
         config.TitleProfiles[profileIndex] = TitleProfile.Capture(config, name);
+        config.ActiveTitleProfileName = name;
         SaveConfig();
         message = $"Updated profile '{name}' from the current settings.";
         return true;
@@ -569,6 +638,15 @@ public sealed class Plugin : IDalamudPlugin
 
         var oldName = config.TitleProfiles[profileIndex].Name;
         config.TitleProfiles[profileIndex].Name = newName;
+
+        if (string.Equals(
+            config.ActiveTitleProfileName,
+            oldName,
+            StringComparison.OrdinalIgnoreCase))
+        {
+            config.ActiveTitleProfileName = newName;
+        }
+
         SaveConfig();
         message = string.Equals(oldName, newName, StringComparison.Ordinal)
             ? $"Profile name is already '{newName}'."
@@ -775,9 +853,14 @@ public sealed class Plugin : IDalamudPlugin
             if (package.FormatVersion >= 2)
                 config.AutoHideInCombat = package.AutoHideInCombat;
 
-            // SettingsChanged validates/saves v11 data and refreshes the currently
-            // applied title. Spotify credentials, onboarding, global enable state and
-            // supporter entitlement confirmation were never part of the export.
+            // The imported profile set replaces the previous local profile identities.
+            // SettingsChanged will infer a saved profile if the imported current
+            // settings exactly match one; otherwise the result remains Custom.
+            config.ActiveTitleProfileName = string.Empty;
+
+            // SettingsChanged validates/saves the imported data and refreshes the
+            // currently applied title. Spotify credentials, onboarding, global enable
+            // state and supporter entitlement confirmation are not part of the export.
             SettingsChanged();
             message = $"Imported display settings and {config.TitleProfiles.Count} saved profile(s). Spotify connection data was unchanged.";
             return true;
@@ -1887,9 +1970,8 @@ public sealed class Plugin : IDalamudPlugin
 
         title = (title ?? string.Empty).Trim();
 
-        // During a CS+ hand-off, Honorific may report the old title, a temporary
-        // clear, and then the new forced title. Wake our recapture loop immediately
-        // and let the framework-thread read decide what is actually underneath.
+        // During a CS+ hand-off this event is only a wake-up signal. The
+        // framework-thread recapture performs its own authoritative IPC read.
         if (characterSelectRecaptureActive)
         {
             Interlocked.Exchange(
@@ -1904,41 +1986,77 @@ public sealed class Plugin : IDalamudPlugin
             return;
         }
 
+        // Honorific 1.7.5.1+ rate-limits LocalCharacterTitleChanged.
+        // The announced value can therefore describe an older title. Query
+        // Honorific again and make compatibility decisions from current state.
+        var announcedTitle = title;
+
+        try
+        {
+            title = honorific.TryGetCurrentTitle(out var currentTitle)
+                ? currentTitle.Trim()
+                : string.Empty;
+
+            if (!string.Equals(
+                announcedTitle,
+                title,
+                StringComparison.Ordinal))
+            {
+                Log.Debug(
+                    $"Honorific delayed title notification ignored as authoritative state: " +
+                    $"announced='{announcedTitle}', current='{title}'.");
+            }
+        }
+        catch (Exception ex)
+        {
+            Log.Debug(
+                $"Could not verify Honorific title-change notification: {ex.Message}");
+        }
+
         if (!string.IsNullOrWhiteSpace(title))
         {
+            // This includes our own cycle stage. A delayed notification for
+            // {honorific} must not be mistaken for a PatMe override.
             if (!string.IsNullOrWhiteSpace(lastAppliedTitle) &&
-                string.Equals(title, lastAppliedTitle, StringComparison.Ordinal))
-                return;
-
-            if (patMeHonorificOverrideActive)
+                string.Equals(
+                    title,
+                    lastAppliedTitle,
+                    StringComparison.Ordinal))
             {
-                // ClearCharacterTitle normally reveals the regular Honorific/vanilla
-                // title instead of producing an empty title-change event. When that
-                // cached original title returns, PatMe's temporary override has ended.
-                if (!string.IsNullOrWhiteSpace(config.CachedHonorificTitle) &&
-                    string.Equals(title, config.CachedHonorificTitle, StringComparison.Ordinal))
-                {
-                    patMeHonorificOverrideActive = false;
-                    appliedFingerprint = null;
-                    Log.Information("PatMeHonorific compatibility: regular Honorific title returned; restoring Spotify title.");
-                    RestoreCurrentSpotifyTitle();
-                }
-
-                // Other non-empty changes are still considered temporary PatMe output.
                 return;
             }
 
-            // Yield only when STH owned the visible title immediately before this
-            // external write. That avoids treating a normal persistent Honorific
-            // title as a PatMeHonorific override during startup.
+            if (patMeHonorificOverrideActive)
+            {
+                if (!string.IsNullOrWhiteSpace(config.CachedHonorificTitle) &&
+                    string.Equals(
+                        title,
+                        config.CachedHonorificTitle,
+                        StringComparison.Ordinal))
+                {
+                    patMeHonorificOverrideActive = false;
+                    appliedFingerprint = null;
+                    lastAppliedTitle = null;
+
+                    Log.Information(
+                        "PatMeHonorific compatibility: regular Honorific title returned; restoring Spotify title.");
+
+                    RestoreCurrentSpotifyTitle();
+                }
+
+                return;
+            }
+
             if (!hasAppliedTitle)
                 return;
 
-            Log.Information($"PatMeHonorific compatibility: yielding to temporary Honorific title '{title}'.");
+            Log.Information(
+                $"PatMeHonorific compatibility: yielding to temporary Honorific title '{title}'.");
 
             patMeHonorificOverrideActive = true;
             hasAppliedTitle = false;
             appliedFingerprint = null;
+            lastAppliedTitle = null;
             return;
         }
 
@@ -1947,10 +2065,13 @@ public sealed class Plugin : IDalamudPlugin
 
         patMeHonorificOverrideActive = false;
         appliedFingerprint = null;
-        Log.Information("PatMeHonorific compatibility: temporary Honorific title cleared; restoring Spotify title.");
+        lastAppliedTitle = null;
+
+        Log.Information(
+            "PatMeHonorific compatibility: temporary Honorific title cleared; restoring Spotify title.");
+
         RestoreCurrentSpotifyTitle();
     }
-
     private void ApplyHonorificTitle(string title, string fingerprint)
     {
         if (characterSelectRecaptureActive)
@@ -2025,6 +2146,18 @@ public sealed class Plugin : IDalamudPlugin
                 glow = config.TitleGlowColor;
             }
 
+            if (hasAppliedTitle &&
+                !string.IsNullOrWhiteSpace(lastAppliedTitle) &&
+                string.Equals(
+                    title,
+                    lastAppliedTitle,
+                    StringComparison.Ordinal))
+            {
+                appliedFingerprint = fingerprint;
+                originalHonorificCaptureFinished = true;
+                return;
+            }
+
             suppressHonorificTitleChanged = true;
             try
             {
@@ -2053,6 +2186,7 @@ public sealed class Plugin : IDalamudPlugin
             Log.Error(ex, "Honorific.SetCharacterTitle IPC failed");
             appliedFingerprint = null;
             hasAppliedTitle = false;
+            lastAppliedTitle = null;
             if (!honorificErrorShown)
             {
                 ChatGui.PrintError("SpotifyTrackHonorific could not reach Honorific. Make sure Honorific is installed and enabled.", "SpotifyTrackHonorific");
