@@ -23,7 +23,7 @@ namespace SpotifyTrackHonorific;
 
 public sealed class Plugin : IDalamudPlugin
 {
-    internal const string DisplayVersion = "1.0.17";
+    internal const string DisplayVersion = "1.0.18-dev1";
     private const string ShortCommand = "/sth";
     private const string LongCommand = "/spotifytrackhonorific";
     private static readonly TimeSpan NormalPollInterval = TimeSpan.FromSeconds(15);
@@ -85,6 +85,14 @@ public sealed class Plugin : IDalamudPlugin
     private bool originalHonorificCaptureFinished;
     private long nextOriginalHonorificCaptureAttemptUtcTicks;
     private string? lastAppliedTitle;
+
+    // Last genuine Spotify title successfully handed to Honorific.
+    // Unlike hasAppliedTitle/lastAppliedTitle, this survives temporary
+    // relinquishes such as combat auto-hide, zoning, CS+ hand-offs,
+    // and "keep previous title" filter states.
+    private string? retainedSpotifyTitle;
+    private string? retainedSpotifyFingerprint;
+
     private bool patMeHonorificOverrideActive;
     private bool suppressHonorificTitleChanged;
     private string? lastCharacterSelectProfile;
@@ -283,7 +291,7 @@ public sealed class Plugin : IDalamudPlugin
         if (ShouldAutoHideForCombat())
         {
             combatAutoHideActive = true;
-            TryClearHonorific();
+            TryClearHonorific(preserveRetainedTitle: true);
             return;
         }
 
@@ -393,7 +401,12 @@ public sealed class Plugin : IDalamudPlugin
 
     internal void TestHonorificTitle()
     {
-        ApplyHonorificTitle("♪ Honorific test", "manual-ui-test");
+        ApplyHonorificTitle(
+            "♪ Honorific test",
+            "manual-ui-test",
+            preserveProvidedTitle: true,
+            rememberForRecovery: false);
+
         SchedulePollNow();
     }
 
@@ -954,7 +967,7 @@ public sealed class Plugin : IDalamudPlugin
         if (value)
         {
             combatAutoHideActive = true;
-            TryClearHonorific();
+            TryClearHonorific(preserveRetainedTitle: true);
             return;
         }
 
@@ -975,8 +988,23 @@ public sealed class Plugin : IDalamudPlugin
             return;
 
         var renderTrack = GetCurrentRenderTrack();
+
+        // When Spotify reports nothing playing and the user explicitly chose to
+        // keep the title while stopped, there is no current track from which to
+        // rebuild the title. Restore the last successfully rendered Spotify title.
         if (renderTrack == null)
+        {
+            if (!config.ClearOnPause &&
+                string.Equals(
+                    lastState,
+                    "Nothing playing / paused",
+                    StringComparison.Ordinal))
+            {
+                TryRestoreRetainedSpotifyTitle();
+            }
+
             return;
+        }
 
         if (lastTrackPaused && config.ClearOnPause)
             return;
@@ -985,8 +1013,17 @@ public sealed class Plugin : IDalamudPlugin
             return;
 
         var filterMatch = GetContentFilterMatch(renderTrack);
-        if (filterMatch != null && config.ContentFilterAction != 0)
-            return;
+
+        if (filterMatch != null)
+        {
+            // "Keep previous title" deliberately retains the last safe rendered
+            // title instead of rendering metadata from this blocked track.
+            if (config.ContentFilterAction == 2)
+                TryRestoreRetainedSpotifyTitle();
+
+            if (config.ContentFilterAction != 0)
+                return;
+        }
 
         var paused = lastTrackPaused;
         var fingerprint = BuildRenderFingerprint(renderTrack, paused);
@@ -1038,6 +1075,8 @@ public sealed class Plugin : IDalamudPlugin
         appliedFingerprint = null;
         hasAppliedTitle = false;
         lastAppliedTitle = null;
+        retainedSpotifyTitle = null;
+        retainedSpotifyFingerprint = null;
         patMeHonorificOverrideActive = false;
         combatAutoHideActive = false;
 
@@ -1131,25 +1170,68 @@ public sealed class Plugin : IDalamudPlugin
 
         var renderTrack = GetCurrentRenderTrack();
 
-        if (renderTrack == null ||
-            (lastTrackPaused && config.ClearOnPause) ||
-            !IsTrackAllowed(renderTrack))
+        string title;
+        string fingerprint;
+        var preserveProvidedTitle = false;
+
+        if (renderTrack == null)
         {
-            FinishTerritoryRebind();
-            return;
+            // "Keep title while stopped" has no current SpotifyTrackInfo left.
+            // Rebind exactly the title that was previously visible.
+            if (!config.ClearOnPause &&
+                string.Equals(
+                    lastState,
+                    "Nothing playing / paused",
+                    StringComparison.Ordinal) &&
+                TryGetRetainedSpotifyTitle(
+                    out title,
+                    out fingerprint))
+            {
+                preserveProvidedTitle = true;
+            }
+            else
+            {
+                FinishTerritoryRebind();
+                return;
+            }
         }
-
-        var filterMatch = GetContentFilterMatch(renderTrack);
-
-        if (filterMatch != null && config.ContentFilterAction != 0)
+        else
         {
-            FinishTerritoryRebind();
-            return;
-        }
+            if ((lastTrackPaused && config.ClearOnPause) ||
+                !IsTrackAllowed(renderTrack))
+            {
+                FinishTerritoryRebind();
+                return;
+            }
 
-        var paused = lastTrackPaused;
-        var title = BuildConfiguredTitle(renderTrack, paused);
-        var fingerprint = BuildRenderFingerprint(renderTrack, paused);
+            var filterMatch = GetContentFilterMatch(renderTrack);
+
+            if (filterMatch != null &&
+                config.ContentFilterAction != 0)
+            {
+                // Action 2 means the blocked track must never be rendered.
+                // Rebind the previous safe title instead.
+                if (config.ContentFilterAction == 2 &&
+                    TryGetRetainedSpotifyTitle(
+                        out title,
+                        out fingerprint))
+                {
+                    preserveProvidedTitle = true;
+                }
+                else
+                {
+                    FinishTerritoryRebind();
+                    return;
+                }
+            }
+            else
+            {
+                var paused = lastTrackPaused;
+                title = BuildConfiguredTitle(renderTrack, paused);
+                fingerprint =
+                    BuildRenderFingerprint(renderTrack, paused);
+            }
+        }
 
         // If Honorific already exposes the desired title, just synchronize STH's
         // local ownership state rather than issuing another IPC write.
@@ -1186,7 +1268,7 @@ public sealed class Plugin : IDalamudPlugin
         lastAppliedTitle = null;
         appliedFingerprint = null;
 
-        ApplyHonorificTitle(title, fingerprint);
+        ApplyHonorificTitle(title, fingerprint, preserveProvidedTitle);
 
         // Honorific intentionally no-ops SetCharacterTitle if the indexed local
         // player object is not available yet. Verify that the title actually landed.
@@ -1308,7 +1390,7 @@ public sealed class Plugin : IDalamudPlugin
         // Drop STH's IPC assignment immediately and KEEP it dropped while that
         // macro runs. This intentionally mirrors manually disabling STH, which is
         // already known to expose CS+'s new forced Honorific title correctly.
-        if (hasAppliedTitle && !TryClearHonorific())
+        if (hasAppliedTitle && !TryClearHonorific(preserveRetainedTitle: true))
         {
             characterSelectRecaptureActive = false;
             characterSelectPreviousHonorificTitle = string.Empty;
@@ -2305,7 +2387,55 @@ public sealed class Plugin : IDalamudPlugin
 
         RestoreCurrentSpotifyTitle();
     }
-    private void ApplyHonorificTitle(string title, string fingerprint)
+
+    private bool TryGetRetainedSpotifyTitle(
+        out string title,
+        out string fingerprint)
+    {
+        title = retainedSpotifyTitle ?? string.Empty;
+        fingerprint = retainedSpotifyFingerprint ?? string.Empty;
+
+        if (string.IsNullOrWhiteSpace(title))
+            return false;
+
+        if (string.IsNullOrWhiteSpace(fingerprint))
+            fingerprint = $"retained:{title}";
+
+        return true;
+    }
+
+    private bool TryRestoreRetainedSpotifyTitle()
+    {
+        if (!TryGetRetainedSpotifyTitle(
+            out var title,
+            out var fingerprint))
+        {
+            return false;
+        }
+
+        ApplyHonorificTitle(
+            title,
+            fingerprint,
+            preserveProvidedTitle: true);
+
+        return hasAppliedTitle &&
+               string.Equals(
+                   lastAppliedTitle,
+                   title,
+                   StringComparison.Ordinal);
+    }
+
+    private void ClearRetainedSpotifyTitle()
+    {
+        retainedSpotifyTitle = null;
+        retainedSpotifyFingerprint = null;
+    }
+
+    private void ApplyHonorificTitle(
+        string title,
+        string fingerprint,
+        bool preserveProvidedTitle = false,
+        bool rememberForRecovery = true)
     {
         if (characterSelectRecaptureActive)
         {
@@ -2324,7 +2454,7 @@ public sealed class Plugin : IDalamudPlugin
             combatAutoHideActive = true;
 
             if (hasAppliedTitle)
-                TryClearHonorific();
+                TryClearHonorific(preserveRetainedTitle: true);
 
             appliedFingerprint = null;
             return;
@@ -2334,7 +2464,8 @@ public sealed class Plugin : IDalamudPlugin
         {
             TryCaptureOriginalHonorificTitleBeforeFirstWrite();
 
-            if (!string.IsNullOrWhiteSpace(config.CachedHonorificTitle) &&
+            if (!preserveProvidedTitle &&
+                !string.IsNullOrWhiteSpace(config.CachedHonorificTitle) &&
                 lastTrack != null &&
                 config.TitleFormat.Contains("{honorific}", StringComparison.OrdinalIgnoreCase))
             {
@@ -2388,6 +2519,13 @@ public sealed class Plugin : IDalamudPlugin
             {
                 appliedFingerprint = fingerprint;
                 originalHonorificCaptureFinished = true;
+
+                if (rememberForRecovery)
+                {
+                    retainedSpotifyTitle = title;
+                    retainedSpotifyFingerprint = fingerprint;
+                }
+
                 return;
             }
 
@@ -2410,6 +2548,13 @@ public sealed class Plugin : IDalamudPlugin
             appliedFingerprint = fingerprint;
             hasAppliedTitle = true;
             lastAppliedTitle = title;
+
+            if (rememberForRecovery)
+            {
+                retainedSpotifyTitle = title;
+                retainedSpotifyFingerprint = fingerprint;
+            }
+
             originalHonorificCaptureFinished = true;
             honorificErrorShown = false;
             Log.Information($"Applied Spotify title: {title}");
@@ -2428,10 +2573,18 @@ public sealed class Plugin : IDalamudPlugin
         }
     }
 
-    private bool TryClearHonorific()
+    private bool TryClearHonorific() =>
+        TryClearHonorific(preserveRetainedTitle: false);
+
+    private bool TryClearHonorific(bool preserveRetainedTitle)
     {
         if (!hasAppliedTitle)
+        {
+            if (!preserveRetainedTitle)
+                ClearRetainedSpotifyTitle();
+
             return true;
+        }
 
         var cleared = false;
 
@@ -2457,6 +2610,9 @@ public sealed class Plugin : IDalamudPlugin
             hasAppliedTitle = false;
             lastAppliedTitle = null;
             appliedFingerprint = null;
+
+            if (!preserveRetainedTitle)
+                ClearRetainedSpotifyTitle();
         }
 
         return cleared;
@@ -2514,7 +2670,11 @@ public sealed class Plugin : IDalamudPlugin
                 break;
 
             case "ipc-test":
-                ApplyHonorificTitle("♪ Spotify IPC test", "manual-ipc-test");
+                ApplyHonorificTitle(
+                    "♪ Spotify IPC test",
+                    "manual-ipc-test",
+                    preserveProvidedTitle: true,
+                    rememberForRecovery: false);
                 ChatGui.Print("Sent an Honorific IPC test title. Use /sth clear afterward.");
                 break;
 

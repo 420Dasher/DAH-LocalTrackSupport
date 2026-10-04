@@ -1,4 +1,12 @@
 # Changelog
+## 1.0.18 DEV1 - Retained Title Recovery
+
+- Keeps the previous safe Spotify title recoverable when the content filter is set to Keep previous title.
+- Restores that retained title after teleporting, zoning, combat auto-hide, and Character Select+ hand-offs.
+- Keeps the last Spotify title recoverable while playback is stopped when Hide title while playback is paused or stopped is disabled.
+- Separates current Honorific IPC ownership from the last genuine Spotify title that is safe to restore.
+- Permanent clears, disabled tracks, content-filter Clear title behavior, logout, and Spotify disconnect still discard retained title state.
+- Manual Honorific / IPC test titles are excluded from retained-title recovery.
 ## 1.0.17 - Zone Transition Honorific Rebind
 
 - Detects territory changes and invalidates STH's stale Honorific ownership state.
