@@ -1920,6 +1920,9 @@ internal sealed class ConfigWindow : Window
             ImGui.TextDisabled("/sth disable      - disable title updates");
             ImGui.TextDisabled("/sth auth <id>    - start Spotify authorization");
         }
+
+        ImGui.Spacing();
+        ImGui.TextDisabled("Psst... /sth dash");
     }
 
     private void DrawPortableSettings()
