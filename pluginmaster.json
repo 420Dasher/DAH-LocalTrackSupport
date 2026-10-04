@@ -55,7 +55,7 @@
         "Name":  "[Discontinued] DAH-LocalSpotifySupport",
         "Description":  "Discontinued legacy DiscordActivityHonorific fork. Replaced by the standalone SpotifyTrackHonorific plugin.",
         "Punchline":  "Discontinued - replaced by SpotifyTrackHonorific.",
-        "Changelog":  "SpotifyTrackHonorific 1.0.17 restores Honorific title playback after teleporting or changing territory by rebinding the active Spotify title to the replacement local-player object while preserving Honorific IPC compatibility and duplicate-write suppression.",
+        "Changelog":  "This legacy DAH-based fork is discontinued. Use SpotifyTrackHonorific instead.",
         "IsHide":  false
     },
     {
@@ -77,7 +77,7 @@
         "CanUnloadAsync":  false,
         "LoadPriority":  0,
         "Punchline":  "Fast, safe retainer repricing with preview-first automation.",
-        "Changelog":  "SpotifyTrackHonorific 1.0.17 restores Honorific title playback after teleporting or changing territory by rebinding the active Spotify title to the replacement local-player object while preserving Honorific IPC compatibility and duplicate-write suppression.",
+        "Changelog":  "Initial stable release of Retainer Undercut.",
         "AcceptsFeedback":  false,
         "DownloadLinkInstall":  "https://raw.githubusercontent.com/420Dasher/DAH-LocalTrackSupport/main/plugins/RetainerUndercut/latest.zip",
         "IsHide":  false,
