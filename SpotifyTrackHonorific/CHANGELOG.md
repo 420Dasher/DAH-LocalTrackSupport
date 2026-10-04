@@ -1,4 +1,12 @@
 # Changelog
+## 1.0.17 - Zone Transition Honorific Rebind
+
+- Detects territory changes and invalidates STH's stale Honorific ownership state.
+- Waits for the replacement local-player object and re-sends the current Spotify/cycle title.
+- Verifies that Honorific actually accepted the IPC title before considering the rebind complete.
+- Retries the rebind for up to 10 seconds if the player object is not ready yet.
+- Prevents Honorific's temporary zoning notifications from being mistaken for PatMeHonorific overrides.
+- Keeps v1.0.16's duplicate-write suppression during normal playback.
 ## 1.0.16 - Profile Persistence and Honorific Compatibility
 
 - Saved profile identity now persists across plugin reloads instead of relying only on an exact settings comparison at startup.

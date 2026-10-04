@@ -23,7 +23,7 @@ namespace SpotifyTrackHonorific;
 
 public sealed class Plugin : IDalamudPlugin
 {
-    internal const string DisplayVersion = "1.0.16";
+    internal const string DisplayVersion = "1.0.17";
     private const string ShortCommand = "/sth";
     private const string LongCommand = "/spotifytrackhonorific";
     private static readonly TimeSpan NormalPollInterval = TimeSpan.FromSeconds(15);
@@ -33,6 +33,9 @@ public sealed class Plugin : IDalamudPlugin
     private static readonly TimeSpan CharacterSelectSettleDelay = TimeSpan.FromMilliseconds(500);
     private static readonly TimeSpan CharacterSelectCaptureRetryInterval = TimeSpan.FromMilliseconds(500);
     private static readonly TimeSpan CharacterSelectCaptureWindow = TimeSpan.FromSeconds(8);
+    private static readonly TimeSpan TerritoryRebindSettleDelay = TimeSpan.FromSeconds(1);
+    private static readonly TimeSpan TerritoryRebindRetryInterval = TimeSpan.FromMilliseconds(500);
+    private static readonly TimeSpan TerritoryRebindWindow = TimeSpan.FromSeconds(10);
     private const int FailureBackoffBaseSeconds = 5;
     private const int FailureBackoffMaxSeconds = 120;
     private const int RateLimitFallbackSeconds = 30;
@@ -100,6 +103,9 @@ public sealed class Plugin : IDalamudPlugin
     private bool characterSelectSessionProfileKnown;
     private long lastCharacterSelectSessionWriteUtcTicks;
     private int characterSelectSessionChangeCount;
+    private bool territoryRebindActive;
+    private long pendingTerritoryRebindUtcTicks;
+    private long territoryRebindDeadlineUtcTicks;
 
     internal Configuration Config => config;
     internal bool IsAuthenticated => spotify.HasRefreshToken;
@@ -203,6 +209,7 @@ public sealed class Plugin : IDalamudPlugin
         Condition.ConditionChange += OnConditionChange;
         ClientState.Login += OnClientLogin;
         ClientState.Logout += OnClientLogout;
+        ClientState.TerritoryChanged += OnTerritoryChanged;
         PluginInterface.UiBuilder.Draw += windowSystem.Draw;
         PluginInterface.UiBuilder.OpenConfigUi += OpenConfigUi;
         PluginInterface.UiBuilder.OpenMainUi += OpenConfigUi;
@@ -223,6 +230,7 @@ public sealed class Plugin : IDalamudPlugin
         Condition.ConditionChange -= OnConditionChange;
         ClientState.Login -= OnClientLogin;
         ClientState.Logout -= OnClientLogout;
+        ClientState.TerritoryChanged -= OnTerritoryChanged;
         PluginInterface.UiBuilder.Draw -= windowSystem.Draw;
         PluginInterface.UiBuilder.OpenConfigUi -= OpenConfigUi;
         PluginInterface.UiBuilder.OpenMainUi -= OpenConfigUi;
@@ -1056,7 +1064,213 @@ public sealed class Plugin : IDalamudPlugin
         characterSelectSessionProfileKnown = false;
         lastCharacterSelectSessionWriteUtcTicks = 0;
         characterSelectSessionChangeCount = 0;
+
+        territoryRebindActive = false;
+        Interlocked.Exchange(ref pendingTerritoryRebindUtcTicks, 0);
+        Interlocked.Exchange(ref territoryRebindDeadlineUtcTicks, 0);
     }
+
+    private void OnTerritoryChanged(uint territoryType)
+    {
+        if (!ClientState.IsLoggedIn)
+            return;
+
+        var now = DateTimeOffset.UtcNow;
+
+        // Honorific IPC titles are tied to the local player's current EntityId.
+        // Zoning can replace that entity and Honorific then drops the old assignment.
+        // Invalidate STH's ownership cache so the v1.0.16 duplicate-write guard
+        // cannot mistake the old assignment for one that is still active.
+        territoryRebindActive = config.Enabled;
+        patMeHonorificOverrideActive = false;
+        appliedFingerprint = null;
+        hasAppliedTitle = false;
+        lastAppliedTitle = null;
+
+        if (!territoryRebindActive)
+            return;
+
+        Interlocked.Exchange(
+            ref pendingTerritoryRebindUtcTicks,
+            now.Add(TerritoryRebindSettleDelay).UtcDateTime.Ticks);
+
+        Interlocked.Exchange(
+            ref territoryRebindDeadlineUtcTicks,
+            now.Add(TerritoryRebindWindow).UtcDateTime.Ticks);
+
+        Log.Information(
+            $"Territory changed to {territoryType}; scheduling Honorific IPC title rebind.");
+    }
+
+    private void TryRestoreAfterTerritoryChange()
+    {
+        if (!territoryRebindActive)
+            return;
+
+        var nowTicks = DateTimeOffset.UtcNow.UtcDateTime.Ticks;
+        var pendingTicks = Interlocked.Read(ref pendingTerritoryRebindUtcTicks);
+
+        if (pendingTicks > 0 && nowTicks < pendingTicks)
+            return;
+
+        if (!config.Enabled || !ClientState.IsLoggedIn)
+        {
+            FinishTerritoryRebind();
+            return;
+        }
+
+        // Do not interfere with compatibility states that deliberately relinquish
+        // STH's Honorific title.
+        if (characterSelectRecaptureActive ||
+            patMeHonorificOverrideActive ||
+            ShouldAutoHideForCombat())
+        {
+            RetryTerritoryRebind(nowTicks);
+            return;
+        }
+
+        var renderTrack = GetCurrentRenderTrack();
+
+        if (renderTrack == null ||
+            (lastTrackPaused && config.ClearOnPause) ||
+            !IsTrackAllowed(renderTrack))
+        {
+            FinishTerritoryRebind();
+            return;
+        }
+
+        var filterMatch = GetContentFilterMatch(renderTrack);
+
+        if (filterMatch != null && config.ContentFilterAction != 0)
+        {
+            FinishTerritoryRebind();
+            return;
+        }
+
+        var paused = lastTrackPaused;
+        var title = BuildConfiguredTitle(renderTrack, paused);
+        var fingerprint = BuildRenderFingerprint(renderTrack, paused);
+
+        // If Honorific already exposes the desired title, just synchronize STH's
+        // local ownership state rather than issuing another IPC write.
+        try
+        {
+            if (honorific.TryGetCurrentTitle(out var currentTitle) &&
+                string.Equals(
+                    currentTitle.Trim(),
+                    title,
+                    StringComparison.Ordinal))
+            {
+                hasAppliedTitle = true;
+                lastAppliedTitle = title;
+                appliedFingerprint = fingerprint;
+                originalHonorificCaptureFinished = true;
+
+                FinishTerritoryRebind();
+
+                Log.Information(
+                    $"Territory rebind: Honorific already reports the current Spotify title '{title}'.");
+
+                return;
+            }
+        }
+        catch (Exception ex)
+        {
+            Log.Debug(
+                $"Territory rebind preflight read failed: {ex.Message}");
+        }
+
+        // Force a genuine SetCharacterTitle call. The pre-zone EntityId assignment
+        // no longer counts as ownership even if the visible cycle stage is unchanged.
+        hasAppliedTitle = false;
+        lastAppliedTitle = null;
+        appliedFingerprint = null;
+
+        ApplyHonorificTitle(title, fingerprint);
+
+        // Honorific intentionally no-ops SetCharacterTitle if the indexed local
+        // player object is not available yet. Verify that the title actually landed.
+        var verified = false;
+
+        try
+        {
+            verified =
+                honorific.TryGetCurrentTitle(out var reboundTitle) &&
+                string.Equals(
+                    reboundTitle.Trim(),
+                    title,
+                    StringComparison.Ordinal);
+        }
+        catch (Exception ex)
+        {
+            Log.Debug(
+                $"Territory rebind verification read failed: {ex.Message}");
+        }
+
+        if (verified)
+        {
+            FinishTerritoryRebind();
+
+            Log.Information(
+                $"Territory rebind restored Spotify title: {title}");
+
+            return;
+        }
+
+        // ApplyHonorificTitle optimistically updates STH's state after invoking IPC.
+        // Roll it back if Honorific did not actually attach the title so another
+        // retry cannot be skipped by the duplicate-write guard.
+        hasAppliedTitle = false;
+        lastAppliedTitle = null;
+        appliedFingerprint = null;
+
+        RetryTerritoryRebind(nowTicks);
+    }
+
+    private void RetryTerritoryRebind(long nowTicks)
+    {
+        var deadlineTicks =
+            Interlocked.Read(ref territoryRebindDeadlineUtcTicks);
+
+        if (deadlineTicks > 0 && nowTicks >= deadlineTicks)
+        {
+            FinishTerritoryRebind();
+
+            appliedFingerprint = null;
+            hasAppliedTitle = false;
+            lastAppliedTitle = null;
+
+            // A fresh Spotify render remains the final fallback if the local player
+            // took unusually long to become available after zoning.
+            SchedulePollNow();
+
+            Log.Warning(
+                "Territory rebind timed out before Honorific confirmed the title; " +
+                "scheduled a fresh Spotify render.");
+
+            return;
+        }
+
+        Interlocked.Exchange(
+            ref pendingTerritoryRebindUtcTicks,
+            DateTimeOffset.UtcNow
+                .Add(TerritoryRebindRetryInterval)
+                .UtcDateTime.Ticks);
+    }
+
+    private void FinishTerritoryRebind()
+    {
+        territoryRebindActive = false;
+
+        Interlocked.Exchange(
+            ref pendingTerritoryRebindUtcTicks,
+            0);
+
+        Interlocked.Exchange(
+            ref territoryRebindDeadlineUtcTicks,
+            0);
+    }
+
     private void OnCharacterSelectChanged(string characterName, string designName)
     {
         var profile = (characterName ?? string.Empty).Trim();
@@ -1323,6 +1537,7 @@ public sealed class Plugin : IDalamudPlugin
         TryDetectCharacterSelectSessionFileChange();
         TryDetectCharacterSelectProfileChange();
         TryAutoCaptureOriginalHonorificTitle();
+        TryRestoreAfterTerritoryChange();
 
         if (!config.Enabled)
         {
@@ -1977,6 +2192,24 @@ public sealed class Plugin : IDalamudPlugin
             Interlocked.Exchange(
                 ref pendingCharacterSelectCaptureUtcTicks,
                 DateTimeOffset.UtcNow.UtcDateTime.Ticks);
+            return;
+        }
+
+        // During zoning Honorific may briefly announce its underlying title or an
+        // empty state while the local player object is being replaced. Do not treat
+        // that transition as a PatMeHonorific temporary override.
+        if (territoryRebindActive)
+        {
+            appliedFingerprint = null;
+            hasAppliedTitle = false;
+            lastAppliedTitle = null;
+
+            Interlocked.Exchange(
+                ref pendingTerritoryRebindUtcTicks,
+                DateTimeOffset.UtcNow
+                    .Add(TerritoryRebindRetryInterval)
+                    .UtcDateTime.Ticks);
+
             return;
         }
 
