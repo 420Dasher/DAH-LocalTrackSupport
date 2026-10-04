@@ -13,9 +13,9 @@
     <Product>SpotifyTrackHonorific</Product>
     <AssemblyTitle>SpotifyTrackHonorific</AssemblyTitle>
 
-    <Version>1.0.18.1</Version>
-    <AssemblyVersion>1.0.18.1</AssemblyVersion>
-    <FileVersion>1.0.18.1</FileVersion>
+    <Version>1.0.18.2</Version>
+    <AssemblyVersion>1.0.18.2</AssemblyVersion>
+    <FileVersion>1.0.18.2</FileVersion>
     <IsPackable>false</IsPackable>
   </PropertyGroup>
 </Project>

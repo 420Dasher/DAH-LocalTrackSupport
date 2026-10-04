@@ -23,7 +23,7 @@ namespace SpotifyTrackHonorific;
 
 public sealed class Plugin : IDalamudPlugin
 {
-    internal const string DisplayVersion = "1.0.18-dev1";
+    internal const string DisplayVersion = "1.0.18-dev2";
     private const string ShortCommand = "/sth";
     private const string LongCommand = "/spotifytrackhonorific";
     private static readonly TimeSpan NormalPollInterval = TimeSpan.FromSeconds(15);
@@ -74,6 +74,13 @@ public sealed class Plugin : IDalamudPlugin
     private bool lastTrackPaused;
     private long lastTrackObservedUtcTicks;
     private long nextLocalRenderUtcTicks;
+
+    // Continuous Spotify listening streak observed by STH.
+    // Starts on PlayingTrack and resets only when Spotify explicitly reports
+    // paused/stopped, authorization disappears, STH is disabled, or the
+    // character/plugin session resets. Temporary API failures do not break it.
+    private long listeningSessionStartedUtcTicks;
+
     private string lastState = "Starting";
     private string? lastError;
     private bool honorificErrorShown;
@@ -272,6 +279,7 @@ public sealed class Plugin : IDalamudPlugin
         {
             patMeHonorificOverrideActive = false;
             combatAutoHideActive = false;
+            ResetListeningSession();
             var honorificCleared = TryClearHonorific();
 
             // A cache clear performed while STH owned the title intentionally
@@ -904,6 +912,7 @@ public sealed class Plugin : IDalamudPlugin
         spotify.ForgetAuthorization(clearClientId);
         ResetFailureCounter();
         ClearSpotifyCooldown();
+        ResetListeningSession();
         lastTrack = null;
         lastTrackPaused = false;
         lastTrackObservedUtcTicks = 0;
@@ -1084,6 +1093,7 @@ public sealed class Plugin : IDalamudPlugin
         lastTrackPaused = false;
         lastTrackObservedUtcTicks = 0;
         Interlocked.Exchange(ref nextLocalRenderUtcTicks, 0);
+        ResetListeningSession();
 
         originalHonorificCaptureFinished = false;
         Interlocked.Exchange(ref nextOriginalHonorificCaptureAttemptUtcTicks, 0);
@@ -1651,6 +1661,7 @@ public sealed class Plugin : IDalamudPlugin
             {
                 case SpotifyPollState.PlayingTrack when result.Track != null:
                     MarkSpotifyPollHealthy();
+                    MarkListeningSessionPlaying();
                     lastTrack = result.Track;
                     lastTrackPaused = false;
                     lastTrackObservedUtcTicks = DateTimeOffset.UtcNow.UtcDateTime.Ticks;
@@ -1704,6 +1715,7 @@ public sealed class Plugin : IDalamudPlugin
 
                 case SpotifyPollState.PausedTrack when result.Track != null:
                     MarkSpotifyPollHealthy();
+                    ResetListeningSession();
                     lastTrack = result.Track;
                     lastTrackPaused = true;
                     lastTrackObservedUtcTicks = 0;
@@ -1762,6 +1774,7 @@ public sealed class Plugin : IDalamudPlugin
 
                 case SpotifyPollState.NotPlaying:
                     MarkSpotifyPollHealthy();
+                    ResetListeningSession();
                     lastTrack = null;
                     lastTrackPaused = false;
                     lastTrackObservedUtcTicks = 0;
@@ -1776,6 +1789,7 @@ public sealed class Plugin : IDalamudPlugin
                 case SpotifyPollState.NotAuthenticated:
                     ResetFailureCounter();
                     ClearSpotifyCooldown();
+                    ResetListeningSession();
                     lastTrack = null;
                     lastTrackPaused = false;
                     lastTrackObservedUtcTicks = 0;
@@ -2035,6 +2049,87 @@ public sealed class Plugin : IDalamudPlugin
         return $"{Math.Max(0, (int)Math.Ceiling(delay.TotalSeconds))}s";
     }
 
+    private static bool UsesListeningSessionVariable(string? format) =>
+        !string.IsNullOrWhiteSpace(format) &&
+        format.Contains(
+            "{session}",
+            StringComparison.OrdinalIgnoreCase);
+
+    private static bool UsesLocallyRefreshingTitleVariable(string? format) =>
+        TitleTemplateFormatter.UsesProgressVariable(format) ||
+        UsesListeningSessionVariable(format);
+
+    private void MarkListeningSessionPlaying()
+    {
+        if (!config.Enabled)
+            return;
+
+        var nowTicks =
+            DateTimeOffset.UtcNow.UtcDateTime.Ticks;
+
+        Interlocked.CompareExchange(
+            ref listeningSessionStartedUtcTicks,
+            nowTicks,
+            0);
+    }
+
+    private void ResetListeningSession() =>
+        Interlocked.Exchange(
+            ref listeningSessionStartedUtcTicks,
+            0);
+
+    private long GetListeningSessionMinutes()
+    {
+        var startedTicks =
+            Interlocked.Read(
+                ref listeningSessionStartedUtcTicks);
+
+        if (startedTicks <= 0)
+            return 0;
+
+        var elapsedTicks = Math.Max(
+            0L,
+            DateTimeOffset.UtcNow.UtcDateTime.Ticks -
+            startedTicks);
+
+        return elapsedTicks / TimeSpan.TicksPerMinute;
+    }
+
+    private string BuildListeningSessionText()
+    {
+        var totalMinutes =
+            GetListeningSessionMinutes();
+
+        if (totalMinutes < 60)
+            return $"listening {totalMinutes}m";
+
+        var hours = totalMinutes / 60;
+        var minutes = totalMinutes % 60;
+
+        return $"listening {hours}h {minutes}m";
+    }
+
+    private string ExpandHiddenFormatterTokens(string text)
+    {
+        return (text ?? string.Empty)
+            .Replace(
+                "{version}",
+                $"SpotifyTrackHonorific v{DisplayVersion}",
+                StringComparison.OrdinalIgnoreCase)
+            .Replace(
+                "{sth}",
+                "SpotifyTrackHonorific",
+                StringComparison.OrdinalIgnoreCase)
+            .Replace(
+                "{session}",
+                BuildListeningSessionText(),
+                StringComparison.OrdinalIgnoreCase)
+            .Replace(
+                "{konami}",
+                "powered by questionable choices",
+                StringComparison.OrdinalIgnoreCase);
+    }
+
     private SpotifyTrackInfo? GetCurrentRenderTrack()
     {
         var track = lastTrack;
@@ -2054,7 +2149,7 @@ public sealed class Plugin : IDalamudPlugin
         var track = lastTrack;
         if (track == null ||
             lastTrackPaused ||
-            !TitleTemplateFormatter.UsesProgressVariable(config.TitleFormat) ||
+            !UsesLocallyRefreshingTitleVariable(config.TitleFormat) ||
             !IsTrackAllowed(track))
             return;
 
@@ -2103,7 +2198,12 @@ public sealed class Plugin : IDalamudPlugin
             paused,
             config.StripBracketedTrackParts,
             config.CachedHonorificTitle);
-        return HonorificBridge.FitTitle(formatted, config.SmartFitLongTitles);
+
+        formatted = ExpandHiddenFormatterTokens(formatted);
+
+        return HonorificBridge.FitTitle(
+            formatted,
+            config.SmartFitLongTitles);
     }
 
     private SpotifyTrackInfo GetContentFilteredTrack(SpotifyTrackInfo track)
@@ -2136,12 +2236,14 @@ public sealed class Plugin : IDalamudPlugin
     private string BuildPreviewExpandedTitle()
     {
         var track = GetContentFilteredTrack(BuildPreviewTrack());
-        return TitleTemplateFormatter.Expand(
+        var formatted = TitleTemplateFormatter.Expand(
             config.TitleFormat,
             track,
             lastTrack != null && lastTrackPaused,
             config.StripBracketedTrackParts,
             config.CachedHonorificTitle);
+
+        return ExpandHiddenFormatterTokens(formatted);
     }
 
     private string BuildPreviewTitle() =>
@@ -2152,6 +2254,11 @@ public sealed class Plugin : IDalamudPlugin
         var progressPart = TitleTemplateFormatter.UsesProgressVariable(config.TitleFormat)
             ? $"|progress:{track.ProgressMs / 1000}"
             : string.Empty;
+
+        var listeningSessionPart =
+            UsesListeningSessionVariable(config.TitleFormat)
+                ? $"|listeningSessionMinute:{GetListeningSessionMinutes()}"
+                : string.Empty;
 
         var honorificCachePart = config.TitleFormat.Contains("{honorific}", StringComparison.OrdinalIgnoreCase)
             ? $"|cachedHonorific:{config.CachedHonorificTitle}"
@@ -2180,7 +2287,7 @@ public sealed class Plugin : IDalamudPlugin
             $"|gradientB:{config.GradientColorB.X:F4},{config.GradientColorB.Y:F4},{config.GradientColorB.Z:F4}" +
             $"|gradientC:{config.GradientColorC.X:F4},{config.GradientColorC.Y:F4},{config.GradientColorC.Z:F4}";
 
-        return $"{track.Fingerprint}|prefix:{config.IsPrefix}|paused:{paused}|strip:{config.StripBracketedTrackParts}|smartfit:{config.SmartFitLongTitles}|format:{config.TitleFormat}{honorificCachePart}{stylePart}{supporterStylePart}{contentFilterPart}{progressPart}";
+        return $"{track.Fingerprint}|prefix:{config.IsPrefix}|paused:{paused}|strip:{config.StripBracketedTrackParts}|smartfit:{config.SmartFitLongTitles}|format:{config.TitleFormat}{honorificCachePart}{stylePart}{supporterStylePart}{contentFilterPart}{progressPart}{listeningSessionPart}";
     }
 
     private void TryAutoCaptureOriginalHonorificTitle()
@@ -2647,6 +2754,10 @@ public sealed class Plugin : IDalamudPlugin
                 PrintNow();
                 break;
 
+            case "dash":
+                PrintDash();
+                break;
+
             case "retry":
                 RetrySpotifyNow();
                 ChatGui.Print("Spotify retry scheduled immediately.");
@@ -2762,6 +2873,19 @@ public sealed class Plugin : IDalamudPlugin
 
         ChatGui.Print($"Spotify: {renderTrack.ArtistText} - {renderTrack.Name} | Album: {renderTrack.Album} | Local: {renderTrack.IsLocal}");
         ChatGui.Print($"Honorific title: {BuildConfiguredTitle(renderTrack, lastTrackPaused)} | {(config.IsPrefix ? "Prefix" : "Suffix")}");
+    }
+
+    private void PrintDash()
+    {
+        ChatGui.Print("You found Dash's drawer.");
+        ChatGui.Print(
+            $"{{version}}  -> SpotifyTrackHonorific v{DisplayVersion}");
+        ChatGui.Print(
+            "{sth}      -> SpotifyTrackHonorific");
+        ChatGui.Print(
+            $"{{session}}  -> {BuildListeningSessionText()}");
+        ChatGui.Print(
+            "{konami}   -> powered by questionable choices");
     }
 
     private static void PrintHelp()
