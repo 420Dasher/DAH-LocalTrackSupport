@@ -1,6 +1,13 @@
-<Project Sdk="Dalamud.NET.Sdk/15.0.0">
+﻿<Project Sdk="Dalamud.NET.Sdk/15.0.0">
   <PropertyGroup>
-    <Version>0.1.0</Version>
+    <Name>Retainer Undercut</Name>
+    <Author>Dash + AI</Author>
+    <Punchline>Fast, safe retainer repricing with preview-first automation.</Punchline>
+    <Description>Preview and apply retainer market repricing with strict HQ/NQ separation, multi-retainer runs, Matchlist protection, per-item rules, safety guards, Price Recovery, and run history.</Description>
+    <Tags>retainer;market-board;utility</Tags>
+    <IconUrl>https://raw.githubusercontent.com/420Dasher/DAH-LocalTrackSupport/main/plugins/RetainerUndercut/icon.png</IconUrl>
+
+    <Version>0.1.1</Version>
     <Description>Safe, configurable FFXIV retainer market repricing with Dry Run, multi-retainer automation, HQ/NQ separation, Matchlist protection, item rules, and Price Recovery.</Description>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
     <IsPackable>false</IsPackable>
@@ -14,3 +21,4 @@
     </Content>
   </ItemGroup>
 </Project>
+

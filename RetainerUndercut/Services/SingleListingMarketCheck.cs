@@ -96,7 +96,7 @@ public sealed class SingleListingMarketCheck : IDisposable
     public int NqListingsObserved { get; private set; }
     public int NativeQualityRowsMatched { get; private set; }
     public int NativeQualityCorrections { get; private set; }
-    public int NativePriceCorrections { get; private set; }
+    public int NativeStaleRowsIgnored { get; private set; }
     public int IgnoredStaleOfferingsPackets { get; private set; }
     public int ExpectedMarketRequestId => expectedMarketRequestId;
     public bool NativeQualityValidationAvailable { get; private set; }
@@ -398,7 +398,7 @@ public sealed class SingleListingMarketCheck : IDisposable
         NqListingsObserved = 0;
         NativeQualityRowsMatched = 0;
         NativeQualityCorrections = 0;
-        NativePriceCorrections = 0;
+        NativeStaleRowsIgnored = 0;
         IgnoredStaleOfferingsPackets = 0;
         NativeQualityValidationAvailable = false;
         UsedMatchlistRule = false;
@@ -979,8 +979,11 @@ public sealed class SingleListingMarketCheck : IDisposable
         NqListingsObserved = 0;
         NativeQualityRowsMatched = 0;
         NativeQualityCorrections = 0;
-        NativePriceCorrections = 0;
+        NativeStaleRowsIgnored = 0;
 
+        // Network packet prices remain authoritative. Native rows are used only as an
+        // optional HQ/NQ cross-check and only when their full row fingerprint matches.
+        // This keeps the stale-price fix without delaying otherwise-valid market packets.
         var nativeOffers = TryReadNativeMarketOfferings(selected.ItemId);
         NativeQualityValidationAvailable = nativeOffers is not null;
 
@@ -1011,27 +1014,34 @@ public sealed class SingleListingMarketCheck : IDisposable
             // as a second source when available. This prevents a transient/stale quality bit in
             // one event row from making an NQ listing follow an HQ price (or vice versa).
             var effectiveIsHq = offer.IsHq;
-            var effectivePricePerUnit = offer.PricePerUnit;
             if (nativeOffers is not null
                 && offer.ListingId != 0
                 && nativeOffers.TryGetValue(offer.ListingId, out var nativeOffer)
                 && nativeOffer.ItemId == offer.ItemId)
             {
-                NativeQualityRowsMatched++;
-                if (nativeOffer.IsHq != offer.IsHq)
-                {
-                    NativeQualityCorrections++;
-                    log.Warning($"[AutoUndercut] HQ/NQ disagreement for listing {offer.ListingId:X}: network={(offer.IsHq ? "HQ" : "NQ")}, native={(nativeOffer.IsHq ? "HQ" : "NQ")}; native listing cache wins.");
-                }
+                // The native cache is only allowed to correct HQ/NQ when the row fingerprint
+                // proves it represents this exact fresh packet row. ListingId alone is NOT
+                // enough: the same listing can survive a repricing while the native cache still
+                // contains its previous price. That was the remaining stale-price/fallback hole.
+                var exactNativeRow = nativeOffer.PricePerUnit == offer.PricePerUnit
+                    && nativeOffer.Quantity == offer.Quantity;
 
-                if (nativeOffer.PricePerUnit != offer.PricePerUnit)
+                if (exactNativeRow)
                 {
-                    NativePriceCorrections++;
-                    log.Warning($"[AutoUndercut] Price disagreement for listing {offer.ListingId:X}: packet={offer.PricePerUnit:N0}, native={nativeOffer.PricePerUnit:N0}; native listing cache wins for the current request.");
-                }
+                    NativeQualityRowsMatched++;
+                    if (nativeOffer.IsHq != offer.IsHq)
+                    {
+                        NativeQualityCorrections++;
+                        log.Warning($"[AutoUndercut] HQ/NQ disagreement for listing {offer.ListingId:X}: network={(offer.IsHq ? "HQ" : "NQ")}, native={(nativeOffer.IsHq ? "HQ" : "NQ")}; exact native row wins for quality only.");
+                    }
 
-                effectiveIsHq = nativeOffer.IsHq;
-                effectivePricePerUnit = nativeOffer.PricePerUnit;
+                    effectiveIsHq = nativeOffer.IsHq;
+                }
+                else
+                {
+                    NativeStaleRowsIgnored++;
+                    log.Debug($"[AutoUndercut] Ignoring stale native row for listing {offer.ListingId:X}: packet={offer.PricePerUnit:N0} x{offer.Quantity}, native={nativeOffer.PricePerUnit:N0} x{nativeOffer.Quantity}. Fresh request packet remains authoritative.");
+                }
             }
 
             if (effectiveIsHq)
@@ -1042,7 +1052,7 @@ public sealed class SingleListingMarketCheck : IDisposable
             if (effectiveIsHq != selected.IsHq)
                 continue;
 
-            var price = (ulong)effectivePricePerUnit;
+            var price = (ulong)offer.PricePerUnit;
             if (price == 0)
                 continue;
 
@@ -1311,6 +1321,7 @@ public sealed class SingleListingMarketCheck : IDisposable
     {
         ResetPendingOfferings();
         nativeEmptyConfirmedSinceMs = 0;
+
         expectedMarketRequestId = -1;
         ListingsObserved = 0;
         EligibleListingsObserved = 0;

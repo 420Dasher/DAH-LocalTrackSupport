@@ -57,7 +57,7 @@ Before writing a price, the plugin verifies the active retainer, selected raw ma
 
 ## Market-board handling
 
-Market results arrive in multiple packets. Retainer Undercut accumulates them, correlates them to the native active request ID, rejects stale same-item responses, and cross-checks the native `InfoProxyItemSearch` cache before using the quote. This is also used to correct stale packet prices and HQ/NQ disagreements when the native current-request listing is authoritative.
+Market results arrive in multiple packets. Retainer Undercut accumulates them, pins them to the newly-issued request ID, and rejects late packets from a previous same-item search. Fresh request packets are authoritative for price. The native `InfoProxyItemSearch` cache is used only as an HQ/NQ cross-check when ListingId + ItemId + price + quantity identify the exact same row; stale native rows are ignored rather than used as a price fallback.
 
 Same item + quality results are cached within a current-retainer run to avoid unnecessary repeated searches. The cache is intentionally conservative and may be refreshed again when moving to another retainer.
 

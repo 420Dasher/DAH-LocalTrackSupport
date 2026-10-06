@@ -1,6 +1,14 @@
 # Changelog
 
-## 0.1.0 — 2026-09-22
+
+## 0.1.1 - 2026-10-06
+
+- Fixes stale same-item Market Board prices being reused during repricing.
+- Keeps fresh Market Board packet prices authoritative while retaining strict HQ/NQ validation.
+- Fixes unnecessary HQ retries and restores normal pricing-run performance.
+- Adds installed-plugin icon metadata and keeps the repository icon available to Dalamud.
+
+## 0.1.0 - 2026-09-22
 
 Initial public release.
 
@@ -27,3 +35,4 @@ Initial public release.
 - Sell-list row-to-market-slot validation before opening Adjust Price.
 - Asking-price write/read verification before confirmation.
 - Safe hard-stop behavior when a confirmation result becomes uncertain.
+

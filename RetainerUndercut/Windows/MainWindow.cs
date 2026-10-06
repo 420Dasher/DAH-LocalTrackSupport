@@ -23,7 +23,7 @@ public sealed class MainWindow : Window
         AutoRetainerUndercutRunner autoRunner,
         MultiRetainerUndercutRunner multiRunner,
         Configuration configuration)
-        : base("Retainer Undercut — v0.1.0###RetainerUndercutMain")
+        : base("Retainer Undercut - v0.1.1###RetainerUndercutMain")
     {
         this.scanner = scanner;
         this.marketCheck = marketCheck;
@@ -91,7 +91,7 @@ public sealed class MainWindow : Window
         ImGui.TextUnformatted("Retainer Undercut");
         ImGui.PopStyleColor();
         ImGui.SameLine();
-        ImGui.TextDisabled("v0.1.0");
+        ImGui.TextDisabled("v0.1.1");
         ImGui.TextDisabled("Preview first, then apply. Advanced details stay out of the way until you need them.");
         ImGui.Separator();
 
@@ -101,7 +101,7 @@ public sealed class MainWindow : Window
             DrawStatusCell("STATUS", state, busy ? "Automation is controlling the retainer UI" : "Waiting for you");
             DrawStatusCell("RETAINERS", $"{multiRunner.EnabledRetainerCount}/{multiRunner.AvailableRetainers.Count} enabled", $"{multiRunner.EnabledListingCount} listing(s) in the next all-retainer run");
             DrawStatusCell("PRICING", BuildHumanPricingSummary(), configuration.PriceRecoveryEnabled ? "Price Recovery is enabled" : "Only lowers prices unless Recovery is enabled");
-            DrawStatusCell("SAFETY", BuildHumanSafetySummary(), $"{configuration.ItemRules.Count} item rule(s) • {configuration.MatchlistedRetainerNames.Count} protected seller(s)");
+            DrawStatusCell("SAFETY", BuildHumanSafetySummary(), $"{configuration.ItemRules.Count} item rule(s) | {configuration.MatchlistedRetainerNames.Count} protected seller(s)");
             ImGui.EndTable();
         }
     }
@@ -145,7 +145,7 @@ public sealed class MainWindow : Window
             ImGui.TextDisabled("Use this after opening the Summoning Bell retainer list.");
 
             ImGui.Spacing();
-            ImGui.TextUnformatted("Preview prices — safe, no prices are written");
+            ImGui.TextUnformatted("Preview prices - safe, no prices are written");
             if (!allCanStart) ImGui.BeginDisabled();
             if (ImGui.Button("Preview all enabled retainers##preview_all"))
                 multiRunner.Start(dryRun: true);
@@ -157,7 +157,7 @@ public sealed class MainWindow : Window
             if (!currentCanStart) ImGui.EndDisabled();
 
             ImGui.Spacing();
-            ImGui.TextUnformatted("Apply prices — actually changes listings");
+            ImGui.TextUnformatted("Apply prices - actually changes listings");
             if (!allCanStart) ImGui.BeginDisabled();
             DrawLiveButton("Apply to all enabled retainers##live_all", () => multiRunner.Start(dryRun: false));
             if (!allCanStart) ImGui.EndDisabled();
@@ -171,7 +171,7 @@ public sealed class MainWindow : Window
             if (!currentCanStart)
                 ImGui.TextDisabled("Current retainer unavailable: open its sell list and wait until the rows are detected.");
             else
-                ImGui.TextDisabled($"Current retainer ready: {scanner.ActiveRetainerName} • {scanner.Listings.Count} listing(s)");
+                ImGui.TextDisabled($"Current retainer ready: {scanner.ActiveRetainerName} | {scanner.Listings.Count} listing(s)");
         }
         else
         {
@@ -179,13 +179,13 @@ public sealed class MainWindow : Window
             {
                 DrawStopButton(multiRunner.DryRunMode ? "Stop preview##stop_all" : "EMERGENCY STOP##stop_all", multiRunner.RequestStop);
                 ImGui.SameLine();
-                ImGui.TextUnformatted($"{multiRunner.CurrentRetainerNumber}/{multiRunner.TotalRetainers} • {multiRunner.CurrentRetainerName} • {FormatDuration(multiRunner.RunElapsed)}");
+                ImGui.TextUnformatted($"{multiRunner.CurrentRetainerNumber}/{multiRunner.TotalRetainers} | {multiRunner.CurrentRetainerName} | {FormatDuration(multiRunner.RunElapsed)}");
             }
             else if (autoRunner.IsRunning)
             {
                 DrawStopButton(autoRunner.DryRunMode ? "Stop preview##stop_current" : "EMERGENCY STOP##stop_current", autoRunner.RequestStop);
                 ImGui.SameLine();
-                ImGui.TextUnformatted($"{autoRunner.CurrentNumber}/{autoRunner.TotalItems} • {autoRunner.CurrentItemName} • {FormatDuration(autoRunner.RunElapsed)}");
+                ImGui.TextUnformatted($"{autoRunner.CurrentNumber}/{autoRunner.TotalItems} | {autoRunner.CurrentItemName} | {FormatDuration(autoRunner.RunElapsed)}");
             }
         }
     }
@@ -208,7 +208,7 @@ public sealed class MainWindow : Window
             if (ImGui.SmallButton("Disable all"))
                 multiRunner.SetAllAvailableRetainersEnabled(false);
             ImGui.SameLine();
-            ImGui.TextDisabled($"{multiRunner.EnabledRetainerCount} enabled • {multiRunner.EnabledListingCount} listings in next run");
+            ImGui.TextDisabled($"{multiRunner.EnabledRetainerCount} enabled | {multiRunner.EnabledListingCount} listings in next run");
         }
 
         if (ImGui.BeginTable("##RetainerOverview", 4,
@@ -244,7 +244,7 @@ public sealed class MainWindow : Window
                 if (string.Equals(multiRunner.CurrentRetainerName, retainer.Name, StringComparison.Ordinal) && multiRunner.IsRunning)
                 {
                     ImGui.SameLine();
-                    ImGui.TextDisabled("← active");
+                    ImGui.TextDisabled("<- active");
                 }
 
                 ImGui.TableNextColumn();
@@ -254,7 +254,7 @@ public sealed class MainWindow : Window
                 var summary = multiRunner.Summaries.LastOrDefault(x => string.Equals(x.Name, retainer.Name, StringComparison.Ordinal));
                 if (summary.Name is null)
                 {
-                    ImGui.TextDisabled("—");
+                    ImGui.TextDisabled("-");
                 }
                 else if (summary.WasEmpty)
                 {
@@ -316,7 +316,7 @@ public sealed class MainWindow : Window
 
             ImGui.TextDisabled(multiRunner.Status);
             if (!multiRunner.IsRunning && multiRunner.LastRunFinishedUtc is { } finished)
-                ImGui.TextDisabled($"Finished {finished.ToLocalTime():HH:mm:ss} • {FormatDuration(multiRunner.RunElapsed)}");
+                ImGui.TextDisabled($"Finished {finished.ToLocalTime():HH:mm:ss} | {FormatDuration(multiRunner.RunElapsed)}");
             return;
         }
 
@@ -401,7 +401,7 @@ public sealed class MainWindow : Window
         {
             var wouldChange = group.Count(x => x.WouldChange);
             var protectedCount = group.Count(x => x.MatchlistProtected || x.SafetyFloorProtected || x.MaxDropBlocked || x.OutlierBlocked || x.PriceRecoveryBlocked);
-            var label = $"{group.Key} — {group.Count()} checked • {wouldChange} would change • {protectedCount} protected##preview_{group.Key}";
+            var label = $"{group.Key} - {group.Count()} checked | {wouldChange} would change | {protectedCount} protected##preview_{group.Key}";
             if (!ImGui.CollapsingHeader(label, ImGuiTreeNodeFlags.DefaultOpen))
                 continue;
 
@@ -431,7 +431,7 @@ public sealed class MainWindow : Window
         if (summary.MissingListings > 0) parts.Add($"{summary.MissingListings} missing");
         if (summary.SkippedFailed > 0) parts.Add($"{summary.SkippedFailed} failed");
         if (summary.Retries > 0) parts.Add($"{summary.Retries} retries");
-        return string.Join(" • ", parts);
+        return string.Join(" | ", parts);
     }
 
     private void DrawLatestRunChanges()
@@ -439,7 +439,7 @@ public sealed class MainWindow : Window
         if (!ImGui.CollapsingHeader("Latest run changes"))
             return;
 
-        ImGui.TextDisabled("Last 5 completed runs, grouped by retainer. Open this when you want the exact before → after changes and why they happened.");
+        ImGui.TextDisabled("Last 5 completed runs, grouped by retainer. Open this when you want the exact before -> after changes and why they happened.");
         if (configuration.RunHistory.Count == 0)
         {
             ImGui.TextDisabled("No completed run history yet.");
@@ -452,15 +452,15 @@ public sealed class MainWindow : Window
             var finished = run.FinishedAtUtc.ToLocalTime();
             var mode = run.DryRun ? "DRY" : "LIVE";
             var actionCount = run.DryRun ? run.WouldChange : run.Changed;
-            var runLabel = $"{finished:yyyy-MM-dd HH:mm:ss} • {mode} • {run.Scope} • {run.Checked} checked • {actionCount} {(run.DryRun ? "would change" : "changed")}##history_run_{runIndex}_{run.FinishedAtUtc.UtcDateTime.Ticks}";
+            var runLabel = $"{finished:yyyy-MM-dd HH:mm:ss} | {mode} | {run.Scope} | {run.Checked} checked | {actionCount} {(run.DryRun ? "would change" : "changed")}##history_run_{runIndex}_{run.FinishedAtUtc.UtcDateTime.Ticks}";
             var flags = runIndex == 0 ? ImGuiTreeNodeFlags.DefaultOpen : ImGuiTreeNodeFlags.None;
             if (!ImGui.CollapsingHeader(runLabel, flags))
                 continue;
 
-            ImGui.TextDisabled($"Duration {FormatDuration(TimeSpan.FromMilliseconds(run.DurationMilliseconds))} • {(run.DryRun ? "would recover" : "recovered")} {run.PriceRecovered} • recovery blocked {run.PriceRecoveryBlocked} • outlier blocked {run.OutlierBlocked}");
+            ImGui.TextDisabled($"Duration {FormatDuration(TimeSpan.FromMilliseconds(run.DurationMilliseconds))} | {(run.DryRun ? "would recover" : "recovered")} {run.PriceRecovered} | recovery blocked {run.PriceRecoveryBlocked} | outlier blocked {run.OutlierBlocked}");
             foreach (var retainer in run.Retainers)
             {
-                var retainerLabel = $"{retainer.RetainerName} — {retainer.Changes.Count} recorded change(s)/decision(s)##history_retainer_{runIndex}_{retainer.RetainerName}";
+                var retainerLabel = $"{retainer.RetainerName} - {retainer.Changes.Count} recorded change(s)/decision(s)##history_retainer_{runIndex}_{retainer.RetainerName}";
                 if (!ImGui.CollapsingHeader(retainerLabel, runIndex == 0 ? ImGuiTreeNodeFlags.DefaultOpen : ImGuiTreeNodeFlags.None))
                     continue;
 
@@ -496,7 +496,7 @@ public sealed class MainWindow : Window
             ImGui.TableNextRow();
             ImGui.TableNextColumn(); ImGui.TextUnformatted($"{change.ItemName}{(change.IsHq ? " HQ" : string.Empty)}");
             ImGui.TableNextColumn(); ImGui.TextUnformatted($"{change.PreviousPrice:N0}");
-            ImGui.TableNextColumn(); ImGui.TextUnformatted(change.ResultPrice is { } result ? $"{result:N0}" : "—");
+            ImGui.TableNextColumn(); ImGui.TextUnformatted(change.ResultPrice is { } result ? $"{result:N0}" : "-");
             ImGui.TableNextColumn();
             if (change.ResultPrice is { } resultPrice)
             {
@@ -505,7 +505,7 @@ public sealed class MainWindow : Window
             }
             else
             {
-                ImGui.TextDisabled("—");
+                ImGui.TextDisabled("-");
             }
             ImGui.TableNextColumn(); ImGui.TextUnformatted(change.Decision);
             ImGui.TableNextColumn(); ImGui.TextWrapped(change.Reason);
@@ -545,10 +545,10 @@ public sealed class MainWindow : Window
             ImGui.TextUnformatted($"{result.CurrentPrice:N0}");
 
             ImGui.TableNextColumn();
-            ImGui.TextUnformatted(result.LowestCompetitorPrice is { } competitor ? $"{competitor:N0}" : "—");
+            ImGui.TextUnformatted(result.LowestCompetitorPrice is { } competitor ? $"{competitor:N0}" : "-");
 
             ImGui.TableNextColumn();
-            ImGui.TextUnformatted(result.ProposedPrice is { } proposed ? $"{proposed:N0}" : "—");
+            ImGui.TextUnformatted(result.ProposedPrice is { } proposed ? $"{proposed:N0}" : "-");
 
             ImGui.TableNextColumn();
             ImGui.TextUnformatted(BuildDecisionLabel(result));
@@ -566,13 +566,13 @@ public sealed class MainWindow : Window
     private static string BuildDecisionLabel(DryRunPreviewResult result)
     {
         if (result.PriceRecoveryBlocked)
-            return "Keep price — raise too large";
+            return "Keep price - raise too large";
         if (result.PriceRecovery && result.WouldChange)
             return "Raise price safely";
         if (result.OutlierBlocked)
-            return "Keep price — suspicious market";
+            return "Keep price - suspicious market";
         if (result.MaxDropBlocked)
-            return "Keep price — drop too large";
+            return "Keep price - drop too large";
         if (result.MatchlistProtected && result.WouldChange)
             return "Match protected seller";
         if (result.MatchlistProtected)
@@ -639,7 +639,7 @@ public sealed class MainWindow : Window
             return;
         }
 
-        ImGui.TextDisabled($"{scanner.ActiveRetainerName} • {currentItems.Length} unique item/quality entries");
+        ImGui.TextDisabled($"{scanner.ActiveRetainerName} | {currentItems.Length} unique item/quality entries");
 
         if (ImGui.BeginTable("##CurrentRuleItems", 5,
                 ImGuiTableFlags.Borders | ImGuiTableFlags.RowBg | ImGuiTableFlags.ScrollY | ImGuiTableFlags.Resizable,
@@ -713,7 +713,7 @@ public sealed class MainWindow : Window
         {
             var resolved = configuration.ResolveItemPricing(rule.ItemId, rule.IsHq);
             var state = rule.Ignore ? "Do not touch" : resolved.RuleSummary;
-            var treeLabel = $"{rule.ItemName}{(rule.IsHq ? " HQ" : string.Empty)} — {state}##item_rule_{rule.ItemId}_{rule.IsHq}";
+            var treeLabel = $"{rule.ItemName}{(rule.IsHq ? " HQ" : string.Empty)} - {state}##item_rule_{rule.ItemId}_{rule.IsHq}";
             if (!ImGui.CollapsingHeader(treeLabel))
                 continue;
 
@@ -874,7 +874,7 @@ public sealed class MainWindow : Window
                     configuration.Save();
                 }
                 var example = Math.Max(1, 20_000 - configuration.FixedUndercutAmount);
-                ImGui.TextDisabled($"Example: competitor 20,000 → your target {example:N0} gil.");
+                ImGui.TextDisabled($"Example: competitor 20,000 -> your target {example:N0} gil.");
             }
             else
             {
@@ -887,7 +887,7 @@ public sealed class MainWindow : Window
                     configuration.Save();
                 }
                 var example = 20_000 * (100 - configuration.PercentageUndercut) / 100;
-                ImGui.TextDisabled($"Example: competitor 20,000 → your target {example:N0} gil.");
+                ImGui.TextDisabled($"Example: competitor 20,000 -> your target {example:N0} gil.");
             }
         }
 
@@ -969,7 +969,7 @@ public sealed class MainWindow : Window
                 configuration.PriceRecoveryEnabled = recoveryEnabled;
                 configuration.Save();
             }
-            ImGui.TextDisabled("Example: you are 10,000 and the next seller is 15,000 → the plugin can move you toward 14,999 while keeping you cheapest.");
+            ImGui.TextDisabled("Example: you are 10,000 and the next seller is 15,000 -> the plugin can move you toward 14,999 while keeping you cheapest.");
 
             if (configuration.PriceRecoveryEnabled)
             {
@@ -1143,7 +1143,7 @@ public sealed class MainWindow : Window
 
         if (ImGui.CollapsingHeader("Raw row / slot mapping"))
         {
-            ImGui.TextDisabled("Raw UI row ↔ RetainerMarket slot mapping used by the pricing engine.");
+            ImGui.TextDisabled("Raw UI row <-> RetainerMarket slot mapping used by the pricing engine.");
             DrawListingsTable();
         }
     }
@@ -1154,11 +1154,11 @@ public sealed class MainWindow : Window
         ImGui.TextWrapped(marketCheck.Status);
 
         if (marketCheck.DryRunMode)
-            ImGui.TextDisabled("DRY RUN SAFETY ACTIVE — no Asking Price write and no Confirm.");
+            ImGui.TextDisabled("DRY RUN SAFETY ACTIVE - no Asking Price write and no Confirm.");
 
         if (marketCheck.SelectedListing is { } selected)
         {
-            ImGui.TextUnformatted($"Selected: row {selected.UiRow + 1} / raw {selected.MarketSlot} • {selected.ItemName}{(selected.IsHq ? " HQ" : string.Empty)}");
+            ImGui.TextUnformatted($"Selected: row {selected.UiRow + 1} / raw {selected.MarketSlot} | {selected.ItemName}{(selected.IsHq ? " HQ" : string.Empty)}");
             ImGui.TextUnformatted($"Original: {selected.UnitPrice:N0} gil");
         }
 
@@ -1170,21 +1170,21 @@ public sealed class MainWindow : Window
         }
 
         if (marketCheck.LowestCompetitorPrice is { } lowest)
-            ImGui.TextUnformatted($"Lowest eligible: {lowest:N0}{(string.IsNullOrWhiteSpace(marketCheck.LowestCompetitorRetainerName) ? string.Empty : $" • {marketCheck.LowestCompetitorRetainerName}")}");
+            ImGui.TextUnformatted($"Lowest eligible: {lowest:N0}{(string.IsNullOrWhiteSpace(marketCheck.LowestCompetitorRetainerName) ? string.Empty : $" | {marketCheck.LowestCompetitorRetainerName}")}");
         if (marketCheck.ProposedPrice is { } proposed)
-            ImGui.TextUnformatted($"Target: {proposed:N0} • {marketCheck.PricingActionLabel}");
+            ImGui.TextUnformatted($"Target: {proposed:N0} | {marketCheck.PricingActionLabel}");
         if (marketCheck.UsedMatchlistRule)
             ImGui.TextUnformatted($"Matchlist protected: {marketCheck.MatchlistedRetainerName}");
         if (marketCheck.UsedMinimumPriceFloor)
             ImGui.TextUnformatted($"Minimum-price floor applied: {marketCheck.ActiveMinimumPriceGil:N0}");
         if (marketCheck.CalculatedDropPercent is { } dropPercent)
-            ImGui.TextUnformatted($"One-run drop: {dropPercent:F1}% • limit {marketCheck.ActiveMaxDropPercent}%{(marketCheck.MaxDropProtectionBlocked ? " • BLOCKED" : string.Empty)}");
+            ImGui.TextUnformatted($"One-run drop: {dropPercent:F1}% | limit {marketCheck.ActiveMaxDropPercent}%{(marketCheck.MaxDropProtectionBlocked ? " | BLOCKED" : string.Empty)}");
         if (marketCheck.OutlierNextTierPrice is { } nextTier)
-            ImGui.TextUnformatted($"Outlier guard: cheapest tier → next tier {nextTier:N0} • gap {(marketCheck.OutlierGapPercentObserved ?? 0):F1}%{(marketCheck.SuspiciousOutlierBlocked ? " • BLOCKED" : string.Empty)}");
+            ImGui.TextUnformatted($"Outlier guard: cheapest tier -> next tier {nextTier:N0} | gap {(marketCheck.OutlierGapPercentObserved ?? 0):F1}%{(marketCheck.SuspiciousOutlierBlocked ? " | BLOCKED" : string.Empty)}");
         if (marketCheck.PriceRecoveryCompetitorPrice is { } recoveryCompetitor)
-            ImGui.TextUnformatted($"Price Recovery: current → next competitor {recoveryCompetitor:N0} • gap {(marketCheck.PriceRecoveryGapGil ?? 0):N0} gil / {(marketCheck.PriceRecoveryGapPercentObserved ?? 0):F1}%{(marketCheck.UsedPriceRecovery ? " • ACTIVE" : marketCheck.PriceRecoverySafetyBlocked ? " • BLOCKED" : string.Empty)}");
+            ImGui.TextUnformatted($"Price Recovery: current -> next competitor {recoveryCompetitor:N0} | gap {(marketCheck.PriceRecoveryGapGil ?? 0):N0} gil / {(marketCheck.PriceRecoveryGapPercentObserved ?? 0):F1}%{(marketCheck.UsedPriceRecovery ? " | ACTIVE" : marketCheck.PriceRecoverySafetyBlocked ? " | BLOCKED" : string.Empty)}");
         if (marketCheck.CalculatedRaisePercent is { } raisePercent)
-            ImGui.TextUnformatted($"One-run raise: {raisePercent:F1}% • limit {(configuration.PriceRecoveryMaxRaiseEnabled ? $"{configuration.PriceRecoveryMaxRaisePercent}%" : "off")}");
+            ImGui.TextUnformatted($"One-run raise: {raisePercent:F1}% | limit {(configuration.PriceRecoveryMaxRaiseEnabled ? $"{configuration.PriceRecoveryMaxRaisePercent}%" : "off")}");
         if (marketCheck.PriceRecoveryOwnListingBlockPrice is { } ownBlock)
             ImGui.TextUnformatted($"Price Recovery own-retainer guard: blocked by your own listing at {ownBlock:N0}");
         if (marketCheck.ObservedPriceFieldValue is { } observed)
@@ -1193,13 +1193,13 @@ public sealed class MainWindow : Window
             ImGui.TextUnformatted($"Post-confirm raw price: {liveObserved:N0}");
         if (marketCheck.ListingsObserved > 0 || marketCheck.OfferingsPacketsObserved > 0)
         {
-            ImGui.TextUnformatted($"Market data: {marketCheck.OfferingsPacketsObserved} packet(s) • {marketCheck.ListingsObserved} listing(s) observed • {marketCheck.EligibleListingsObserved} eligible");
-            ImGui.TextUnformatted($"Quality split: {marketCheck.NqListingsObserved} NQ • {marketCheck.HqListingsObserved} HQ • native cross-check {(marketCheck.NativeQualityValidationAvailable ? $"{marketCheck.NativeQualityRowsMatched} matched / {marketCheck.NativeQualityCorrections} quality corrected / {marketCheck.NativePriceCorrections} price corrected" : "unavailable")}");
+            ImGui.TextUnformatted($"Market data: {marketCheck.OfferingsPacketsObserved} packet(s) | {marketCheck.ListingsObserved} listing(s) observed | {marketCheck.EligibleListingsObserved} eligible");
+            ImGui.TextUnformatted($"Quality split: {marketCheck.NqListingsObserved} NQ | {marketCheck.HqListingsObserved} HQ | native cross-check {(marketCheck.NativeQualityValidationAvailable ? $"{marketCheck.NativeQualityRowsMatched} matched / {marketCheck.NativeQualityCorrections} quality corrected / {marketCheck.NativeStaleRowsIgnored} stale native row(s) ignored" : "unavailable")}");
             if (marketCheck.ExpectedMarketRequestId >= 0 || marketCheck.IgnoredStaleOfferingsPackets > 0)
-                ImGui.TextUnformatted($"Request sync: native request {marketCheck.ExpectedMarketRequestId} • stale packet(s) ignored {marketCheck.IgnoredStaleOfferingsPackets}");
+                ImGui.TextUnformatted($"Request sync: active {marketCheck.ExpectedMarketRequestId} | stale packet(s) ignored {marketCheck.IgnoredStaleOfferingsPackets}");
         }
         if (marketCheck.ExpectedRetainerId != 0)
-            ImGui.TextUnformatted($"Expected retainer ID: {marketCheck.ExpectedRetainerId:X} • scanner active: {scanner.ActiveRetainerId:X}");
+            ImGui.TextUnformatted($"Expected retainer ID: {marketCheck.ExpectedRetainerId:X} | scanner active: {scanner.ActiveRetainerId:X}");
         if (marketCheck.UsedCachedQuote)
             ImGui.TextUnformatted("Quote: CACHE HIT");
         if (marketCheck.ThrottleBackoffs > 0)
@@ -1212,8 +1212,8 @@ public sealed class MainWindow : Window
     {
         ImGui.TextUnformatted($"Scanner: {scanner.Status}");
         ImGui.TextUnformatted($"Retainer: {scanner.ActiveRetainerName}");
-        ImGui.TextUnformatted($"Sell list: {(scanner.SellListVisible ? "VISIBLE" : "not visible")} • Market container: {(scanner.MarketContainerLoaded ? "LOADED" : "waiting")}");
-        ImGui.TextUnformatted($"Listings: {scanner.Listings.Count} • row mapping {scanner.MappedListings}/{scanner.Listings.Count} {(scanner.UiOrderMappingReady ? "READY" : "incomplete")}");
+        ImGui.TextUnformatted($"Sell list: {(scanner.SellListVisible ? "VISIBLE" : "not visible")} | Market container: {(scanner.MarketContainerLoaded ? "LOADED" : "waiting")}");
+        ImGui.TextUnformatted($"Listings: {scanner.Listings.Count} | row mapping {scanner.MappedListings}/{scanner.Listings.Count} {(scanner.UiOrderMappingReady ? "READY" : "incomplete")}");
 
         if (scanner.LastSuccessfulScanUtc is { } lastScan)
             ImGui.TextUnformatted($"Last scan: {lastScan.ToLocalTime():HH:mm:ss.fff}");
@@ -1304,7 +1304,7 @@ public sealed class MainWindow : Window
         if (configuration.MaxDropProtectionEnabled) parts.Add($"drop limit {configuration.MaxDropPercent}%");
         if (configuration.OutlierProtectionEnabled) parts.Add("cheap-listing guard on");
         if (configuration.PriceRecoveryEnabled) parts.Add("safe raises on");
-        return parts.Count == 0 ? "Standard pricing" : string.Join(" • ", parts);
+        return parts.Count == 0 ? "Standard pricing" : string.Join(" | ", parts);
     }
 
     private static string BuildHumanItemRuleSummary(ResolvedItemPricingSettings settings)
@@ -1317,7 +1317,7 @@ public sealed class MainWindow : Window
             : $"undercut by {settings.PercentageUndercut}%";
         var floor = settings.MinimumPriceEnabled ? $"minimum {settings.MinimumPriceGil:N0} gil" : "no minimum price";
         var drop = settings.MaxDropProtectionEnabled ? $"maximum {settings.MaxDropPercent}% one-run drop" : "no one-run drop limit";
-        return $"{pricing} • {floor} • {drop}";
+        return $"{pricing} | {floor} | {drop}";
     }
 
     private static void DrawLiveButton(string label, Action onClick)
@@ -1349,3 +1349,4 @@ public sealed class MainWindow : Window
         return $"{duration.TotalSeconds:F1}s";
     }
 }
+
