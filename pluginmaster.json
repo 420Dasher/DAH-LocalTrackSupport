@@ -77,12 +77,14 @@
         "CanUnloadAsync":  false,
         "LoadPriority":  0,
         "Punchline":  "Fast, safe retainer repricing with preview-first automation.",
-        "Changelog":  "Retainer Undercut 0.1.1 fixes stale Market Board price handling, improves HQ/NQ validation and pricing-run performance, and fixes installed plugin icon metadata.",
+        "Changelog":  "Retainer Undercut 0.1.2 TEST1 introduces a much simpler end-user interface centered around Preview, Review, and Apply, while keeping pricing and safety behavior unchanged.",
         "AcceptsFeedback":  false,
         "DownloadLinkInstall":  "https://raw.githubusercontent.com/420Dasher/DAH-LocalTrackSupport/main/plugins/RetainerUndercut/latest.zip",
         "IsHide":  false,
         "IsTestingExclusive":  false,
         "DownloadLinkUpdate":  "https://raw.githubusercontent.com/420Dasher/DAH-LocalTrackSupport/main/plugins/RetainerUndercut/latest.zip",
-        "DownloadLinkTesting":  "https://raw.githubusercontent.com/420Dasher/DAH-LocalTrackSupport/main/plugins/RetainerUndercut/latest.zip"
+        "TestingAssemblyVersion":  "0.1.2.0",
+        "TestingDalamudApiLevel":  15,
+        "DownloadLinkTesting":  "https://raw.githubusercontent.com/420Dasher/DAH-LocalTrackSupport/testing/plugins/RetainerUndercut/latest.zip"
     }
 ]

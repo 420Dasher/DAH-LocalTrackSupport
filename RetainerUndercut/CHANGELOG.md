@@ -1,3 +1,12 @@
+## 0.1.2 TEST1 - simplified end-user interface
+
+- Reworks the main window around the simple Preview -> Review -> Apply workflow.
+- Reduces the main navigation to Home, Item Rules, and Settings.
+- Hides developer diagnostics under Advanced diagnostics in Settings.
+- Simplifies preview results to Item, Current, New, and Result.
+- Moves retainer management out of the main workflow until it is needed.
+- Renames Dry Run / Live Run wording in the retainer overlay to Preview / Apply Prices.
+- Pricing, safety, market-check, scanner, and automation behavior are unchanged.
 # Changelog
 
 

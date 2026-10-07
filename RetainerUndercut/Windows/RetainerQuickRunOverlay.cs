@@ -158,7 +158,7 @@ internal sealed class RetainerQuickRunOverlay
         if (multiRunner.IsRunning)
         {
             DrawStopButton(
-                multiRunner.DryRunMode ? "Stop preview##quick_stop_all" : "EMERGENCY STOP##quick_stop_all",
+                multiRunner.DryRunMode ? "Stop Preview##quick_stop_all" : "EMERGENCY STOP##quick_stop_all",
                 multiRunner.RequestStop);
             ImGui.SameLine();
             ImGui.TextDisabled($"{multiRunner.CurrentRetainerNumber}/{multiRunner.TotalRetainers} • {multiRunner.CurrentRetainerName}");
@@ -168,7 +168,7 @@ internal sealed class RetainerQuickRunOverlay
         if (autoRunner.IsRunning)
         {
             DrawStopButton(
-                autoRunner.DryRunMode ? "Stop preview##quick_stop_current" : "EMERGENCY STOP##quick_stop_current",
+                autoRunner.DryRunMode ? "Stop Preview##quick_stop_current" : "EMERGENCY STOP##quick_stop_current",
                 autoRunner.RequestStop);
             ImGui.SameLine();
             ImGui.TextDisabled($"{autoRunner.CurrentNumber}/{autoRunner.TotalItems}");
@@ -190,11 +190,11 @@ internal sealed class RetainerQuickRunOverlay
         if (!canStart)
             ImGui.BeginDisabled();
 
-        if (ImGui.Button("Dry Run##quick_preview_current", new Vector2(137f, 0f)))
+        if (ImGui.Button("Preview##quick_preview_current", new Vector2(137f, 0f)))
             autoRunner.Start(dryRun: true);
 
         ImGui.SameLine();
-        DrawLiveButton("Live Run##quick_live_current", new Vector2(137f, 0f), () => autoRunner.Start(dryRun: false));
+        DrawLiveButton("Apply Prices##quick_live_current", new Vector2(137f, 0f), () => autoRunner.Start(dryRun: false));
 
         if (!canStart)
             ImGui.EndDisabled();
@@ -210,11 +210,11 @@ internal sealed class RetainerQuickRunOverlay
         if (!canStart)
             ImGui.BeginDisabled();
 
-        if (ImGui.Button("Dry Run All##quick_preview_all", new Vector2(137f, 0f)))
+        if (ImGui.Button("Preview##quick_preview_all", new Vector2(137f, 0f)))
             multiRunner.Start(dryRun: true);
 
         ImGui.SameLine();
-        DrawLiveButton("Live Run All##quick_live_all", new Vector2(137f, 0f), () => multiRunner.Start(dryRun: false));
+        DrawLiveButton("Apply Prices##quick_live_all", new Vector2(137f, 0f), () => multiRunner.Start(dryRun: false));
 
         if (!canStart)
             ImGui.EndDisabled();
