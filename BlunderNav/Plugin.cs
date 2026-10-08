@@ -33,87 +33,114 @@ public sealed class Plugin : IDalamudPlugin
     [PluginService]
     private static IPluginLog Log { get; set; } = null!;
 
+    private static readonly string[] Names =
+    {
+        "Unclassified / Test Route",
+        "Gentlebean's Fever",
+        "Manderville-can Parade",
+        "Saucery Siege",
+        "The Gold Swiveller",
+        "Manderville Mountain"
+    };
+
+    // Read-only navigation APIs.
+    // There are deliberately NO movement IPC subscribers.
+
     private readonly ICallGateSubscriber<bool> navReady;
-    private readonly ICallGateSubscriber<bool> navRunning;
+
     private readonly ICallGateSubscriber<
-        Vector3, Vector3, bool, Task<List<Vector3>>> navPathfind;
+        Vector3, Vector3, bool, Task<List<Vector3>>> findPath;
+
     private readonly ICallGateSubscriber<
-        List<Vector3>, bool, object> navMove;
-    private readonly ICallGateSubscriber<object> navStop;
+        Vector3, Vector3, bool, Vector3, float,
+        Task<List<Vector3>>> findAvoid;
 
-    private readonly record struct CastRecord(
-        DateTime Time,
-        uint Action,
-        string Actor,
-        Vector3 Position
-    );
+    private readonly SplatoonBridge splatoon;
+    private readonly RouteConfiguration config;
 
-    private readonly List<CastRecord> recentCasts = new();
-    private readonly Dictionary<string, uint> previousCasts = new();
+    private Task<List<Vector3>>? pending;
+    private List<Vector3>? suggestedPath;
 
-    private Task<List<Vector3>>? pendingPath;
-    private List<Vector3>? previewPath;
+    private Vector3 requestedOrigin;
+    private Vector3 requestedTarget;
 
-    private Vector3 previewOrigin;
-    private Vector3 previewTarget;
-    private Vector3 previousPosition;
-
-    private DateTime previewTime;
-    private DateTime movementStart;
-    private DateTime lastMovement;
-    private DateTime lastPoll;
+    private DateTime requestStarted;
+    private DateTime lastPathRequest;
+    private DateTime lastOverlayUpdate;
+    private DateTime lastNavPoll;
     private DateTime lastCastPoll;
 
-    private readonly RouteController routes;
+    private uint lastTerritory;
+    private uint hazardTerritory;
 
     private bool windowOpen;
-    private bool navConnected;
-    private bool navIsReady;
-    private bool pathIsRunning;
-    private bool ownMovement;
+    private bool showOverlay = true;
+    private bool showEntireRoute;
+    private bool guideRunning;
+    private bool hazardEnabled;
+    private bool navAvailable;
+    private bool clearArmed;
 
-    private int offsetX;
-    private int offsetZ = 2;
+    private int nextIndex = 1;
 
-    private string status = "Idle.";
+    private float hazardRadius = 3.0f;
+    private Vector3 hazardCenter;
 
-    private bool InCourse => Client.TerritoryType == 1165;
-    private bool InLobby => Client.TerritoryType == 1197;
-    private bool InTestArea => InCourse || InLobby;
+    private string status =
+        "Visual-only navigation. Character movement is manual.";
+
+    private readonly List<string> casts = new();
+    private readonly Dictionary<ulong, uint> previousCasts = new();
+
+    private bool InArea =>
+        Client.TerritoryType is 1197 or 1165;
 
     public Plugin()
     {
+        config = Pi.GetPluginConfig() as RouteConfiguration
+            ?? new RouteConfiguration();
+
+        config.Routes ??= new List<RecordedRoute>();
+
+        config.SelectedSlot = Math.Clamp(
+            config.SelectedSlot, 0, Names.Length - 1);
+
         navReady = Pi.GetIpcSubscriber<bool>(
             "vnavmesh.Nav.IsReady");
 
-        navRunning = Pi.GetIpcSubscriber<bool>(
-            "vnavmesh.Path.IsRunning");
-
-        navPathfind = Pi.GetIpcSubscriber<
+        findPath = Pi.GetIpcSubscriber<
             Vector3, Vector3, bool, Task<List<Vector3>>>(
             "vnavmesh.Nav.Pathfind");
 
-        navMove = Pi.GetIpcSubscriber<
-            List<Vector3>, bool, object>(
-            "vnavmesh.Path.MoveTo");
+        findAvoid = Pi.GetIpcSubscriber<
+            Vector3, Vector3, bool, Vector3, float,
+            Task<List<Vector3>>>(
+            "vnavmesh.Nav.PathfindAvoid");
 
-        navStop = Pi.GetIpcSubscriber<object>(
-            "vnavmesh.Path.Stop");
+        splatoon = new SplatoonBridge(Pi, Log);
 
-        routes = new RouteController(Pi, Client, Objects, Log);
+        lastTerritory = Client.TerritoryType;
 
         Commands.AddHandler("/bnav", new CommandInfo(OnCommand)
         {
-            HelpMessage = "BlunderNav DEV1. /bnav stop to stop movement."
+            HelpMessage =
+                "Open BlunderNav visual guidance. " +
+                "/bnav stop hides active guidance."
         });
+
+        Framework.Update += Update;
 
         Pi.UiBuilder.Draw += Draw;
         Pi.UiBuilder.OpenMainUi += Open;
         Pi.UiBuilder.OpenConfigUi += Open;
 
-        Framework.Update += Update;
+        Log.Information(
+            "BlunderNav DEV4 loaded: no automatic movement.");
+    }
 
-        Log.Information("BlunderNav DEV1 initialized.");
+    private void Save()
+    {
+        Pi.SavePluginConfig(config);
     }
 
     private void Open()
@@ -121,12 +148,14 @@ public sealed class Plugin : IDalamudPlugin
         windowOpen = true;
     }
 
-    private void OnCommand(string command, string args)
+    private void OnCommand(string command, string arguments)
     {
-        if (args.Trim().Equals(
+        if (arguments.Trim().Equals(
             "stop", StringComparison.OrdinalIgnoreCase))
         {
-            Stop("Stopped by command.");
+            StopGuide("Visual guidance stopped.");
+            showOverlay = false;
+            splatoon.Clear();
             return;
         }
 
@@ -136,168 +165,154 @@ public sealed class Plugin : IDalamudPlugin
     public void Dispose()
     {
         Framework.Update -= Update;
+
         Pi.UiBuilder.Draw -= Draw;
         Pi.UiBuilder.OpenMainUi -= Open;
         Pi.UiBuilder.OpenConfigUi -= Open;
 
         Commands.RemoveHandler("/bnav");
 
-        if (ownMovement)
-            Stop("Plugin unloading.");
-        else
-            routes.Stop("Plugin unloading.");
+        // Only visual elements are removed.
+        // No movement APIs are called.
+
+        splatoon.Dispose();
     }
 
-    private string CourseName(Vector3 pos)
+    private RecordedRoute CurrentRoute()
     {
-        if (InLobby)
-            return "Blunderville Lobby";
+        ushort territory =
+            Client.TerritoryType == 1197
+                ? (ushort)1197
+                : (ushort)1165;
 
-        if (!InCourse)
-            return "Outside Fall Guys";
+        string name = Names[config.SelectedSlot];
 
-        if (pos.X >= -40 && pos.X <= 40 &&
-            pos.Z >= 100 && pos.Z <= 350)
+        foreach (var route in config.Routes)
         {
-            return "Manderville Mountain candidate (Round 3)";
-        }
-
-        return "Fall Guys course (Round 1/2 unclassified)";
-    }
-
-    private void Update(IFramework framework)
-    {
-        var now = DateTime.UtcNow;
-        var player = Objects.LocalPlayer;
-
-        if ((now - lastPoll).TotalMilliseconds >= 400)
-        {
-            lastPoll = now;
-
-            try
+            if (route.Territory == territory &&
+                route.Name == name)
             {
-                navIsReady = navReady.InvokeFunc();
-                pathIsRunning = navRunning.InvokeFunc();
-                navConnected = true;
-            }
-            catch
-            {
-                navConnected = false;
-                navIsReady = false;
-                pathIsRunning = false;
-
-                if (ownMovement)
-                {
-                    ownMovement = false;
-                    status = "vnavmesh disconnected during movement.";
-                }
+                route.Points ??= new List<RoutePoint>();
+                return route;
             }
         }
 
-        routes.Update(InTestArea, navConnected, navIsReady, pathIsRunning, ownMovement);
-
-        if (!InTestArea || player == null)
+        var created = new RecordedRoute
         {
-            if (ownMovement)
-                Stop("Left the course.");
+            Territory = territory,
+            Name = name
+        };
 
-            pendingPath = null;
-            previewPath = null;
-            previousCasts.Clear();
+        config.Routes.Add(created);
+        Save();
+
+        return created;
+    }
+
+    private static bool Valid(Vector3 point)
+    {
+        return float.IsFinite(point.X) &&
+               float.IsFinite(point.Y) &&
+               float.IsFinite(point.Z);
+    }
+
+    private void Record(Vector3 position, bool automatic)
+    {
+        if (!InArea || !Valid(position))
+            return;
+
+        var route = CurrentRoute();
+
+        if (route.Points.Count >= 250)
+        {
+            config.AutoRecord = false;
+            Save();
+            status = "Checkpoint limit reached.";
             return;
         }
 
-        var pos = player.Position;
-
-        if ((now - lastCastPoll).TotalMilliseconds >= 200)
+        if (route.Points.Count > 0)
         {
-            lastCastPoll = now;
-            ObserveCasts(now, pos);
-        }
+            float distance = Vector3.Distance(
+                route.Points[^1].Position, position);
 
-        // Process completed asynchronous pathfinding.
+            float spacing = automatic
+                ? config.RecordSpacing
+                : 0.5f;
 
-        if (pendingPath is { IsCompleted: true } task)
-        {
-            pendingPath = null;
+            if (distance < spacing)
+                return;
 
-            try
+            if (distance > 20f)
             {
-                var result = task.GetAwaiter().GetResult();
-
-                if (Vector3.Distance(pos, previewOrigin) > 1.5f)
+                if (automatic)
                 {
-                    status = "Preview canceled: player moved.";
+                    config.AutoRecord = false;
+                    Save();
                 }
-                else if (!ValidatePath(result, pos, out var reason))
-                {
-                    status = "Route rejected: " + reason;
-                }
-                else
-                {
-                    previewPath = result;
-                    previewTime = now;
-                    status = $"Preview ready: {result.Count} waypoints.";
-                }
-            }
-            catch (Exception ex)
-            {
-                previewPath = null;
-                status = "Pathfinding failed: " +
-                    ex.GetBaseException().Message;
-                Log.Warning(status);
-            }
-        }
 
-        // Expire previews after 15 seconds or player movement.
-
-        if (previewPath != null &&
-            ((now - previewTime).TotalSeconds > 15 ||
-             Vector3.Distance(pos, previewOrigin) > 1.5f))
-        {
-            previewPath = null;
-            status = "Preview expired.";
-        }
-
-        // Monitor and stop our own navigation requests.
-
-        if (ownMovement)
-        {
-            if (!navConnected)
-            {
-                ownMovement = false;
+                status = "Large displacement. Recording paused.";
                 return;
             }
-
-            if (!pathIsRunning &&
-                (now - movementStart).TotalSeconds > 1.0)
-            {
-                ownMovement = false;
-                status = "Navigation finished or stopped.";
-                return;
-            }
-
-            if (Vector3.Distance(pos, previousPosition) > 0.15f)
-            {
-                previousPosition = pos;
-                lastMovement = now;
-            }
-            else if ((now - lastMovement).TotalSeconds > 3.0)
-            {
-                Stop("Movement stalled for 3 seconds.");
-                return;
-            }
-
-            if ((now - movementStart).TotalSeconds > 12.0)
-            {
-                Stop("Movement timed out.");
-            }
         }
+
+        route.Points.Add(new RoutePoint(position));
+        Save();
+
+        status = $"Recorded checkpoint {route.Points.Count}.";
     }
 
-    private void ObserveCasts(DateTime now, Vector3 position)
+    private void StopGuide(string message)
     {
-        var active = new Dictionary<string, uint>();
+        guideRunning = false;
+        pending = null;
+        suggestedPath = null;
+        status = message;
+    }
+
+    private void StartGuide()
+    {
+        if (!InArea || Objects.LocalPlayer == null)
+        {
+            status = "Enter Blunderville first.";
+            return;
+        }
+
+        var route = CurrentRoute();
+
+        if (route.Points.Count < 2)
+        {
+            status = "Record at least two checkpoints.";
+            return;
+        }
+
+        var position = Objects.LocalPlayer.Position;
+
+        if (Vector3.Distance(
+            position, route.Points[0].Position) > 5f)
+        {
+            status = "Stand within 5 yalms of checkpoint 1.";
+            return;
+        }
+
+        config.AutoRecord = false;
+        Save();
+
+        guideRunning = true;
+        showOverlay = true;
+        nextIndex = 1;
+
+        pending = null;
+        suggestedPath = null;
+        lastPathRequest = DateTime.MinValue;
+
+        status =
+            "Guidance active. Follow the green route manually.";
+    }
+
+    private void ObserveCasts()
+    {
+        var active = new Dictionary<ulong, uint>();
 
         foreach (var obj in Objects)
         {
@@ -307,196 +322,381 @@ public sealed class Plugin : IDalamudPlugin
             if (!actor.IsCasting || actor.CastActionId == 0)
                 continue;
 
-            if (Vector3.Distance(position, actor.Position) > 90f)
-                continue;
+            ulong id = actor.GameObjectId;
+            uint action = actor.CastActionId;
 
-            var key = actor.GameObjectId.ToString();
-            var action = actor.CastActionId;
+            active[id] = action;
 
-            active[key] = action;
-
-            if (previousCasts.TryGetValue(key, out var old) &&
+            if (previousCasts.TryGetValue(id, out uint old) &&
                 old == action)
                 continue;
 
-            recentCasts.Insert(0, new CastRecord(
-                now, action, actor.Name.ToString(), actor.Position));
+            casts.Insert(0,
+                $"{DateTime.Now:HH:mm:ss} | " +
+                $"Action {action} | " +
+                $"{actor.Name} | " +
+                $"X {actor.Position.X:F1} Z {actor.Position.Z:F1}");
 
-            if (recentCasts.Count > 30)
-                recentCasts.RemoveAt(recentCasts.Count - 1);
+            if (casts.Count > 30)
+                casts.RemoveAt(casts.Count - 1);
         }
 
         previousCasts.Clear();
 
-        foreach (var entry in active)
-            previousCasts[entry.Key] = entry.Value;
+        foreach (var pair in active)
+            previousCasts[pair.Key] = pair.Value;
     }
 
-    private bool ValidatePath(
+    private static float DistanceXZ(
+        Vector3 point,
+        Vector3 a,
+        Vector3 b)
+    {
+        var ab = new Vector2(b.X - a.X, b.Z - a.Z);
+        var ap = new Vector2(point.X - a.X, point.Z - a.Z);
+
+        float square = ab.LengthSquared();
+
+        if (square < 0.0001f)
+            return ap.Length();
+
+        float t = Math.Clamp(
+            Vector2.Dot(ap, ab) / square, 0f, 1f);
+
+        return Vector2.Distance(
+            new Vector2(point.X, point.Z),
+            new Vector2(a.X, a.Z) + ab * t);
+    }
+
+    private bool ValidateSuggestion(
         List<Vector3>? path,
-        Vector3 origin,
         out string reason)
     {
         reason = "";
 
-        if (path == null || path.Count == 0)
+        if (path == null || path.Count == 0 ||
+            path.Count > 256)
         {
-            reason = "No route returned.";
+            reason = "Invalid path result.";
             return false;
         }
 
-        if (path.Count > 48)
-        {
-            reason = "Too many waypoints.";
-            return false;
-        }
-
-        float length = 0;
-        var previous = origin;
+        Vector3 previous = requestedOrigin;
+        float length = 0f;
 
         foreach (var point in path)
         {
-            if (!float.IsFinite(point.X) ||
-                !float.IsFinite(point.Y) ||
-                !float.IsFinite(point.Z))
+            if (!Valid(point))
             {
-                reason = "Invalid coordinates.";
+                reason = "Invalid path coordinates.";
                 return false;
             }
 
-            if (Math.Abs(point.Y - origin.Y) > 1.25f)
+            float segment = Vector3.Distance(previous, point);
+            length += segment;
+
+            if (length > 90f)
             {
-                reason = "Height change too large.";
+                reason = "Suggested path too long.";
                 return false;
             }
 
-            if (Vector3.Distance(origin, point) > 7f)
+            if (hazardEnabled &&
+                hazardTerritory == Client.TerritoryType &&
+                DistanceXZ(hazardCenter, previous, point) <
+                    hazardRadius)
             {
-                reason = "Route leaves test area.";
+                reason = "Path intersects marked hazard.";
                 return false;
             }
 
-            length += Vector3.Distance(previous, point);
             previous = point;
         }
 
-        if (length > 10f)
+        if (Vector3.Distance(
+            path[^1], requestedTarget) > 2.5f)
         {
-            reason = "Route exceeds 10 yalms.";
-            return false;
-        }
-
-        if (Vector3.Distance(previous, previewTarget) > 1.25f)
-        {
-            reason = "Destination mismatch.";
+            reason = "Path endpoint mismatch.";
             return false;
         }
 
         return true;
     }
 
-    private void Preview()
+    private void RequestSuggestion(Vector3 origin)
     {
-        var player = Objects.LocalPlayer;
+        if (!guideRunning || !navAvailable ||
+            pending != null || !InArea)
+            return;
 
-        if (!InTestArea || player == null)
+        var route = CurrentRoute();
+
+        if (nextIndex >= route.Points.Count)
+            return;
+
+        var destination = route.Points[nextIndex].Position;
+
+        if (Vector3.Distance(origin, destination) > 25f)
         {
-            status = "Enter Fall Guys first.";
+            suggestedPath = null;
+            status = "Next checkpoint too distant for suggestion.";
             return;
         }
 
-        if (!navConnected || !navIsReady)
-        {
-            status = "vnavmesh not ready.";
-            return;
-        }
-
-        if (pathIsRunning || ownMovement || pendingPath != null || routes.IsBusy)
-        {
-            status = "Navigation already active.";
-            return;
-        }
-
-        previewPath = null;
-        previewOrigin = player.Position;
-
-        previewTarget = previewOrigin +
-            new Vector3(offsetX, 0, offsetZ);
+        requestedOrigin = origin;
+        requestedTarget = destination;
 
         try
         {
-            pendingPath = navPathfind.InvokeFunc(
-                previewOrigin,
-                previewTarget,
-                false);
+            if (hazardEnabled &&
+                hazardTerritory == Client.TerritoryType)
+            {
+                pending = findAvoid.InvokeFunc(
+                    origin,
+                    destination,
+                    false,
+                    hazardCenter,
+                    hazardRadius + 0.5f);
+            }
+            else
+            {
+                pending = findPath.InvokeFunc(
+                    origin,
+                    destination,
+                    false);
+            }
 
-            status = pendingPath == null
-                ? "No pathfinding task returned."
-                : "Calculating short navigation route...";
+            requestStarted = DateTime.UtcNow;
         }
         catch (Exception ex)
         {
-            pendingPath = null;
-            status = "Navigation IPC error: " + ex.Message;
+            pending = null;
+            suggestedPath = null;
+
+            status = "Path suggestion unavailable: " +
+                ex.GetBaseException().Message;
         }
     }
 
-    private void Execute()
+    private void Update(IFramework framework)
     {
+        var now = DateTime.UtcNow;
+        uint territory = Client.TerritoryType;
         var player = Objects.LocalPlayer;
 
-        if (!InTestArea || player == null ||
-            !navConnected || !navIsReady ||
-            pathIsRunning || previewPath == null || routes.IsBusy)
+        if (territory != lastTerritory)
         {
-            status = "Cannot execute: navigation not ready.";
+            lastTerritory = territory;
+
+            StopGuide("Territory changed. Guidance stopped.");
+
+            config.AutoRecord = false;
+            Save();
+
+            hazardEnabled = false;
+            clearArmed = false;
+            previousCasts.Clear();
+            splatoon.Clear();
+        }
+
+        if (!InArea || player == null)
+        {
+            if ((now - lastOverlayUpdate).TotalSeconds > 1)
+            {
+                lastOverlayUpdate = now;
+                splatoon.Clear();
+            }
+
             return;
         }
 
-        if ((DateTime.UtcNow - previewTime).TotalSeconds > 15 ||
-            Vector3.Distance(player.Position, previewOrigin) > 1.5f ||
-            !ValidatePath(previewPath, player.Position, out _))
+        var position = player.Position;
+
+        if ((now - lastNavPoll).TotalMilliseconds >= 1000)
         {
-            previewPath = null;
-            status = "Preview no longer valid.";
-            return;
+            lastNavPoll = now;
+
+            try
+            {
+                navAvailable = navReady.InvokeFunc();
+            }
+            catch
+            {
+                navAvailable = false;
+            }
         }
 
-        try
+        if ((now - lastCastPoll).TotalMilliseconds >= 300)
         {
-            navMove.InvokeAction(previewPath, false);
-
-            previewPath = null;
-            ownMovement = true;
-
-            movementStart = DateTime.UtcNow;
-            lastMovement = movementStart;
-            previousPosition = player.Position;
-
-            status = "Executing short test movement.";
+            lastCastPoll = now;
+            ObserveCasts();
         }
-        catch (Exception ex)
+
+        if (config.AutoRecord && !guideRunning)
+            Record(position, true);
+
+        if (guideRunning)
         {
-            status = "Movement failed: " + ex.Message;
+            var route = CurrentRoute();
+
+            while (nextIndex < route.Points.Count &&
+                Vector3.Distance(
+                    position,
+                    route.Points[nextIndex].Position) <= 1.6f)
+            {
+                nextIndex++;
+
+                pending = null;
+                suggestedPath = null;
+                lastPathRequest = DateTime.MinValue;
+            }
+
+            if (nextIndex >= route.Points.Count)
+            {
+                StopGuide("Recorded route completed manually.");
+            }
+            else
+            {
+                if (pending != null && pending.IsCompleted)
+                {
+                    var task = pending;
+                    pending = null;
+
+                    try
+                    {
+                        var result = task.GetAwaiter().GetResult();
+
+                        string problem = "Player moved during pathfinding.";
+
+                        if (Vector3.Distance(
+                            position, requestedOrigin) <= 5f &&
+                            ValidateSuggestion(result, out problem))
+                        {
+                            suggestedPath = result;
+                        }
+                        else
+                        {
+                            suggestedPath = null;
+                            status = "Suggestion rejected: " + problem;
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        suggestedPath = null;
+                        status = "Pathfinding failed: " +
+                            ex.GetBaseException().Message;
+                    }
+                }
+
+                if (pending != null &&
+                    (now - requestStarted).TotalSeconds > 7)
+                {
+                    pending = null;
+                    suggestedPath = null;
+                    status = "Pathfinding timed out.";
+                }
+
+                if ((now - lastPathRequest).TotalSeconds >= 1.5)
+                {
+                    lastPathRequest = now;
+
+                    if (pending == null)
+                        RequestSuggestion(position);
+                }
+            }
+        }
+
+        if ((now - lastOverlayUpdate).TotalMilliseconds >= 650)
+        {
+            lastOverlayUpdate = now;
+            RefreshOverlay();
         }
     }
 
-    private void Stop(string reason)
+    private void RefreshOverlay()
     {
-        routes.Stop(reason);
-        try
+        if (!showOverlay || !InArea)
         {
-            navStop.InvokeAction();
-        }
-        catch (Exception ex)
-        {
-            Log.Warning("Stop IPC failed: " + ex.Message);
+            splatoon.Clear();
+            return;
         }
 
-        ownMovement = false;
-        pendingPath = null;
-        previewPath = null;
-        status = reason;
+        var route = CurrentRoute();
+
+        var lines = new List<VisualLine>();
+
+        // Muted cyan: recorded route reference.
+        // Bright green: current calculated suggestion.
+
+        const uint recordedColor = 0xA0FFCC55;
+        const uint suggestionColor = 0xEE55FF44;
+        const uint targetColor = 0xE040FF88;
+        const uint dangerColor = 0xDD3030FF;
+
+        int begin = 0;
+        int end = route.Points.Count - 1;
+
+        if (guideRunning && !showEntireRoute)
+        {
+            begin = Math.Max(0, nextIndex - 1);
+            end = Math.Min(end, begin + 8);
+        }
+
+        for (int i = begin; i < end; i++)
+        {
+            lines.Add(new VisualLine(
+                route.Points[i].Position,
+                route.Points[i + 1].Position,
+                recordedColor,
+                2.5f));
+        }
+
+        if (guideRunning && suggestedPath != null)
+        {
+            var player = Objects.LocalPlayer;
+
+            if (player != null && suggestedPath.Count > 0)
+            {
+                Vector3 previous = player.Position;
+
+                foreach (var point in suggestedPath)
+                {
+                    if (Vector3.Distance(previous, point) > 0.05f)
+                    {
+                        lines.Add(new VisualLine(
+                            previous, point,
+                            suggestionColor, 5f));
+                    }
+
+                    previous = point;
+                }
+            }
+        }
+
+        VisualCircle? target = null;
+
+        if (guideRunning && nextIndex < route.Points.Count)
+        {
+            target = new VisualCircle(
+                route.Points[nextIndex].Position,
+                0.8f,
+                targetColor,
+                4f);
+        }
+
+        VisualCircle? danger = null;
+
+        if (hazardEnabled &&
+            hazardTerritory == Client.TerritoryType)
+        {
+            danger = new VisualCircle(
+                hazardCenter,
+                hazardRadius,
+                dangerColor,
+                4f);
+        }
+
+        splatoon.Publish(lines, target, danger);
     }
 
     private void Draw()
@@ -505,7 +705,7 @@ public sealed class Plugin : IDalamudPlugin
             return;
 
         if (!ImGui.Begin(
-            "BlunderNav | DEV3.1 FIX1",
+            "BlunderNav | DEV4 Visual Navigation",
             ref windowOpen,
             ImGuiWindowFlags.AlwaysAutoResize))
         {
@@ -515,150 +715,279 @@ public sealed class Plugin : IDalamudPlugin
 
         try
         {
-            var player = Objects.LocalPlayer;
-            var pos = player?.Position ?? default;
-
             ImGui.TextUnformatted("BLUNDERNAV");
             ImGui.Separator();
 
-            ImGui.TextUnformatted("Version: 0.0.7 DEV3.1 FIX1");
-            ImGui.TextUnformatted(
-                "Territory: " + Client.TerritoryType);
-            ImGui.TextUnformatted(
-                "Course: " + CourseName(pos));
+            ImGui.TextUnformatted("Version: 0.0.8 DEV4");
+            ImGui.TextUnformatted("Mode: VISUAL GUIDANCE ONLY");
+
+            ImGui.TextWrapped(
+                "BlunderNav does not control character movement.");
 
             ImGui.TextUnformatted(
-                $"Position: {pos.X:F2}, {pos.Y:F2}, {pos.Z:F2}");
+                $"Territory: {Client.TerritoryType}");
 
             ImGui.TextUnformatted(
-                "vnavmesh: " +
-                (!navConnected ? "NOT CONNECTED" :
-                 navIsReady ? "READY" : "NO MESH / LOADING"));
+                "Splatoon: " + splatoon.Status);
 
             ImGui.TextUnformatted(
-                "Navigation: " +
-                (pathIsRunning ? "ACTIVE" : "IDLE"));
+                "vnavmesh pathfinding: " +
+                (navAvailable ? "READY" : "UNAVAILABLE"));
 
-            ImGui.Spacing();
             ImGui.TextWrapped("Status: " + status);
 
             ImGui.Separator();
 
-            ImGui.TextUnformatted("NAVIGATION TEST");
-            ImGui.TextWrapped(
-                "Select a short offset. Preview first, then execute. " +
-                "Use only on clear, flat ground. " +
-                "Dynamic hazards are not yet considered.");
-
-            if (ImGui.Button("Left 2"))
+            if (!InArea || Objects.LocalPlayer == null)
             {
-                offsetX = -2; offsetZ = 0;
-                previewPath = null;
+                ImGui.TextWrapped(
+                    "Enter the Blunderville lobby or duty " +
+                    "to use route guidance.");
+                return;
             }
 
-            ImGui.SameLine();
-
-            if (ImGui.Button("Right 2"))
-            {
-                offsetX = 2; offsetZ = 0;
-                previewPath = null;
-            }
-
-            ImGui.SameLine();
-
-            if (ImGui.Button("Z -2"))
-            {
-                offsetX = 0; offsetZ = -2;
-                previewPath = null;
-            }
-
-            ImGui.SameLine();
-
-            if (ImGui.Button("Z +2"))
-            {
-                offsetX = 0; offsetZ = 2;
-                previewPath = null;
-            }
+            var route = CurrentRoute();
+            var position = Objects.LocalPlayer.Position;
 
             ImGui.TextUnformatted(
-                $"Offset: X {offsetX}, Z {offsetZ}");
+                $"Position: {position.X:F1}, " +
+                $"{position.Y:F1}, {position.Z:F1}");
 
-            bool canPreview =
-                InTestArea && navConnected && navIsReady &&
-                !pathIsRunning && !ownMovement &&
-                pendingPath == null && !routes.IsBusy;
+            int slot = config.SelectedSlot;
 
-            if (!canPreview)
+            if (guideRunning)
                 ImGui.BeginDisabled();
 
-            if (ImGui.Button("1. Preview route"))
-                Preview();
+            if (ImGui.Combo(
+                "Route profile", ref slot,
+                Names, Names.Length))
+            {
+                config.SelectedSlot = slot;
+                config.AutoRecord = false;
 
-            if (!canPreview)
+                clearArmed = false;
+                suggestedPath = null;
+
+                Save();
+                splatoon.Clear();
+            }
+
+            if (guideRunning)
                 ImGui.EndDisabled();
+
+            route = CurrentRoute();
+
+            ImGui.TextUnformatted(
+                route.Territory == 1197
+                    ? "Scope: Blunderville Lobby"
+                    : "Scope: Fall Guys Duty");
+
+            ImGui.TextUnformatted(
+                $"Recorded checkpoints: {route.Points.Count}");
+
+            ImGui.Separator();
+            ImGui.TextUnformatted("SPLATOON OVERLAY");
+
+            bool visible = showOverlay;
+
+            if (ImGui.Checkbox("Show in-world guidance", ref visible))
+            {
+                showOverlay = visible;
+
+                if (!visible)
+                    splatoon.Clear();
+            }
+
+            ImGui.Checkbox(
+                "Show entire recorded route",
+                ref showEntireRoute);
+
+            ImGui.TextWrapped(
+                "Cyan: recorded route | " +
+                "Green: suggested path | " +
+                "Green circle: next checkpoint | " +
+                "Red: manually marked test hazard.");
+
+            ImGui.Separator();
+            ImGui.TextUnformatted("ROUTE GUIDANCE");
+
+            if (!guideRunning)
+            {
+                if (ImGui.Button("Start visual guidance"))
+                    StartGuide();
+            }
+            else
+            {
+                ImGui.TextUnformatted(
+                    $"Next checkpoint: {nextIndex + 1}/" +
+                    $"{route.Points.Count}");
+
+                if (ImGui.Button("Stop visual guidance"))
+                    StopGuide("Guidance stopped manually.");
+            }
+
+            if (!navAvailable)
+            {
+                ImGui.TextWrapped(
+                    "Recorded route can still be displayed. " +
+                    "Live path suggestions require vnavmesh.");
+            }
+
+            ImGui.Separator();
+            ImGui.TextUnformatted("TEST HAZARD");
+
+            ImGui.TextWrapped(
+                "Manual marker only. This is NOT automatic " +
+                "Fall Guys AoE detection.");
+
+            ImGui.SliderFloat(
+                "Hazard radius",
+                ref hazardRadius,
+                1f,
+                8f);
+
+            if (ImGui.Button("Mark test hazard at my position"))
+            {
+                hazardCenter = position;
+                hazardTerritory = Client.TerritoryType;
+                hazardEnabled = true;
+
+                suggestedPath = null;
+                pending = null;
+                lastPathRequest = DateTime.MinValue;
+
+                status = "Manual test hazard marked.";
+            }
+
+            if (hazardEnabled)
+            {
+                ImGui.SameLine();
+
+                if (ImGui.Button("Clear test hazard"))
+                {
+                    hazardEnabled = false;
+                    suggestedPath = null;
+                    pending = null;
+                    lastPathRequest = DateTime.MinValue;
+                }
+            }
+
+            ImGui.TextWrapped(
+                "When marked, pathfinding uses " +
+                "vnavmesh.Nav.PathfindAvoid for this one " +
+                "test circle. Unsafe candidate paths are " +
+                "not displayed as green suggestions.");
+
+            ImGui.Separator();
+            ImGui.TextUnformatted("ROUTE RECORDER");
+
+            if (guideRunning)
+                ImGui.BeginDisabled();
+
+            if (ImGui.Button("Record current position"))
+                Record(position, false);
 
             ImGui.SameLine();
 
-            bool canExecute =
-                canPreview && previewPath != null;
+            if (ImGui.Button("Remove last") &&
+                route.Points.Count > 0)
+            {
+                route.Points.RemoveAt(route.Points.Count - 1);
+                Save();
+            }
 
-            if (!canExecute)
-                ImGui.BeginDisabled();
+            bool recording = config.AutoRecord;
 
-            if (ImGui.Button("2. Execute"))
-                Execute();
+            if (ImGui.Checkbox(
+                "Automatic recording", ref recording))
+            {
+                config.AutoRecord = recording;
+                Save();
+            }
 
-            if (!canExecute)
+            float spacing = config.RecordSpacing;
+
+            if (ImGui.SliderFloat(
+                "Record spacing", ref spacing, 2f, 10f))
+            {
+                config.RecordSpacing = spacing;
+                Save();
+            }
+
+            if (route.Points.Count > 0)
+            {
+                bool hold = route.Points[^1].Hold;
+
+                if (ImGui.Checkbox(
+                    "Hold marker on last checkpoint", ref hold))
+                {
+                    route.Points[^1].Hold = hold;
+                    Save();
+                }
+            }
+
+            if (!clearArmed)
+            {
+                if (ImGui.Button("Clear route..."))
+                    clearArmed = true;
+            }
+            else
+            {
+                if (ImGui.Button("CONFIRM CLEAR"))
+                {
+                    route.Points.Clear();
+                    config.AutoRecord = false;
+                    clearArmed = false;
+
+                    Save();
+                    splatoon.Clear();
+                }
+
+                ImGui.SameLine();
+
+                if (ImGui.Button("Cancel"))
+                    clearArmed = false;
+            }
+
+            if (guideRunning)
                 ImGui.EndDisabled();
 
-            ImGui.Spacing();
-
-            if (ImGui.Button("EMERGENCY STOP"))
-                Stop("Emergency stop pressed.");
-
-            if (previewPath != null)
+            if (ImGui.TreeNode("Recorded checkpoint list"))
             {
-                ImGui.TextUnformatted(
-                    $"Preview contains {previewPath.Count} waypoints.");
-
-                if (ImGui.TreeNode("Preview coordinates"))
+                for (int i = 0; i < route.Points.Count; i++)
                 {
-                    foreach (var point in previewPath)
-                    {
-                        ImGui.TextUnformatted(
-                            $"{point.X:F2} / {point.Y:F2} / {point.Z:F2}");
-                    }
+                    var p = route.Points[i];
 
-                    ImGui.TreePop();
+                    ImGui.TextUnformatted(
+                        $"{i + 1:000}: " +
+                        $"{p.X:F2}, {p.Y:F2}, {p.Z:F2}" +
+                        (p.Hold ? " [HOLD]" : ""));
                 }
+
+                ImGui.TreePop();
             }
 
             ImGui.Separator();
 
-            routes.Draw(InTestArea, navConnected, navIsReady, pathIsRunning, ownMovement);
-
-            if (ImGui.CollapsingHeader("Cast observations"))
+            if (ImGui.CollapsingHeader(
+                "Mechanic observation (research)"))
             {
                 ImGui.TextWrapped(
-                    "Observed nearby casts only. " +
-                    "Instant mechanics are not captured.");
+                    "Observes visible cast action IDs. " +
+                    "No AoE shapes are inferred yet.");
 
-                if (ImGui.Button("Clear cast history"))
-                    recentCasts.Clear();
+                if (ImGui.Button("Clear observations"))
+                    casts.Clear();
 
-                foreach (var cast in recentCasts.Take(20))
-                {
-                    ImGui.TextUnformatted(
-                        $"{cast.Time.ToLocalTime():HH:mm:ss} " +
-                        $"ID {cast.Action} | " +
-                        $"{cast.Position.X:F1}, {cast.Position.Z:F1} " +
-                        $"| {cast.Actor}");
-                }
+                foreach (var cast in casts.Take(15))
+                    ImGui.TextUnformatted(cast);
             }
 
             ImGui.Spacing();
+
             ImGui.TextDisabled(
-                "DEV3.1 FIX1 | API 15 | .NET 10 | /bnav stop");
+                "DEV4 | Splatoon + read-only vnavmesh | " +
+                "/bnav");
         }
         finally
         {

@@ -1,47 +1,67 @@
-# BlunderNav v0.0.7 DEV3.1 FIX1
+# BlunderNav DEV4 - Visual Navigation
 
+Version: 0.0.8.0
 Dalamud API 15 / .NET 10
 
-## Regression recovery
+## Design
 
-Restores the previously tested DEV3 route controller.
+BlunderNav is now a visual-only navigation assistant.
 
-The original controller successfully navigated a
-33-checkpoint route in the Blunderville lobby.
+The plugin NEVER invokes vnavmesh movement or stop APIs.
 
-Temporarily disables experimental curved-path playback.
+## Integrations
 
-Restores bounded 24-leg movement groups.
+Splatoon:
+- Recorded route lines
+- Highlighted suggested path
+- Next checkpoint marker
+- Manual hazard circle
 
-The occasional group-boundary pause is expected.
+vnavmesh:
+- Read-only pathfinding
+- Experimental pathfinding around one manually
+  marked hazard circle
 
-## Retained functionality
+## Existing routes
 
-- Persistent lobby and duty routes
-- Manual and automatic checkpoint recording
-- Continuous playback within each route group
-- Manual HOLD checkpoints
-- Auto-advance option
-- Bounded automatic recovery
-- Emergency stop
-- Territory-change protection
+Routes are preserved through the existing
+RouteConfiguration and RecordedRoute structures.
 
-## Important
+Lobby territory: 1197
+Duty territory: 1165
 
-Existing route recordings are not modified.
+## Controls
 
-Experimental smoothing configuration fields may
-remain in saved settings but are not used by this build.
+/bnav
+/bnav stop
 
-Smoothing will be reintroduced separately after
-movement reliability has been reverified.
+The stop command stops VISUAL guidance.
+It does not control character movement.
 
-## Test
+## DEV4 testing
 
-Run the existing 33-checkpoint lobby route.
+1. Enter the Blunderville lobby.
+2. Ensure Splatoon is enabled.
+3. Open /bnav.
+4. Choose an existing recorded route.
+5. Enable the in-world overlay.
+6. Check the cyan recorded route.
+7. Return to checkpoint one.
+8. Start visual guidance.
+9. Walk manually and check the green suggestion.
+10. Optionally mark a test hazard.
 
-Verify the character follows the entire path.
+## Limitations
 
-Verify the route no longer rapidly skips checkpoints.
+Real Fall Guys AoE detection is not implemented yet.
 
-A small pause at the 24-leg group boundary is expected.
+Manual test hazards are illustrative markers, not
+automatically recognized game mechanics.
+
+The point avoidance API is not a guarantee of safety.
+Candidate paths intersecting the manual hazard are
+rejected rather than shown as safe.
+
+Splatoon integration uses dynamic elements.
+If Splatoon is unavailable, routes are still saved
+and visible as coordinates in the BlunderNav UI.
