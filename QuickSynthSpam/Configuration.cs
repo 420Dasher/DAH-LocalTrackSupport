@@ -8,4 +8,5 @@ public sealed class Configuration : IPluginConfiguration
     public int TotalCount { get; set; } = 250;
     public bool OpenWithCraftingLog { get; set; } = true;
     public bool CraftNqOnly { get; set; } = false;
+    public bool AutoFillMaxCraftable { get; set; } = true;
 }

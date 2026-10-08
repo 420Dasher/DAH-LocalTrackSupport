@@ -10,11 +10,12 @@ using Dalamud.IoC;
 using Dalamud.Plugin;
 using Dalamud.Plugin.Services;
 using FFXIVClientStructs.FFXIV.Client.UI;
+using FFXIVClientStructs.FFXIV.Client.Game.UI;
 using FFXIVClientStructs.FFXIV.Component.GUI;
 
 namespace QuickSynthSpam;
 
-// v0.0.4 DEV4 - EARLY PROTOTYPE
+// v0.0.5 DEV5 - EARLY PROTOTYPE
 public sealed unsafe class Plugin : IDalamudPlugin
 {
     [PluginService] private static IDalamudPluginInterface Pi { get; set; } = null!;
@@ -46,6 +47,13 @@ public sealed unsafe class Plugin : IDalamudPlugin
     private int batchDone;
     private int batchIndex;
     private bool runNqOnly;
+
+    private uint observedRecipeId;
+    private uint filledRecipeId;
+    private int displayedCraftable = -1;
+    private int pendingCraftable = -1;
+    private DateTime pendingSince;
+    private bool manualTargetEdited;
 
     private string status = "Idle";
 
@@ -109,15 +117,94 @@ public sealed unsafe class Plugin : IDalamudPlugin
     {
         // Do not hide the Stop control while automation is running.
         if (phase == Phase.Idle)
+        {
             open = false;
+            ResetRecipeTracking();
+        }
     }
 
+    private void ResetRecipeTracking()
+    {
+        observedRecipeId = 0;
+        filledRecipeId = 0;
+        displayedCraftable = -1;
+        pendingCraftable = -1;
+        manualTargetEdited = false;
+    }
+
+    private void UpdateRecipeDefault()
+    {
+        if (Addon("RecipeNote") == null)
+        {
+            ResetRecipeTracking();
+            return;
+        }
+
+        var note = RecipeNote.Instance();
+
+        if (note == null ||
+            note->RecipeList == null ||
+            note->RecipeList->SelectedRecipe == null)
+        {
+            displayedCraftable = -1;
+            return;
+        }
+
+        uint recipeId = note->RecipeList->SelectedRecipe->RecipeId;
+
+        if (recipeId == 0)
+        {
+            displayedCraftable = -1;
+            return;
+        }
+
+        if (recipeId != observedRecipeId)
+        {
+            observedRecipeId = recipeId;
+            filledRecipeId = 0;
+            pendingCraftable = -1;
+            manualTargetEdited = false;
+        }
+
+        if (!TryCraftable(out int craftable))
+        {
+            displayedCraftable = -1;
+            return;
+        }
+
+        craftable = Math.Clamp(craftable, 0, 999999);
+        displayedCraftable = craftable;
+
+        if (!config.AutoFillMaxCraftable ||
+            manualTargetEdited ||
+            filledRecipeId == recipeId)
+        {
+            return;
+        }
+
+        // Wait briefly for the crafting log to refresh
+        // its material count after selecting a recipe.
+        if (pendingCraftable != craftable)
+        {
+            pendingCraftable = craftable;
+            pendingSince = DateTime.UtcNow;
+            return;
+        }
+
+        if ((DateTime.UtcNow - pendingSince).TotalMilliseconds < 350)
+            return;
+
+        config.TotalCount = craftable;
+        filledRecipeId = recipeId;
+        Pi.SavePluginConfig(config);
+    }
     private void Command(string command, string args)
     {
         if (int.TryParse(args.Trim(), NumberStyles.Integer,
                 CultureInfo.InvariantCulture, out var value))
         {
             config.TotalCount = Math.Clamp(value, 1, 999999);
+            manualTargetEdited = true;
             Pi.SavePluginConfig(config);
         }
 
@@ -153,7 +240,7 @@ public sealed unsafe class Plugin : IDalamudPlugin
         // Header
         ImGui.TextColored(accent, "QUICKSYNTH SPAM");
         ImGui.SameLine();
-        ImGui.TextDisabled("v0.0.4 DEV4");
+        ImGui.TextDisabled("v0.0.5 DEV5");
 
         ImGui.TextDisabled(
             "Batch crafting automation  |  Early Prototype");
@@ -181,9 +268,40 @@ public sealed unsafe class Plugin : IDalamudPlugin
 
         if (ImGui.InputInt("Total crafts", ref amount, 1, 99))
         {
-            config.TotalCount = Math.Clamp(amount, 1, 999999);
+            config.TotalCount = Math.Clamp(amount, 0, 999999);
+            manualTargetEdited = true;
             Pi.SavePluginConfig(config);
         }
+
+        if (displayedCraftable >= 0)
+        {
+            ImGui.TextDisabled(
+                $"Craftable from inventory: {displayedCraftable:N0}");
+
+            if (ImGui.SmallButton("Use max craftable"))
+            {
+                config.TotalCount = displayedCraftable;
+                manualTargetEdited = true;
+                Pi.SavePluginConfig(config);
+            }
+        }
+        else
+        {
+            ImGui.TextDisabled("Craftable amount: unavailable");
+        }
+
+        var autoFill = config.AutoFillMaxCraftable;
+
+        if (ImGui.Checkbox(
+                "Auto-fill max for selected recipe", ref autoFill))
+        {
+            config.AutoFillMaxCraftable = autoFill;
+            ResetRecipeTracking();
+            Pi.SavePluginConfig(config);
+        }
+
+        ImGui.TextDisabled(
+            "Auto-fills on recipe selection or Crafting Log reopen.");
 
         var nqOnly = config.CraftNqOnly;
 
@@ -289,7 +407,7 @@ public sealed unsafe class Plugin : IDalamudPlugin
         // Primary action
         if (!running)
         {
-            if (!recipeOpen)
+            if (!recipeOpen || config.TotalCount < 1)
                 ImGui.BeginDisabled();
 
             ImGui.PushStyleColor(
@@ -311,7 +429,7 @@ public sealed unsafe class Plugin : IDalamudPlugin
 
             ImGui.PopStyleColor(3);
 
-            if (!recipeOpen)
+            if (!recipeOpen || config.TotalCount < 1)
                 ImGui.EndDisabled();
         }
         else
@@ -345,7 +463,9 @@ public sealed unsafe class Plugin : IDalamudPlugin
 
     private void Start()
     {
-        if (phase != Phase.Idle || Addon("RecipeNote") == null)
+        if (phase != Phase.Idle ||
+            Addon("RecipeNote") == null ||
+            config.TotalCount < 1)
             return;
 
         target = Math.Clamp(config.TotalCount, 1, 999999);
@@ -402,7 +522,18 @@ public sealed unsafe class Plugin : IDalamudPlugin
     private void Update(IFramework framework)
     {
         if (phase == Phase.Idle)
+        {
+            try
+            {
+                UpdateRecipeDefault();
+            }
+            catch (Exception ex)
+            {
+                Log.Error(ex, "Recipe default update failed");
+            }
+
             return;
+        }
 
         try
         {
