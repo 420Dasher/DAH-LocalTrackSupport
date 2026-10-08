@@ -505,7 +505,7 @@ public sealed class Plugin : IDalamudPlugin
             return;
 
         if (!ImGui.Begin(
-            "BlunderNav | DEV3",
+            "BlunderNav | DEV3.1",
             ref windowOpen,
             ImGuiWindowFlags.AlwaysAutoResize))
         {
@@ -521,7 +521,7 @@ public sealed class Plugin : IDalamudPlugin
             ImGui.TextUnformatted("BLUNDERNAV");
             ImGui.Separator();
 
-            ImGui.TextUnformatted("Version: 0.0.5 DEV3");
+            ImGui.TextUnformatted("Version: 0.0.6 DEV3.1");
             ImGui.TextUnformatted(
                 "Territory: " + Client.TerritoryType);
             ImGui.TextUnformatted(
@@ -658,7 +658,7 @@ public sealed class Plugin : IDalamudPlugin
 
             ImGui.Spacing();
             ImGui.TextDisabled(
-                "DEV3 | API 15 | .NET 10 | /bnav stop");
+                "DEV3.1 | API 15 | .NET 10 | /bnav stop");
         }
         finally
         {

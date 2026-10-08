@@ -9,6 +9,8 @@ public sealed class RouteConfiguration : IPluginConfiguration
     public int SelectedSlot { get; set; } = 0;
     public bool AutoRecord { get; set; } = false;
     public bool AutoAdvance { get; set; } = false;
+    public bool SmoothCorners { get; set; } = false;
+    public float CornerRadius { get; set; } = 0.65f;
     public float RecordSpacing { get; set; } = 3.0f;
     public List<RecordedRoute> Routes { get; set; } = new();
 }
