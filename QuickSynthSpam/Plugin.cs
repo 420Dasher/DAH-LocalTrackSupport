@@ -14,7 +14,7 @@ using FFXIVClientStructs.FFXIV.Component.GUI;
 
 namespace QuickSynthSpam;
 
-// v0.0.3 DEV3 - EARLY PROTOTYPE
+// v0.0.4 DEV4 - EARLY PROTOTYPE
 public sealed unsafe class Plugin : IDalamudPlugin
 {
     [PluginService] private static IDalamudPluginInterface Pi { get; set; } = null!;
@@ -130,11 +130,11 @@ public sealed unsafe class Plugin : IDalamudPlugin
             return;
 
         ImGui.SetNextWindowSize(
-            new Vector2(410, 0),
+            new Vector2(450f, 0f),
             ImGuiCond.FirstUseEver);
 
         if (!ImGui.Begin(
-                "QuickSynth Spam - Early Prototype###QuickSynthSpam",
+                "QuickSynthSpam###QuickSynthSpam",
                 ref open,
                 ImGuiWindowFlags.AlwaysAutoResize))
         {
@@ -142,14 +142,54 @@ public sealed unsafe class Plugin : IDalamudPlugin
             return;
         }
 
-        ImGui.TextDisabled("EARLY PROTOTYPE  |  v0.0.3 DEV3");
+        var accent = new Vector4(0.40f, 0.88f, 0.68f, 1f);
+        var blue = new Vector4(0.40f, 0.75f, 0.98f, 1f);
+        var warning = new Vector4(0.98f, 0.72f, 0.36f, 1f);
+        var muted = new Vector4(0.65f, 0.67f, 0.72f, 1f);
+
+        bool running = phase != Phase.Idle;
+        bool recipeOpen = Addon("RecipeNote") != null;
+
+        // Header
+        ImGui.TextColored(accent, "QUICKSYNTH SPAM");
+        ImGui.SameLine();
+        ImGui.TextDisabled("v0.0.4 DEV4");
+
+        ImGui.TextDisabled(
+            "Batch crafting automation  |  Early Prototype");
+
+        ImGui.Spacing();
         ImGui.Separator();
 
-        var amount = config.TotalCount;
+        // Crafting Log connection
+        ImGui.TextColored(
+            recipeOpen ? accent : warning,
+            recipeOpen ? "CRAFTING LOG CONNECTED" : "CRAFTING LOG CLOSED");
+
+        ImGui.Spacing();
+
+        // Setup
+        ImGui.TextColored(accent, "SETUP");
+        ImGui.TextDisabled("Choose a recipe and set your crafting target.");
+
+        if (running)
+            ImGui.BeginDisabled();
+
+        int amount = config.TotalCount;
+
+        ImGui.SetNextItemWidth(160f);
 
         if (ImGui.InputInt("Total crafts", ref amount, 1, 99))
         {
             config.TotalCount = Math.Clamp(amount, 1, 999999);
+            Pi.SavePluginConfig(config);
+        }
+
+        var nqOnly = config.CraftNqOnly;
+
+        if (ImGui.Checkbox("Craft NQ items only", ref nqOnly))
+        {
+            config.CraftNqOnly = nqOnly;
             Pi.SavePluginConfig(config);
         }
 
@@ -161,69 +201,144 @@ public sealed unsafe class Plugin : IDalamudPlugin
             Pi.SavePluginConfig(config);
         }
 
-        var nqOnly = config.CraftNqOnly;
-
-        if (phase != Phase.Idle)
-            ImGui.BeginDisabled();
-
-        if (ImGui.Checkbox("Craft NQ items only", ref nqOnly))
-        {
-            config.CraftNqOnly = nqOnly;
-            Pi.SavePluginConfig(config);
-        }
-
-        if (phase != Phase.Idle)
+        if (running)
             ImGui.EndDisabled();
 
-        int full = config.TotalCount / 99;
-        int remainder = config.TotalCount % 99;
-
-        string plan = full == 0
-            ? $"Plan: {remainder}"
-            : remainder == 0
-                ? $"Plan: {full} x 99"
-                : $"Plan: {full} x 99 + {remainder}";
-
-        ImGui.TextUnformatted(plan);
+        ImGui.Spacing();
         ImGui.Separator();
 
-        ImGui.TextUnformatted(
-            $"Crafting Log: {(Addon("RecipeNote") != null ? "Open" : "Closed")}");
+        // Batch plan
+        int planned = running ? target : config.TotalCount;
+        int full = planned / 99;
+        int remainder = planned % 99;
 
-        ImGui.TextWrapped($"Status: {status}");
+        string plan = full == 0
+            ? $"{remainder}"
+            : remainder == 0
+                ? $"{full} x 99"
+                : $"{full} x 99 + {remainder}";
 
-        if (phase != Phase.Idle)
+        int plannedBatches = (planned + 98) / 99;
+
+        ImGui.TextColored(accent, "BATCH PLAN");
+        ImGui.TextUnformatted(plan);
+
+        ImGui.TextDisabled(
+            $"{plannedBatches} batch(es) planned  |  Maximum 99 per batch");
+
+        ImGui.Spacing();
+        ImGui.Separator();
+
+        // Run status
+        ImGui.TextColored(accent, "RUN STATUS");
+
+        var statusColor = running
+            ? blue
+            : status == "Finished"
+                ? accent
+                : status == "Idle"
+                    ? muted
+                    : warning;
+
+        ImGui.TextColored(statusColor, running ? "RUNNING" : "NOT RUNNING");
+
+        ImGui.TextWrapped(status);
+
+        if (batchIndex > 0 && target > 0)
         {
-            ImGui.TextUnformatted(
-                $"Progress: {Math.Min(target, completed + batchDone)} / {target}");
-            ImGui.TextUnformatted(
-                $"Batch {batchIndex}: {batchDone} / {batch}");
+            int progress = Math.Clamp(
+                completed + batchDone, 0, target);
+
+            ImGui.Spacing();
+
+            ImGui.TextDisabled(
+                running ? "Overall progress" : "Last run progress");
+
+            ImGui.ProgressBar(
+                (float)progress / target,
+                new Vector2(400f, 21f),
+                $"{progress:N0} / {target:N0}");
+
+            if (running && batch > 0)
+            {
+                int currentBatchProgress = Math.Clamp(
+                    batchDone, 0, batch);
+
+                ImGui.Spacing();
+
+                ImGui.TextDisabled(
+                    $"Batch {batchIndex}  |  {currentBatchProgress} / {batch}");
+
+                ImGui.ProgressBar(
+                    (float)currentBatchProgress / batch,
+                    new Vector2(400f, 11f),
+                    "");
+            }
+        }
+        else
+        {
+            ImGui.Spacing();
+            ImGui.TextDisabled(
+                "No crafting run started yet.");
         }
 
         ImGui.Spacing();
+        ImGui.Separator();
+        ImGui.Spacing();
 
-        if (phase == Phase.Idle)
+        // Primary action
+        if (!running)
         {
-            bool available = Addon("RecipeNote") != null;
-
-            if (!available)
+            if (!recipeOpen)
                 ImGui.BeginDisabled();
 
-            if (ImGui.Button(
-                    "Start selected recipe", new Vector2(190, 0)))
-                Start();
+            ImGui.PushStyleColor(
+                ImGuiCol.Button,
+                new Vector4(0.16f, 0.48f, 0.34f, 1f));
+            ImGui.PushStyleColor(
+                ImGuiCol.ButtonHovered,
+                new Vector4(0.20f, 0.60f, 0.42f, 1f));
+            ImGui.PushStyleColor(
+                ImGuiCol.ButtonActive,
+                new Vector4(0.12f, 0.38f, 0.28f, 1f));
 
-            if (!available)
+            if (ImGui.Button(
+                    "Start Quick Synthesis",
+                    new Vector2(400f, 34f)))
+            {
+                Start();
+            }
+
+            ImGui.PopStyleColor(3);
+
+            if (!recipeOpen)
                 ImGui.EndDisabled();
         }
         else
         {
-            if (ImGui.Button("Stop", new Vector2(190, 0)))
+            ImGui.PushStyleColor(
+                ImGuiCol.Button,
+                new Vector4(0.58f, 0.18f, 0.18f, 1f));
+            ImGui.PushStyleColor(
+                ImGuiCol.ButtonHovered,
+                new Vector4(0.72f, 0.22f, 0.22f, 1f));
+            ImGui.PushStyleColor(
+                ImGuiCol.ButtonActive,
+                new Vector4(0.46f, 0.13f, 0.13f, 1f));
+
+            if (ImGui.Button(
+                    "Stop crafting",
+                    new Vector2(400f, 34f)))
+            {
                 Stop(true, "Stopped by user");
+            }
+
+            ImGui.PopStyleColor(3);
         }
 
-        ImGui.SameLine();
-        ImGui.TextDisabled("/qspam");
+        ImGui.Spacing();
+        ImGui.TextDisabled(
+            "/qspam  |  Select a recipe in the Crafting Log");
 
         ImGui.End();
     }

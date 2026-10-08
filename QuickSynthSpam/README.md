@@ -1,7 +1,7 @@
 # QuickSynthSpam
 
 Status: EARLY PROTOTYPE / EXPERIMENTAL
-Version: 0.0.3 DEV3
+Version: 0.0.4 DEV4
 Target: Dalamud API 15 / .NET 10
 
 Automates repeated Quick Synthesis of the selected crafting recipe.
@@ -13,12 +13,14 @@ Features:
 - Batches of up to 99
 - Remainder handling
 - Craftable quantity checks
-- Progress display
+- Overall and per-batch progress bars
+- Clear run status and final progress
+- Green Start and red Stop controls
 - Stop button
 - Saved Craft NQ items only checkbox, applied to every batch
 - /qspam command
 
-DEV2 core tests passed in-game. DEV3 adds automatic window hiding.
+DEV2 core automation and DEV3 window behavior passed in-game testing. DEV4 refines the UI without changing synthesis callbacks.
 Batch transitions and interruption handling require in-game tests.
 
 The plugin does not automatically restart after interruption.
