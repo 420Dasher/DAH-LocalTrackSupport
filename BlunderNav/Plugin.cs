@@ -64,6 +64,8 @@ public sealed class Plugin : IDalamudPlugin
     private DateTime lastPoll;
     private DateTime lastCastPoll;
 
+    private readonly RouteController routes;
+
     private bool windowOpen;
     private bool navConnected;
     private bool navIsReady;
@@ -96,6 +98,8 @@ public sealed class Plugin : IDalamudPlugin
 
         navStop = Pi.GetIpcSubscriber<object>(
             "vnavmesh.Path.Stop");
+
+        routes = new RouteController(Pi, Objects, Log);
 
         Commands.AddHandler("/bnav", new CommandInfo(OnCommand)
         {
@@ -186,6 +190,8 @@ public sealed class Plugin : IDalamudPlugin
                 }
             }
         }
+
+        routes.Update(InCourse, navConnected, navIsReady, pathIsRunning, ownMovement);
 
         if (!InCourse || player == null)
         {
@@ -474,6 +480,7 @@ public sealed class Plugin : IDalamudPlugin
 
     private void Stop(string reason)
     {
+        routes.Stop(reason);
         try
         {
             navStop.InvokeAction();
@@ -495,7 +502,7 @@ public sealed class Plugin : IDalamudPlugin
             return;
 
         if (!ImGui.Begin(
-            "BlunderNav | DEV1",
+            "BlunderNav | DEV2",
             ref windowOpen,
             ImGuiWindowFlags.AlwaysAutoResize))
         {
@@ -511,7 +518,7 @@ public sealed class Plugin : IDalamudPlugin
             ImGui.TextUnformatted("BLUNDERNAV");
             ImGui.Separator();
 
-            ImGui.TextUnformatted("Version: 0.0.1 DEV1");
+            ImGui.TextUnformatted("Version: 0.0.3 DEV2");
             ImGui.TextUnformatted(
                 "Territory: " + Client.TerritoryType);
             ImGui.TextUnformatted(
@@ -625,6 +632,8 @@ public sealed class Plugin : IDalamudPlugin
 
             ImGui.Separator();
 
+            routes.Draw(InCourse, navConnected, navIsReady, pathIsRunning, ownMovement);
+
             if (ImGui.CollapsingHeader("Cast observations"))
             {
                 ImGui.TextWrapped(
@@ -646,7 +655,7 @@ public sealed class Plugin : IDalamudPlugin
 
             ImGui.Spacing();
             ImGui.TextDisabled(
-                "DEV1 | API 15 | .NET 10 | /bnav stop");
+                "DEV2 | API 15 | .NET 10 | /bnav stop");
         }
         finally
         {

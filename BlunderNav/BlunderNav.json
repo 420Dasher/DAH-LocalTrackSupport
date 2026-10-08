@@ -1,19 +1,19 @@
 {
     "Author":  "Dash + AI",
     "Punchline":  "Test Blunderville navigation.",
-    "Description":  "Experimental Fall Guys diagnostics and guarded vnavmesh navigation tests.",
     "Tags":  [
                  "fall guys",
                  "vnavmesh",
                  "testing"
              ],
-    "InternalName":  "BlunderNav",
-    "Name":  "BlunderNav [DEV1 FIX1]",
-    "AssemblyVersion":  "0.0.2.0",
-    "DalamudApiLevel":  15,
     "ApplicableVersion":  "any",
     "LoadRequiredState":  0,
     "LoadSync":  false,
     "CanUnloadAsync":  false,
-    "LoadPriority":  0
+    "LoadPriority":  0,
+    "AssemblyVersion":  "0.0.3.0",
+    "Name":  "BlunderNav [DEV2]",
+    "InternalName":  "BlunderNav",
+    "DalamudApiLevel":  15,
+    "Description":  "Experimental Fall Guys navigation with route recording, persistent checkpoint profiles and guarded playback."
 }
