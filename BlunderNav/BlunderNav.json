@@ -1,0 +1,10 @@
+{
+  "Author": "Dash + AI",
+  "Name": "BlunderNav [DEV1]",
+  "InternalName": "BlunderNav",
+  "Punchline": "Test Blunderville navigation.",
+  "Description": "Experimental Fall Guys diagnostics and guarded vnavmesh navigation tests.",
+  "ApplicableVersion": "any",
+  "DalamudApiLevel": 15,
+  "Tags": ["fall guys", "vnavmesh", "testing"]
+}
