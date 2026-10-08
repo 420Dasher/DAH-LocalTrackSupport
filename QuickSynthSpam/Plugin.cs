@@ -15,7 +15,7 @@ using FFXIVClientStructs.FFXIV.Component.GUI;
 
 namespace QuickSynthSpam;
 
-// v0.0.5 DEV5 - EARLY PROTOTYPE
+// v0.0.6 DEV6 - EARLY PROTOTYPE
 public sealed unsafe class Plugin : IDalamudPlugin
 {
     [PluginService] private static IDalamudPluginInterface Pi { get; set; } = null!;
@@ -53,7 +53,6 @@ public sealed unsafe class Plugin : IDalamudPlugin
     private int displayedCraftable = -1;
     private int pendingCraftable = -1;
     private DateTime pendingSince;
-    private bool manualTargetEdited;
 
     private string status = "Idle";
 
@@ -129,7 +128,6 @@ public sealed unsafe class Plugin : IDalamudPlugin
         filledRecipeId = 0;
         displayedCraftable = -1;
         pendingCraftable = -1;
-        manualTargetEdited = false;
     }
 
     private void UpdateRecipeDefault()
@@ -163,7 +161,6 @@ public sealed unsafe class Plugin : IDalamudPlugin
             observedRecipeId = recipeId;
             filledRecipeId = 0;
             pendingCraftable = -1;
-            manualTargetEdited = false;
         }
 
         if (!TryCraftable(out int craftable))
@@ -176,7 +173,6 @@ public sealed unsafe class Plugin : IDalamudPlugin
         displayedCraftable = craftable;
 
         if (!config.AutoFillMaxCraftable ||
-            manualTargetEdited ||
             filledRecipeId == recipeId)
         {
             return;
@@ -204,7 +200,7 @@ public sealed unsafe class Plugin : IDalamudPlugin
                 CultureInfo.InvariantCulture, out var value))
         {
             config.TotalCount = Math.Clamp(value, 1, 999999);
-            manualTargetEdited = true;
+            config.AutoFillMaxCraftable = false;
             Pi.SavePluginConfig(config);
         }
 
@@ -240,7 +236,7 @@ public sealed unsafe class Plugin : IDalamudPlugin
         // Header
         ImGui.TextColored(accent, "QUICKSYNTH SPAM");
         ImGui.SameLine();
-        ImGui.TextDisabled("v0.0.5 DEV5");
+        ImGui.TextDisabled("v0.0.6 DEV6");
 
         ImGui.TextDisabled(
             "Batch crafting automation  |  Early Prototype");
@@ -269,7 +265,7 @@ public sealed unsafe class Plugin : IDalamudPlugin
         if (ImGui.InputInt("Total crafts", ref amount, 1, 99))
         {
             config.TotalCount = Math.Clamp(amount, 0, 999999);
-            manualTargetEdited = true;
+            config.AutoFillMaxCraftable = false;
             Pi.SavePluginConfig(config);
         }
 
@@ -281,7 +277,8 @@ public sealed unsafe class Plugin : IDalamudPlugin
             if (ImGui.SmallButton("Use max craftable"))
             {
                 config.TotalCount = displayedCraftable;
-                manualTargetEdited = true;
+                config.AutoFillMaxCraftable = true;
+                filledRecipeId = observedRecipeId;
                 Pi.SavePluginConfig(config);
             }
         }
@@ -301,7 +298,9 @@ public sealed unsafe class Plugin : IDalamudPlugin
         }
 
         ImGui.TextDisabled(
-            "Auto-fills on recipe selection or Crafting Log reopen.");
+            config.AutoFillMaxCraftable
+                ? "Automatic: follows the selected recipe."
+                : "Manual: your quantity is saved until Auto-fill is enabled.");
 
         var nqOnly = config.CraftNqOnly;
 
@@ -407,7 +406,7 @@ public sealed unsafe class Plugin : IDalamudPlugin
         // Primary action
         if (!running)
         {
-            if (!recipeOpen || config.TotalCount < 1)
+            if (!recipeOpen || config.TotalCount < 1 || displayedCraftable == 0)
                 ImGui.BeginDisabled();
 
             ImGui.PushStyleColor(
@@ -429,7 +428,7 @@ public sealed unsafe class Plugin : IDalamudPlugin
 
             ImGui.PopStyleColor(3);
 
-            if (!recipeOpen || config.TotalCount < 1)
+            if (!recipeOpen || config.TotalCount < 1 || displayedCraftable == 0)
                 ImGui.EndDisabled();
         }
         else
@@ -465,7 +464,8 @@ public sealed unsafe class Plugin : IDalamudPlugin
     {
         if (phase != Phase.Idle ||
             Addon("RecipeNote") == null ||
-            config.TotalCount < 1)
+            config.TotalCount < 1 ||
+            displayedCraftable == 0)
             return;
 
         target = Math.Clamp(config.TotalCount, 1, 999999);

@@ -1,7 +1,7 @@
 # QuickSynthSpam
 
 Status: EARLY PROTOTYPE / EXPERIMENTAL
-Version: 0.0.5 DEV5
+Version: 0.0.6 DEV6
 Target: Dalamud API 15 / .NET 10
 
 Automates repeated Quick Synthesis of the selected crafting recipe.
@@ -12,6 +12,8 @@ Features:
 - Configurable total craft count
 - Automatic maximum craftable default for selected recipe
 - Manual Use max craftable button
+- Persistent Manual mode when entering a custom quantity
+- Automatic mode remains the default and can be re-enabled
 - Batches of up to 99
 - Remainder handling
 - Craftable quantity checks
