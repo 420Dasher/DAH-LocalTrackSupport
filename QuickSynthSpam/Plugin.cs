@@ -14,7 +14,7 @@ using FFXIVClientStructs.FFXIV.Component.GUI;
 
 namespace QuickSynthSpam;
 
-// v0.0.2 DEV2 - EARLY PROTOTYPE
+// v0.0.3 DEV3 - EARLY PROTOTYPE
 public sealed unsafe class Plugin : IDalamudPlugin
 {
     [PluginService] private static IDalamudPluginInterface Pi { get; set; } = null!;
@@ -68,6 +68,11 @@ public sealed unsafe class Plugin : IDalamudPlugin
             AddonEvent.PostSetup, "RecipeNote", RecipeOpened);
         Lifecycle.RegisterListener(
             AddonEvent.PostOpen, "RecipeNote", RecipeOpened);
+
+        Lifecycle.RegisterListener(
+            AddonEvent.PreClose, "RecipeNote", RecipeClosed);
+        Lifecycle.RegisterListener(
+            AddonEvent.PreFinalize, "RecipeNote", RecipeClosed);
     }
 
     public void Dispose()
@@ -78,6 +83,11 @@ public sealed unsafe class Plugin : IDalamudPlugin
             AddonEvent.PostSetup, "RecipeNote", RecipeOpened);
         Lifecycle.UnregisterListener(
             AddonEvent.PostOpen, "RecipeNote", RecipeOpened);
+
+        Lifecycle.UnregisterListener(
+            AddonEvent.PreClose, "RecipeNote", RecipeClosed);
+        Lifecycle.UnregisterListener(
+            AddonEvent.PreFinalize, "RecipeNote", RecipeClosed);
 
         Framework.Update -= Update;
         Pi.UiBuilder.Draw -= Draw;
@@ -93,6 +103,13 @@ public sealed unsafe class Plugin : IDalamudPlugin
     {
         if (config.OpenWithCraftingLog)
             open = true;
+    }
+
+    private void RecipeClosed(AddonEvent evt, AddonArgs args)
+    {
+        // Do not hide the Stop control while automation is running.
+        if (phase == Phase.Idle)
+            open = false;
     }
 
     private void Command(string command, string args)
@@ -125,7 +142,7 @@ public sealed unsafe class Plugin : IDalamudPlugin
             return;
         }
 
-        ImGui.TextDisabled("EARLY PROTOTYPE  |  v0.0.2 DEV2");
+        ImGui.TextDisabled("EARLY PROTOTYPE  |  v0.0.3 DEV3");
         ImGui.Separator();
 
         var amount = config.TotalCount;
