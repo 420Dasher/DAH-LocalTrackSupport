@@ -14,7 +14,7 @@ using FFXIVClientStructs.FFXIV.Component.GUI;
 
 namespace QuickSynthSpam;
 
-// v0.0.1 DEV1 - EARLY PROTOTYPE
+// v0.0.2 DEV2 - EARLY PROTOTYPE
 public sealed unsafe class Plugin : IDalamudPlugin
 {
     [PluginService] private static IDalamudPluginInterface Pi { get; set; } = null!;
@@ -45,6 +45,7 @@ public sealed unsafe class Plugin : IDalamudPlugin
     private int batch;
     private int batchDone;
     private int batchIndex;
+    private bool runNqOnly;
 
     private string status = "Idle";
 
@@ -124,7 +125,7 @@ public sealed unsafe class Plugin : IDalamudPlugin
             return;
         }
 
-        ImGui.TextDisabled("EARLY PROTOTYPE  |  v0.0.1 DEV1");
+        ImGui.TextDisabled("EARLY PROTOTYPE  |  v0.0.2 DEV2");
         ImGui.Separator();
 
         var amount = config.TotalCount;
@@ -142,6 +143,20 @@ public sealed unsafe class Plugin : IDalamudPlugin
             config.OpenWithCraftingLog = autoOpen;
             Pi.SavePluginConfig(config);
         }
+
+        var nqOnly = config.CraftNqOnly;
+
+        if (phase != Phase.Idle)
+            ImGui.BeginDisabled();
+
+        if (ImGui.Checkbox("Craft NQ items only", ref nqOnly))
+        {
+            config.CraftNqOnly = nqOnly;
+            Pi.SavePluginConfig(config);
+        }
+
+        if (phase != Phase.Idle)
+            ImGui.EndDisabled();
 
         int full = config.TotalCount / 99;
         int remainder = config.TotalCount % 99;
@@ -202,6 +217,7 @@ public sealed unsafe class Plugin : IDalamudPlugin
             return;
 
         target = Math.Clamp(config.TotalCount, 1, 999999);
+        runNqOnly = config.CraftNqOnly;
         completed = 0;
         batch = 0;
         batchDone = 0;
@@ -305,7 +321,7 @@ public sealed unsafe class Plugin : IDalamudPlugin
             values[2] = new AtkValue
             {
                 Type = AtkValueType.Bool,
-                Byte = 0
+                Byte = runNqOnly ? (byte)1 : (byte)0
             };
 
             dialog->FireCallback(3, values, true);
