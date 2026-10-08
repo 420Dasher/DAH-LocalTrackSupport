@@ -11,9 +11,9 @@
     "LoadSync":  false,
     "CanUnloadAsync":  false,
     "LoadPriority":  0,
-    "AssemblyVersion":  "0.0.4.0",
-    "Name":  "BlunderNav [DEV2 FIX1]",
+    "AssemblyVersion":  "0.0.5.0",
+    "Name":  "BlunderNav [DEV3]",
     "InternalName":  "BlunderNav",
     "DalamudApiLevel":  15,
-    "Description":  "Experimental Fall Guys navigation with lobby and duty route recording, isolated profiles and guarded checkpoint playback."
+    "Description":  "Experimental Fall Guys navigation featuring persistent route recording, smooth checkpoint playback, manual hold points and bounded automatic recovery."
 }

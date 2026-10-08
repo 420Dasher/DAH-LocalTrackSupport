@@ -26,6 +26,7 @@ public sealed class RouteController
         Idle,
         Planning,
         Moving,
+        Recovering,
         Paused,
         Finished
     }
@@ -46,6 +47,19 @@ public sealed class RouteController
 
     private RunPhase phase = RunPhase.Idle;
     private Task<List<Vector3>>? pending;
+    private readonly List<Vector3> stitchedPath = new();
+
+    private Vector3 planningOrigin;
+    private Vector3 legFrom;
+    private Vector3 legTarget;
+
+    private int planIndex;
+    private int groupEndIndex;
+    private int recoveryAttempts;
+
+    private DateTime legRequested;
+    private DateTime recoverAt;
+
     private bool ownsMovement;
     private bool clearArmed;
 
@@ -94,6 +108,7 @@ public sealed class RouteController
     private bool Active =>
         phase is RunPhase.Planning or
                  RunPhase.Moving or
+                 RunPhase.Recovering or
                  RunPhase.Paused;
 
     public bool IsBusy => Active;
@@ -195,6 +210,8 @@ public sealed class RouteController
     {
         CallStop();
         pending = null;
+        stitchedPath.Clear();
+        recoveryAttempts = 0;
         phase = RunPhase.Idle;
         status = reason;
     }
@@ -203,11 +220,80 @@ public sealed class RouteController
     {
         CallStop();
         pending = null;
+        stitchedPath.Clear();
         phase = RunPhase.Paused;
         status = reason;
     }
 
-    private void PlanNext()
+    private void Recover(string reason)
+    {
+        CallStop();
+        pending = null;
+        stitchedPath.Clear();
+
+        if (recoveryAttempts >= 2)
+        {
+            Pause(reason + " Recovery limit reached (2 attempts).");
+            return;
+        }
+
+        recoveryAttempts++;
+        recoverAt = DateTime.UtcNow.AddMilliseconds(650);
+        phase = RunPhase.Recovering;
+
+        status = $"Repath attempt {recoveryAttempts}/2: {reason}";
+    }
+
+    private void RequestLeg()
+    {
+        var route = CurrentRoute();
+
+        if (planIndex < 1 ||
+            planIndex > groupEndIndex ||
+            planIndex >= route.Points.Count)
+        {
+            Pause("Invalid route leg.");
+            return;
+        }
+
+        legTarget = route.Points[planIndex].Position;
+
+        if (!Valid(legFrom) || !Valid(legTarget))
+        {
+            Pause("Invalid route coordinates.");
+            return;
+        }
+
+        if (Vector3.Distance(legFrom, legTarget) > 25f)
+        {
+            Pause("Route leg exceeds 25 yalms. Add checkpoints.");
+            return;
+        }
+
+        try
+        {
+            pending = findPath.InvokeFunc(legFrom, legTarget, false);
+
+            if (pending == null)
+            {
+                Pause("vnavmesh returned no pathfinding task.");
+                return;
+            }
+
+            legRequested = DateTime.UtcNow;
+            phase = RunPhase.Planning;
+
+            status =
+                $"Planning {planIndex + 1}/{route.Points.Count} " +
+                $"(group ends at {groupEndIndex + 1}).";
+        }
+        catch (Exception ex)
+        {
+            Pause("Pathfinding request failed: " + ex.Message);
+        }
+    }
+
+    private void BeginGroup()
     {
         var player = objects.LocalPlayer;
         var route = CurrentRoute();
@@ -220,38 +306,33 @@ public sealed class RouteController
             return;
         }
 
-        var from = player.Position;
-        var target = route.Points[nextIndex].Position;
+        groupEndIndex = nextIndex;
 
-        if (!Valid(from) || !Valid(target))
+        // When Auto-advance is enabled, combine consecutive
+        // ordinary checkpoints into one continuous vnavmesh path.
+        //
+        // An explicit HOLD terminates the current group.
+        // Limit each group to 24 route legs for bounded planning.
+
+        if (config.AutoAdvance)
         {
-            Pause("Invalid checkpoint coordinates.");
-            return;
-        }
-
-        if (Vector3.Distance(from, target) > 25f)
-        {
-            Pause("Checkpoint is over 25 yalms away. Review route.");
-            return;
-        }
-
-        try
-        {
-            pending = findPath.InvokeFunc(from, target, false);
-
-            if (pending == null)
+            while (
+                groupEndIndex < route.Points.Count - 1 &&
+                !route.Points[groupEndIndex].Hold &&
+                groupEndIndex - nextIndex + 1 < 24)
             {
-                Pause("vnavmesh returned no path task.");
-                return;
+                groupEndIndex++;
             }
+        }
 
-            phase = RunPhase.Planning;
-            status = $"Finding path to checkpoint {nextIndex + 1}.";
-        }
-        catch (Exception ex)
-        {
-            Pause("Path request failed: " + ex.Message);
-        }
+        planningOrigin = player.Position;
+        legFrom = planningOrigin;
+        planIndex = nextIndex;
+
+        pending = null;
+        stitchedPath.Clear();
+
+        RequestLeg();
     }
 
     private bool CheckPath(
@@ -304,19 +385,21 @@ public sealed class RouteController
         return true;
     }
 
-    private void Arrived()
+    private void GroupArrived()
     {
         CallStop();
 
         var route = CurrentRoute();
-        int completed = nextIndex;
+        int completed = groupEndIndex;
 
-        nextIndex++;
+        nextIndex = completed + 1;
+        recoveryAttempts = 0;
+        stitchedPath.Clear();
 
         if (nextIndex >= route.Points.Count)
         {
             phase = RunPhase.Finished;
-            status = "All recorded checkpoints completed.";
+            status = "Smooth route completed successfully.";
             return;
         }
 
@@ -324,11 +407,18 @@ public sealed class RouteController
             route.Points[completed].Hold)
         {
             phase = RunPhase.Paused;
-            status = $"Checkpoint {completed + 1} reached. Continue when safe.";
+
+            status =
+                $"Checkpoint {completed + 1} reached. " +
+                "Continue when ready.";
+
             return;
         }
 
-        PlanNext();
+        // A route exceeding the group-size limit resumes
+        // automatically with a new bounded group.
+
+        BeginGroup();
     }
 
     private void Start(bool inCourse, bool connected,
@@ -362,7 +452,8 @@ public sealed class RouteController
 
         runTerritory = client.TerritoryType;
         nextIndex = 1;
-        PlanNext();
+        recoveryAttempts = 0;
+        BeginGroup();
     }
 
     private void Continue(bool inCourse,
@@ -379,7 +470,8 @@ public sealed class RouteController
             return;
         }
 
-        PlanNext();
+        recoveryAttempts = 0;
+        BeginGroup();
     }
 
     public void Update(bool inCourse, bool connected,
@@ -390,7 +482,7 @@ public sealed class RouteController
         if (!inCourse || player == null)
         {
             if (Active)
-                Stop("Left the Fall Guys course.");
+                Stop("Left Blunderville. Route stopped.");
 
             if (config.AutoRecord)
             {
@@ -408,24 +500,46 @@ public sealed class RouteController
         }
 
         var position = player.Position;
+        var now = DateTime.UtcNow;
 
-        if (config.AutoRecord && !Active &&
-            phase != RunPhase.Finished)
-        {
+        // Recording can be restarted even after Finished.
+
+        if (config.AutoRecord && !Active)
             AddPoint(position, true);
-        }
 
         if (!Active)
             return;
 
         if (!connected || !ready || manualBusy)
         {
-            Pause("Navigation became unavailable.");
+            Pause("Navigation unavailable.");
             return;
         }
 
+        // ------------------------------------------------
+        // BOUNDED AUTOMATIC RECOVERY
+        // ------------------------------------------------
+
+        if (phase == RunPhase.Recovering)
+        {
+            if (now >= recoverAt)
+                BeginGroup();
+
+            return;
+        }
+
+        // ------------------------------------------------
+        // BUILD CONTINUOUS PATH
+        // ------------------------------------------------
+
         if (phase == RunPhase.Planning)
         {
+            if ((now - legRequested).TotalSeconds > 10)
+            {
+                Pause("Pathfinding timed out.");
+                return;
+            }
+
             if (pending == null || !pending.IsCompleted)
                 return;
 
@@ -434,30 +548,82 @@ public sealed class RouteController
 
             try
             {
-                var route = CurrentRoute();
-                var destination = route.Points[nextIndex].Position;
-                var path = task.GetAwaiter().GetResult();
-
-                if (!CheckPath(
-                    path, position, destination, out string problem))
+                if (Vector3.Distance(
+                    position, planningOrigin) > 2f)
                 {
-                    Pause("Path rejected: " + problem);
+                    Pause("Player moved during path planning.");
                     return;
                 }
 
-                movePath.InvokeAction(path, false);
+                var path = task.GetAwaiter().GetResult();
+                string problem = "No route.";
+
+                if (path == null ||
+                    !CheckPath(
+                        path, legFrom, legTarget,
+                        out problem))
+                {
+                    Pause("Route leg rejected: " +
+                        (path == null ? "No route." : problem));
+                    return;
+                }
+
+                // Stitch the legs while removing overlapping
+                // consecutive waypoints.
+
+                foreach (var waypoint in path)
+                {
+                    if (stitchedPath.Count > 0 &&
+                        Vector3.Distance(
+                            stitchedPath[^1], waypoint) < 0.10f)
+                    {
+                        continue;
+                    }
+
+                    stitchedPath.Add(waypoint);
+
+                    if (stitchedPath.Count > 512)
+                    {
+                        Pause(
+                            "Combined path too large. " +
+                            "Split the route with a HOLD checkpoint.");
+                        return;
+                    }
+                }
+
+                legFrom = legTarget;
+
+                if (planIndex < groupEndIndex)
+                {
+                    planIndex++;
+                    RequestLeg();
+                    return;
+                }
+
+                if (stitchedPath.Count == 0)
+                {
+                    Pause("Combined route was empty.");
+                    return;
+                }
+
+                // One movement request for the entire group.
+
+                movePath.InvokeAction(stitchedPath, false);
 
                 ownsMovement = true;
                 phase = RunPhase.Moving;
-                moveStarted = DateTime.UtcNow;
-                lastProgress = moveStarted;
+
+                moveStarted = now;
+                lastProgress = now;
                 lastPosition = position;
 
-                status = $"Moving to checkpoint {nextIndex + 1}.";
+                status =
+                    $"Smooth movement through checkpoints " +
+                    $"{nextIndex + 1}-{groupEndIndex + 1}.";
             }
             catch (Exception ex)
             {
-                Pause("Navigation failed: " +
+                Pause("Route planning failed: " +
                     ex.GetBaseException().Message);
             }
 
@@ -467,36 +633,67 @@ public sealed class RouteController
         if (phase != RunPhase.Moving)
             return;
 
-        var target = CurrentRoute().Points[nextIndex].Position;
-        var now = DateTime.UtcNow;
+        var route = CurrentRoute();
 
-        if (Vector3.Distance(position, target) <= 1.2f)
+        if (groupEndIndex >= route.Points.Count)
         {
-            Arrived();
+            Pause("Route changed while moving.");
             return;
         }
 
-        if (Vector3.Distance(position, lastPosition) > 0.2f)
+        // Track intermediate checkpoint progress.
+        // These DO NOT stop vnavmesh movement.
+
+        while (nextIndex < groupEndIndex &&
+            Vector3.Distance(
+                position,
+                route.Points[nextIndex].Position) <= 2.0f)
+        {
+            nextIndex++;
+        }
+
+        var destination = route.Points[groupEndIndex].Position;
+
+        if (Vector3.Distance(position, destination) <= 1.2f)
+        {
+            GroupArrived();
+            return;
+        }
+
+        var frameMovement =
+            Vector3.Distance(position, lastPosition);
+
+        // Large unexpected displacement triggers repathing.
+
+        if (frameMovement > 9f)
+        {
+            Recover("Unexpected displacement.");
+            return;
+        }
+
+        if (frameMovement > 0.15f)
         {
             lastPosition = position;
             lastProgress = now;
         }
 
-        if (!running && (now - moveStarted).TotalSeconds > 1.0)
+        if (!running && (now - moveStarted).TotalSeconds > 1.2)
         {
-            Pause("Movement ended before checkpoint. Resume to retry.");
+            Recover("Navigation ended before reaching destination.");
             return;
         }
 
         if ((now - lastProgress).TotalSeconds > 3.5)
         {
-            Pause("Movement stalled. Resume to retry.");
+            Recover("Movement stalled.");
             return;
         }
 
-        if ((now - moveStarted).TotalSeconds > 18)
+        // Cap any individual uninterrupted movement group.
+
+        if ((now - moveStarted).TotalSeconds > 90)
         {
-            Pause("Checkpoint timed out. Resume to retry.");
+            Recover("Movement group timed out.");
         }
     }
 
@@ -531,7 +728,7 @@ public sealed class RouteController
         bool ready, bool running, bool manualBusy)
     {
         if (!ImGui.CollapsingHeader(
-            "DEV2 - Route Recorder (Lobby + Duty)",
+            "DEV3 - Smooth Route Recorder",
             ImGuiTreeNodeFlags.DefaultOpen))
             return;
 
@@ -657,8 +854,10 @@ public sealed class RouteController
         }
 
         ImGui.TextWrapped(
-            "Dynamic obstacles are NOT predicted. " +
-            "Use hold checkpoints before timed hazards.");
+            "Auto-advance ON: smooth combined path. " +
+            "Auto-advance OFF: pause at every checkpoint. " +
+            "HOLD checkpoints always pause. " +
+            "Dynamic hazards are not detected.");
 
         bool canStart =
             !Active && inCourse && connected && ready &&
@@ -695,6 +894,12 @@ public sealed class RouteController
         }
 
         ImGui.TextUnformatted($"Playback: {phase}");
+
+        if (Active)
+        {
+            ImGui.TextUnformatted(
+                $"Recovery attempts: {recoveryAttempts}/2");
+        }
         ImGui.TextWrapped("Route status: " + status);
 
         if (Active)
