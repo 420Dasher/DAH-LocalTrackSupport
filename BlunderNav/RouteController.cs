@@ -31,6 +31,7 @@ public sealed class RouteController
     }
 
     private readonly IDalamudPluginInterface pi;
+    private readonly IClientState client;
     private readonly IObjectTable objects;
     private readonly IPluginLog log;
     private readonly RouteConfiguration config;
@@ -48,6 +49,7 @@ public sealed class RouteController
     private bool ownsMovement;
     private bool clearArmed;
 
+    private uint runTerritory;
     private int nextIndex = 1;
     private DateTime moveStarted;
     private DateTime lastProgress;
@@ -56,10 +58,12 @@ public sealed class RouteController
 
     public RouteController(
         IDalamudPluginInterface pluginInterface,
+        IClientState clientState,
         IObjectTable objectTable,
         IPluginLog pluginLog)
     {
         pi = pluginInterface;
+        client = clientState;
         objects = objectTable;
         log = pluginLog;
 
@@ -92,13 +96,17 @@ public sealed class RouteController
                  RunPhase.Moving or
                  RunPhase.Paused;
 
+    public bool IsBusy => Active;
+
     private RecordedRoute CurrentRoute()
     {
         string name = Names[config.SelectedSlot];
+        ushort territory = client.TerritoryType == 1197
+            ? (ushort)1197 : (ushort)1165;
 
         foreach (var existing in config.Routes)
         {
-            if (existing.Name == name)
+            if (existing.Name == name && existing.Territory == territory)
             {
                 existing.Points ??= new List<RoutePoint>();
                 return existing;
@@ -108,7 +116,7 @@ public sealed class RouteController
         var created = new RecordedRoute
         {
             Name = name,
-            Territory = 1165
+            Territory = territory
         };
 
         config.Routes.Add(created);
@@ -352,6 +360,7 @@ public sealed class RouteController
         config.AutoRecord = false;
         Save();
 
+        runTerritory = client.TerritoryType;
         nextIndex = 1;
         PlanNext();
     }
@@ -389,6 +398,12 @@ public sealed class RouteController
                 Save();
             }
 
+            return;
+        }
+
+        if (Active && client.TerritoryType != runTerritory)
+        {
+            Stop("Territory changed. Route stopped.");
             return;
         }
 
@@ -488,7 +503,10 @@ public sealed class RouteController
     private string DetectedLayout(Vector3 position, bool inCourse)
     {
         if (!inCourse)
-            return "Outside course";
+            return "Outside Blunderville";
+
+        if (client.TerritoryType == 1197)
+            return "Blunderville Lobby - navigation testing";
 
         if (position.X >= -40 &&
             position.X <= 40 &&
@@ -513,7 +531,7 @@ public sealed class RouteController
         bool ready, bool running, bool manualBusy)
     {
         if (!ImGui.CollapsingHeader(
-            "DEV2 - Route Recorder",
+            "DEV2 - Route Recorder (Lobby + Duty)",
             ImGuiTreeNodeFlags.DefaultOpen))
             return;
 
@@ -539,6 +557,15 @@ public sealed class RouteController
         }
 
         var route = CurrentRoute();
+
+        ImGui.TextUnformatted(
+            route.Territory == 1197
+                ? "Route scope: LOBBY (1197)"
+                : "Route scope: DUTY (1165)");
+
+        if (route.Territory == 1197)
+            ImGui.TextWrapped(
+                "Lobby routes are saved separately from duty routes.");
 
         ImGui.TextUnformatted(
             $"Recorded checkpoints: {route.Points.Count}");

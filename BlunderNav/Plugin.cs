@@ -79,6 +79,7 @@ public sealed class Plugin : IDalamudPlugin
 
     private bool InCourse => Client.TerritoryType == 1165;
     private bool InLobby => Client.TerritoryType == 1197;
+    private bool InTestArea => InCourse || InLobby;
 
     public Plugin()
     {
@@ -99,7 +100,7 @@ public sealed class Plugin : IDalamudPlugin
         navStop = Pi.GetIpcSubscriber<object>(
             "vnavmesh.Path.Stop");
 
-        routes = new RouteController(Pi, Objects, Log);
+        routes = new RouteController(Pi, Client, Objects, Log);
 
         Commands.AddHandler("/bnav", new CommandInfo(OnCommand)
         {
@@ -191,9 +192,9 @@ public sealed class Plugin : IDalamudPlugin
             }
         }
 
-        routes.Update(InCourse, navConnected, navIsReady, pathIsRunning, ownMovement);
+        routes.Update(InTestArea, navConnected, navIsReady, pathIsRunning, ownMovement);
 
-        if (!InCourse || player == null)
+        if (!InTestArea || player == null)
         {
             if (ownMovement)
                 Stop("Left the course.");
@@ -396,7 +397,7 @@ public sealed class Plugin : IDalamudPlugin
     {
         var player = Objects.LocalPlayer;
 
-        if (!InCourse || player == null)
+        if (!InTestArea || player == null)
         {
             status = "Enter Fall Guys first.";
             return;
@@ -408,7 +409,7 @@ public sealed class Plugin : IDalamudPlugin
             return;
         }
 
-        if (pathIsRunning || ownMovement || pendingPath != null)
+        if (pathIsRunning || ownMovement || pendingPath != null || routes.IsBusy)
         {
             status = "Navigation already active.";
             return;
@@ -442,9 +443,9 @@ public sealed class Plugin : IDalamudPlugin
     {
         var player = Objects.LocalPlayer;
 
-        if (!InCourse || player == null ||
+        if (!InTestArea || player == null ||
             !navConnected || !navIsReady ||
-            pathIsRunning || previewPath == null)
+            pathIsRunning || previewPath == null || routes.IsBusy)
         {
             status = "Cannot execute: navigation not ready.";
             return;
@@ -502,7 +503,7 @@ public sealed class Plugin : IDalamudPlugin
             return;
 
         if (!ImGui.Begin(
-            "BlunderNav | DEV2",
+            "BlunderNav | DEV2 FIX1",
             ref windowOpen,
             ImGuiWindowFlags.AlwaysAutoResize))
         {
@@ -518,7 +519,7 @@ public sealed class Plugin : IDalamudPlugin
             ImGui.TextUnformatted("BLUNDERNAV");
             ImGui.Separator();
 
-            ImGui.TextUnformatted("Version: 0.0.3 DEV2");
+            ImGui.TextUnformatted("Version: 0.0.4 DEV2 FIX1");
             ImGui.TextUnformatted(
                 "Territory: " + Client.TerritoryType);
             ImGui.TextUnformatted(
@@ -581,9 +582,9 @@ public sealed class Plugin : IDalamudPlugin
                 $"Offset: X {offsetX}, Z {offsetZ}");
 
             bool canPreview =
-                InCourse && navConnected && navIsReady &&
+                InTestArea && navConnected && navIsReady &&
                 !pathIsRunning && !ownMovement &&
-                pendingPath == null;
+                pendingPath == null && !routes.IsBusy;
 
             if (!canPreview)
                 ImGui.BeginDisabled();
@@ -632,7 +633,7 @@ public sealed class Plugin : IDalamudPlugin
 
             ImGui.Separator();
 
-            routes.Draw(InCourse, navConnected, navIsReady, pathIsRunning, ownMovement);
+            routes.Draw(InTestArea, navConnected, navIsReady, pathIsRunning, ownMovement);
 
             if (ImGui.CollapsingHeader("Cast observations"))
             {
@@ -655,7 +656,7 @@ public sealed class Plugin : IDalamudPlugin
 
             ImGui.Spacing();
             ImGui.TextDisabled(
-                "DEV2 | API 15 | .NET 10 | /bnav stop");
+                "DEV2 FIX1 | API 15 | .NET 10 | /bnav stop");
         }
         finally
         {
