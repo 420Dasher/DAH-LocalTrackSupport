@@ -45,17 +45,9 @@ public sealed class RouteController
 
     private readonly ICallGateSubscriber<object> stopPath;
 
-    private readonly ICallGateSubscriber<
-        Vector3, float, bool, bool> isPointOnMesh;
-
     private RunPhase phase = RunPhase.Idle;
     private Task<List<Vector3>>? pending;
     private readonly List<Vector3> stitchedPath = new();
-
-    private int lastSmoothedCorners;
-    private int lastRejectedCorners;
-    private int lastMovementWaypoints;
-    private bool smoothingFallback;
 
     private Vector3 planningOrigin;
     private Vector3 legFrom;
@@ -106,10 +98,6 @@ public sealed class RouteController
 
         stopPath = pi.GetIpcSubscriber<object>(
             "vnavmesh.Path.Stop");
-
-        isPointOnMesh = pi.GetIpcSubscriber<
-            Vector3, float, bool, bool>(
-            "vnavmesh.Query.Mesh.IsPointOnMesh");
     }
 
     private void Save()
@@ -331,7 +319,7 @@ public sealed class RouteController
             while (
                 groupEndIndex < route.Points.Count - 1 &&
                 !route.Points[groupEndIndex].Hold &&
-                groupEndIndex - nextIndex + 1 < 64)
+                groupEndIndex - nextIndex + 1 < 24)
             {
                 groupEndIndex++;
             }
@@ -594,7 +582,7 @@ public sealed class RouteController
 
                     stitchedPath.Add(waypoint);
 
-                    if (stitchedPath.Count > 1024)
+                    if (stitchedPath.Count > 512)
                     {
                         Pause(
                             "Combined path too large. " +
@@ -618,47 +606,9 @@ public sealed class RouteController
                     return;
                 }
 
-                // Build an optional, mesh-sampled curved path.
-                // The original route remains the fallback.
+                // One movement request for the entire group.
 
-                List<Vector3> movementPath = stitchedPath;
-
-                lastSmoothedCorners = 0;
-                lastRejectedCorners = 0;
-                smoothingFallback = false;
-
-                if (config.SmoothCorners &&
-                    client.TerritoryType == 1197)
-                {
-                    try
-                    {
-                        movementPath = PathSmoothing.Build(
-                            stitchedPath,
-                            config.CornerRadius,
-                            p => isPointOnMesh.InvokeFunc(
-                                p, 0.75f, false),
-                            out lastSmoothedCorners,
-                            out lastRejectedCorners);
-
-                        smoothingFallback =
-                            lastSmoothedCorners == 0;
-                    }
-                    catch (Exception ex)
-                    {
-                        movementPath = stitchedPath;
-                        smoothingFallback = true;
-
-                        log.Warning(
-                            "BlunderNav smoothing fallback: " +
-                            ex.Message);
-                    }
-                }
-
-                lastMovementWaypoints = movementPath.Count;
-
-                // Single continuous vnavmesh movement request.
-
-                movePath.InvokeAction(movementPath, false);
+                movePath.InvokeAction(stitchedPath, false);
 
                 ownsMovement = true;
                 phase = RunPhase.Moving;
@@ -778,7 +728,7 @@ public sealed class RouteController
         bool ready, bool running, bool manualBusy)
     {
         if (!ImGui.CollapsingHeader(
-            "DEV3.1 - Smooth Route Recorder",
+            "DEV3.1 FIX1 - Stable Route Playback",
             ImGuiTreeNodeFlags.DefaultOpen))
             return;
 
@@ -902,55 +852,6 @@ public sealed class RouteController
             config.AutoAdvance = advance;
             Save();
         }
-
-        ImGui.Separator();
-        ImGui.TextUnformatted("EXPERIMENTAL TURN SMOOTHING");
-
-        bool allowSmoothingEdit =
-            !Active && client.TerritoryType == 1197;
-
-        if (!allowSmoothingEdit)
-            ImGui.BeginDisabled();
-
-        bool smooth = config.SmoothCorners;
-
-        if (ImGui.Checkbox("Smooth corners (lobby only)", ref smooth))
-        {
-            config.SmoothCorners = smooth;
-            Save();
-        }
-
-        float radius = config.CornerRadius;
-
-        if (ImGui.SliderFloat(
-            "Corner radius (yalms)", ref radius, 0.25f, 1.0f))
-        {
-            config.CornerRadius = radius;
-            Save();
-        }
-
-        if (!allowSmoothingEdit)
-            ImGui.EndDisabled();
-
-        ImGui.TextWrapped(
-            "Experimental: curves are sampled on reachable " +
-            "navmesh polygons, but full collision clearance " +
-            "is not guaranteed. Test in open lobby areas.");
-
-        ImGui.TextUnformatted(
-            $"Last path: {lastMovementWaypoints} waypoints");
-
-        ImGui.TextUnformatted(
-            $"Smoothed bends: {lastSmoothedCorners} | " +
-            $"Rejected: {lastRejectedCorners}");
-
-        if (smoothingFallback)
-        {
-            ImGui.TextUnformatted(
-                "Smoothing fallback: original route used.");
-        }
-
-        ImGui.Separator();
 
         ImGui.TextWrapped(
             "Auto-advance ON: smooth combined path. " +

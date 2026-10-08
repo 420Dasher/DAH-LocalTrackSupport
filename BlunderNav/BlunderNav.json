@@ -11,9 +11,9 @@
     "LoadSync":  false,
     "CanUnloadAsync":  false,
     "LoadPriority":  0,
-    "AssemblyVersion":  "0.0.6.0",
-    "Name":  "BlunderNav [DEV3.1]",
+    "Name":  "BlunderNav [DEV3.1 FIX1]",
     "InternalName":  "BlunderNav",
+    "AssemblyVersion":  "0.0.7.0",
     "DalamudApiLevel":  15,
-    "Description":  "Experimental Fall Guys navigation with continuous route playback, optional curve smoothing, hold checkpoints and navigation recovery."
+    "Description":  "Experimental Fall Guys route navigation. Stable DEV3 movement controller restored after experimental smoothing regression."
 }

@@ -1,50 +1,47 @@
-# BlunderNav DEV3.1
+# BlunderNav v0.0.7 DEV3.1 FIX1
 
-Version: 0.0.6.0
 Dalamud API 15 / .NET 10
 
-## New in DEV3.1
+## Regression recovery
 
-- Experimental curve smoothing in Blunderville lobby
-- Adjustable corner radius, 0.25 to 1.0 yalms
-- Per-curve reachable-navmesh sampling
-- Original waypoint fallback for rejected curves
-- Last-run smoothing diagnostics
-- Continuous groups up to 64 checkpoint legs
-- Original recorded routes preserved
+Restores the previously tested DEV3 route controller.
 
-## Existing functionality
+The original controller successfully navigated a
+33-checkpoint route in the Blunderville lobby.
 
-- Route recording
-- Lobby / duty route separation
-- Continuous playback
+Temporarily disables experimental curved-path playback.
+
+Restores bounded 24-leg movement groups.
+
+The occasional group-boundary pause is expected.
+
+## Retained functionality
+
+- Persistent lobby and duty routes
+- Manual and automatic checkpoint recording
+- Continuous playback within each route group
 - Manual HOLD checkpoints
+- Auto-advance option
 - Bounded automatic recovery
-- Emergency stop with /bnav stop
-- Movement and pathfinding timeouts
+- Emergency stop
+- Territory-change protection
 
-## Test procedure
+## Important
 
-1. Enter Blunderville lobby.
-2. Open /bnav.
-3. Select your recorded lobby route.
-4. Enable Auto-advance checkpoints.
-5. Leave Smooth corners OFF and test the baseline.
-6. Return to the start.
-7. Enable Smooth corners.
-8. Set radius to 0.65 yalms.
-9. Run the same route again.
-10. Compare turn smoothness and endpoint accuracy.
+Existing route recordings are not modified.
 
-Try radius 0.85 only after successful clear-ground testing.
+Experimental smoothing configuration fields may
+remain in saved settings but are not used by this build.
 
-## Limitations
+Smoothing will be reintroduced separately after
+movement reliability has been reverified.
 
-Smoothing only applies in lobby territory 1197.
+## Test
 
-Point-on-mesh sampling does not guarantee full collision clearance.
-Do not use smoothing near edges or narrow platforms yet.
+Run the existing 33-checkpoint lobby route.
 
-Dynamic hazards and jump mechanics are not automated.
+Verify the character follows the entire path.
 
-Recorded routes are stored in Dalamud configuration.
+Verify the route no longer rapidly skips checkpoints.
+
+A small pause at the 24-leg group boundary is expected.
