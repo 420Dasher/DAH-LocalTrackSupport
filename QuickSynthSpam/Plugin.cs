@@ -11,17 +11,20 @@ using Dalamud.Plugin;
 using Dalamud.Plugin.Services;
 using FFXIVClientStructs.FFXIV.Client.UI;
 using FFXIVClientStructs.FFXIV.Client.Game.UI;
+using FFXIVClientStructs.FFXIV.Client.Game;
+using RecipeSheet = Lumina.Excel.Sheets.Recipe;
 using FFXIVClientStructs.FFXIV.Component.GUI;
 
 namespace QuickSynthSpam;
 
-// v0.0.7 DEV7 - EARLY PROTOTYPE
+// v0.0.8 DEV8 - EARLY PROTOTYPE
 public sealed unsafe class Plugin : IDalamudPlugin
 {
     [PluginService] private static IDalamudPluginInterface Pi { get; set; } = null!;
     [PluginService] private static ICommandManager Commands { get; set; } = null!;
     [PluginService] private static IFramework Framework { get; set; } = null!;
     [PluginService] private static IGameGui Gui { get; set; } = null!;
+    [PluginService] private static IDataManager Data { get; set; } = null!;
     [PluginService] private static IAddonLifecycle Lifecycle { get; set; } = null!;
     [PluginService] private static ICondition Conditions { get; set; } = null!;
     [PluginService] private static IPluginLog Log { get; set; } = null!;
@@ -233,12 +236,12 @@ public sealed unsafe class Plugin : IDalamudPlugin
         bool running = phase != Phase.Idle;
         bool recipeOpen = Addon("RecipeNote") != null;
         bool quickSynthAvailable =
-            recipeOpen && CanQuickSynthesize();
+            CanQuickSynthesize(out var quickSynthReason);
 
         // Header
         ImGui.TextColored(accent, "QUICKSYNTH SPAM");
         ImGui.SameLine();
-        ImGui.TextDisabled("v0.0.7 DEV7");
+        ImGui.TextDisabled("v0.0.8 DEV8");
 
         ImGui.TextDisabled(
             "Batch crafting automation  |  Early Prototype");
@@ -253,9 +256,8 @@ public sealed unsafe class Plugin : IDalamudPlugin
 
         if (recipeOpen && !running && !quickSynthAvailable)
         {
-            ImGui.TextColored(
-                warning,
-                "Quick Synthesis unavailable for selected recipe.");
+            ImGui.TextWrapped(
+                $"Quick Synthesis unavailable: {quickSynthReason}");
         }
 
         ImGui.Spacing();
@@ -477,9 +479,9 @@ public sealed unsafe class Plugin : IDalamudPlugin
             displayedCraftable == 0)
             return;
 
-        if (!CanQuickSynthesize())
+        if (!CanQuickSynthesize(out var reason))
         {
-            status = "Quick Synthesis unavailable for selected recipe";
+            status = reason;
             return;
         }
 
@@ -522,9 +524,9 @@ public sealed unsafe class Plugin : IDalamudPlugin
             batch = Math.Min(batch, available);
         }
 
-        if (!CanQuickSynthesize())
+        if (!CanQuickSynthesize(out var reason))
         {
-            Stop(false, "Quick Synthesis unavailable for selected recipe");
+            Stop(false, reason);
             return;
         }
 
@@ -699,10 +701,10 @@ public sealed unsafe class Plugin : IDalamudPlugin
             elapsed < 1.5)
             return;
 
-        if (!CanQuickSynthesize())
+        if (!CanQuickSynthesize(out var reason))
         {
             if (elapsed > 10)
-                Stop(false, "Quick Synthesis unavailable after batch");
+                Stop(false, reason);
 
             return;
         }
@@ -755,17 +757,72 @@ public sealed unsafe class Plugin : IDalamudPlugin
             : null;
     }
 
-    private static bool CanQuickSynthesize()
+    private static bool CanQuickSynthesize(out string reason)
     {
-        var note = (AddonRecipeNote*)Addon("RecipeNote");
+        reason = "";
 
-        if (note == null || note->QuickSynthesisButton == null)
+        var addon = (AddonRecipeNote*)Addon("RecipeNote");
+
+        if (addon == null)
+        {
+            reason = "Crafting Log is closed";
             return false;
+        }
 
-        var button = note->QuickSynthesisButton;
+        var recipeNote = RecipeNote.Instance();
 
-        return button->AtkComponentBase.OwnerNode != null
-            && button->IsEnabled;
+        if (recipeNote == null ||
+            recipeNote->RecipeList == null ||
+            recipeNote->RecipeList->SelectedRecipe == null)
+        {
+            reason = "Select a crafting recipe";
+            return false;
+        }
+
+        uint recipeId =
+            recipeNote->RecipeList->SelectedRecipe->RecipeId;
+
+        if (recipeId == 0)
+        {
+            reason = "No recipe selected";
+            return false;
+        }
+
+        var recipe = Data.GetExcelSheet<RecipeSheet>()
+            .GetRowOrDefault(recipeId);
+
+        if (recipe == null)
+        {
+            reason = "Selected recipe data is unavailable";
+            return false;
+        }
+
+        if (!recipe.Value.CanQuickSynth)
+        {
+            reason = "This recipe does not support Quick Synthesis";
+            return false;
+        }
+
+        // Standard recipes need to be crafted successfully once.
+        // Master-book recipes are handled separately by the game.
+        if (recipe.Value.SecretRecipeBook.RowId == 0 &&
+            !QuestManager.IsRecipeComplete(recipeId))
+        {
+            reason = "Craft this recipe once to unlock Quick Synthesis";
+            return false;
+        }
+
+        var button = addon->QuickSynthesisButton;
+
+        if (button == null ||
+            button->AtkComponentBase.OwnerNode == null ||
+            !button->IsEnabled)
+        {
+            reason = "Quick Synthesis is currently unavailable";
+            return false;
+        }
+
+        return true;
     }
     private static bool TryCraftable(out int available)
     {
