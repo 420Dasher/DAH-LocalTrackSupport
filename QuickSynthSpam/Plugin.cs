@@ -15,7 +15,7 @@ using FFXIVClientStructs.FFXIV.Component.GUI;
 
 namespace QuickSynthSpam;
 
-// v0.0.6 DEV6 - EARLY PROTOTYPE
+// v0.0.7 DEV7 - EARLY PROTOTYPE
 public sealed unsafe class Plugin : IDalamudPlugin
 {
     [PluginService] private static IDalamudPluginInterface Pi { get; set; } = null!;
@@ -232,11 +232,13 @@ public sealed unsafe class Plugin : IDalamudPlugin
 
         bool running = phase != Phase.Idle;
         bool recipeOpen = Addon("RecipeNote") != null;
+        bool quickSynthAvailable =
+            recipeOpen && CanQuickSynthesize();
 
         // Header
         ImGui.TextColored(accent, "QUICKSYNTH SPAM");
         ImGui.SameLine();
-        ImGui.TextDisabled("v0.0.6 DEV6");
+        ImGui.TextDisabled("v0.0.7 DEV7");
 
         ImGui.TextDisabled(
             "Batch crafting automation  |  Early Prototype");
@@ -248,6 +250,13 @@ public sealed unsafe class Plugin : IDalamudPlugin
         ImGui.TextColored(
             recipeOpen ? accent : warning,
             recipeOpen ? "CRAFTING LOG CONNECTED" : "CRAFTING LOG CLOSED");
+
+        if (recipeOpen && !running && !quickSynthAvailable)
+        {
+            ImGui.TextColored(
+                warning,
+                "Quick Synthesis unavailable for selected recipe.");
+        }
 
         ImGui.Spacing();
 
@@ -406,7 +415,7 @@ public sealed unsafe class Plugin : IDalamudPlugin
         // Primary action
         if (!running)
         {
-            if (!recipeOpen || config.TotalCount < 1 || displayedCraftable == 0)
+            if (!recipeOpen || config.TotalCount < 1 || displayedCraftable == 0 || !quickSynthAvailable)
                 ImGui.BeginDisabled();
 
             ImGui.PushStyleColor(
@@ -428,7 +437,7 @@ public sealed unsafe class Plugin : IDalamudPlugin
 
             ImGui.PopStyleColor(3);
 
-            if (!recipeOpen || config.TotalCount < 1 || displayedCraftable == 0)
+            if (!recipeOpen || config.TotalCount < 1 || displayedCraftable == 0 || !quickSynthAvailable)
                 ImGui.EndDisabled();
         }
         else
@@ -468,6 +477,12 @@ public sealed unsafe class Plugin : IDalamudPlugin
             displayedCraftable == 0)
             return;
 
+        if (!CanQuickSynthesize())
+        {
+            status = "Quick Synthesis unavailable for selected recipe";
+            return;
+        }
+
         target = Math.Clamp(config.TotalCount, 1, 999999);
         runNqOnly = config.CraftNqOnly;
         completed = 0;
@@ -505,6 +520,12 @@ public sealed unsafe class Plugin : IDalamudPlugin
             }
 
             batch = Math.Min(batch, available);
+        }
+
+        if (!CanQuickSynthesize())
+        {
+            Stop(false, "Quick Synthesis unavailable for selected recipe");
+            return;
         }
 
         batchDone = 0;
@@ -678,6 +699,14 @@ public sealed unsafe class Plugin : IDalamudPlugin
             elapsed < 1.5)
             return;
 
+        if (!CanQuickSynthesize())
+        {
+            if (elapsed > 10)
+                Stop(false, "Quick Synthesis unavailable after batch");
+
+            return;
+        }
+
         NextBatch();
     }
 
@@ -726,6 +755,18 @@ public sealed unsafe class Plugin : IDalamudPlugin
             : null;
     }
 
+    private static bool CanQuickSynthesize()
+    {
+        var note = (AddonRecipeNote*)Addon("RecipeNote");
+
+        if (note == null || note->QuickSynthesisButton == null)
+            return false;
+
+        var button = note->QuickSynthesisButton;
+
+        return button->AtkComponentBase.OwnerNode != null
+            && button->IsEnabled;
+    }
     private static bool TryCraftable(out int available)
     {
         available = 0;
