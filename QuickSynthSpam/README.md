@@ -1,7 +1,7 @@
 # QuickSynthSpam
 
 Status: EXPERIMENTAL / TESTING
-Version: 0.0.12 DEV12
+Version: 0.0.12.1 DEV12.1
 Target: Dalamud API 15 / .NET 10
 
 Automates repeated Quick Synthesis of the selected crafting recipe.

@@ -19,7 +19,7 @@ using FFXIVClientStructs.FFXIV.Component.GUI;
 
 namespace QuickSynthSpam;
 
-// v0.0.12 DEV12 - EARLY PROTOTYPE
+// v0.0.12.1 DEV12.1 - EARLY PROTOTYPE
 public sealed unsafe class Plugin : IDalamudPlugin
 {
     [PluginService] private static IDalamudPluginInterface Pi { get; set; } = null!;
@@ -261,7 +261,7 @@ public sealed unsafe class Plugin : IDalamudPlugin
         // Header
         ImGui.TextColored(accent, "QUICKSYNTH SPAM");
         ImGui.SameLine();
-        ImGui.TextDisabled("v0.0.12 DEV12");
+        ImGui.TextDisabled("v0.0.12.1 DEV12.1");
 
         ImGui.TextDisabled(
             "Batch crafting automation  |  Early Prototype");
@@ -397,14 +397,18 @@ public sealed unsafe class Plugin : IDalamudPlugin
 
         int threshold = Math.Clamp(config.RepairThreshold, 5, 100);
 
-        ImGui.SetNextItemWidth(250f);
+        ImGui.AlignTextToFramePadding();
+        ImGui.TextUnformatted("Repair below");
+        ImGui.SameLine(0f, 12f);
+
+        ImGui.SetNextItemWidth(190f);
 
         if (ImGui.SliderInt(
-                "Repair below",
+                "##RepairThreshold",
                 ref threshold,
                 5,
                 100,
-                "%d%%"))
+                ""))
         {
             // Snap to increments of five percent.
             config.RepairThreshold = Math.Clamp(
@@ -413,24 +417,15 @@ public sealed unsafe class Plugin : IDalamudPlugin
             Pi.SavePluginConfig(config);
         }
 
-        if (running)
-        {
-            ImGui.TextDisabled(
-                runAutoRepair
-                    ? "This run: auto-repair enabled."
-                    : "This run: auto-repair disabled.");
-
-            ImGui.TextDisabled(
-                "Threshold edits apply at the next batch boundary.");
-        }
-        else
-        {
-            ImGui.TextDisabled(
-                "Checks before crafting and between completed batches.");
-        }
+        ImGui.SameLine(0f, 10f);
+        ImGui.TextUnformatted($"{config.RepairThreshold}%");
 
         ImGui.TextDisabled(
-            "Uses dark matter. Stops if self-repair fails.");
+            running
+                ? (runAutoRepair
+                    ? "Threshold changes apply next batch."
+                    : "Auto-repair off for this run.")
+                : "Checks between batches; uses dark matter.");
 
         ImGui.Spacing();
         ImGui.Separator();
