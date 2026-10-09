@@ -19,7 +19,7 @@ using FFXIVClientStructs.FFXIV.Component.GUI;
 
 namespace QuickSynthSpam;
 
-// v0.0.10 DEV10 - EARLY PROTOTYPE
+// v0.0.10.1 DEV10.1 - EARLY PROTOTYPE
 public sealed unsafe class Plugin : IDalamudPlugin
 {
     [PluginService] private static IDalamudPluginInterface Pi { get; set; } = null!;
@@ -73,7 +73,7 @@ public sealed unsafe class Plugin : IDalamudPlugin
     private DateTime lastGearScan = DateTime.MinValue;
     private DateTime lastGearError = DateTime.MinValue;
     private bool gearSnapshotReady;
-    private float lowestGearDurability = 100f;
+    private float lowestGearDurability = 199f;
     private int repairableGearCount;
     private int fullyBondedGearCount;
     private string status = "Idle";
@@ -260,7 +260,7 @@ public sealed unsafe class Plugin : IDalamudPlugin
         // Header
         ImGui.TextColored(accent, "QUICKSYNTH SPAM");
         ImGui.SameLine();
-        ImGui.TextDisabled("v0.0.10 DEV10");
+        ImGui.TextDisabled("v0.0.10.1 DEV10.1");
 
         ImGui.TextDisabled(
             "Batch crafting automation  |  Early Prototype");
@@ -682,7 +682,7 @@ public sealed unsafe class Plugin : IDalamudPlugin
         if (sheet == null)
             return;
 
-        float lowest = 100f;
+        float lowest = 199f;
         int repairable = 0;
         int fullyBonded = 0;
 
@@ -706,8 +706,9 @@ public sealed unsafe class Plugin : IDalamudPlugin
             repairable++;
 
             // Condition uses 300 points per 1% durability.
+            // Over-repair can raise displayed durability to 199%.
             float durability = Math.Clamp(
-                item->Condition / 300f, 0f, 100f);
+                item->Condition / 300f, 0f, 199f);
 
             lowest = Math.Min(lowest, durability);
 

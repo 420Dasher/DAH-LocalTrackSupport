@@ -1,7 +1,7 @@
 # QuickSynthSpam
 
 Status: EARLY PROTOTYPE / EXPERIMENTAL
-Version: 0.0.10 DEV10
+Version: 0.0.10.1 DEV10.1
 Target: Dalamud API 15 / .NET 10
 
 Automates repeated Quick Synthesis of the selected crafting recipe.
@@ -17,7 +17,7 @@ Features:
 - Batches of up to 99
 - Remainder handling
 - Craftable quantity checks
-- Equipped-gear durability and spiritbond monitoring
+- Equipped-gear durability monitoring up to 199% and spiritbond monitoring
 - DEV10 opt-in automatic self-repair below 50% durability
 - Repairs before the first batch or between completed batches
 - Uses dark matter via the in-game self-repair interface
