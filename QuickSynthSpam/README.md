@@ -1,7 +1,7 @@
 # QuickSynthSpam
 
 Status: EXPERIMENTAL / TESTING
-Version: 0.0.12.1 DEV12.1
+Version: 0.0.12.2 DEV12.2
 Target: Dalamud API 15 / .NET 10
 
 Automates repeated Quick Synthesis of the selected crafting recipe.
@@ -16,6 +16,7 @@ Automates repeated Quick Synthesis of the selected crafting recipe.
 - Optional NQ-only Quick Synthesis
 - Automatic opening with the Crafting Log
 - Start, Stop, overall progress and batch progress
+- Context-aware Crafting Log, synthesis and repair status indicator
 - Configurable automatic self-repair
 - Repair threshold from 5% to 100% in increments of 5%
 - Default repair threshold: 50%

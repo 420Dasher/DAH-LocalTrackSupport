@@ -19,7 +19,7 @@ using FFXIVClientStructs.FFXIV.Component.GUI;
 
 namespace QuickSynthSpam;
 
-// v0.0.12.1 DEV12.1 - EARLY PROTOTYPE
+// v0.0.12.2 DEV12.2 - EARLY PROTOTYPE
 public sealed unsafe class Plugin : IDalamudPlugin
 {
     [PluginService] private static IDalamudPluginInterface Pi { get; set; } = null!;
@@ -261,7 +261,7 @@ public sealed unsafe class Plugin : IDalamudPlugin
         // Header
         ImGui.TextColored(accent, "QUICKSYNTH SPAM");
         ImGui.SameLine();
-        ImGui.TextDisabled("v0.0.12.1 DEV12.1");
+        ImGui.TextDisabled("v0.0.12.2 DEV12.2");
 
         ImGui.TextDisabled(
             "Batch crafting automation  |  Early Prototype");
@@ -269,10 +269,44 @@ public sealed unsafe class Plugin : IDalamudPlugin
         ImGui.Spacing();
         ImGui.Separator();
 
-        // Crafting Log connection
-        ImGui.TextColored(
-            recipeOpen ? accent : warning,
-            recipeOpen ? "CRAFTING LOG CONNECTED" : "CRAFTING LOG CLOSED");
+        // Display the actual automation state rather than
+        // reporting the Crafting Log as closed during synthesis.
+        string connectionStatus;
+        Vector4 connectionColor;
+
+        if (phase == Phase.Synthesis)
+        {
+            connectionStatus = "QUICK SYNTHESIS RUNNING";
+            connectionColor = blue;
+        }
+        else if (phase == Phase.Dialog)
+        {
+            connectionStatus = "STARTING QUICK SYNTHESIS";
+            connectionColor = blue;
+        }
+        else if (phase == Phase.Return)
+        {
+            connectionStatus = "RETURNING TO CRAFTING LOG";
+            connectionColor = blue;
+        }
+        else if (phase >= Phase.RepairExit &&
+                 phase <= Phase.RepairResume)
+        {
+            connectionStatus = "SELF-REPAIR IN PROGRESS";
+            connectionColor = blue;
+        }
+        else if (recipeOpen)
+        {
+            connectionStatus = "CRAFTING LOG CONNECTED";
+            connectionColor = accent;
+        }
+        else
+        {
+            connectionStatus = "CRAFTING LOG CLOSED";
+            connectionColor = warning;
+        }
+
+        ImGui.TextColored(connectionColor, connectionStatus);
 
         if (recipeOpen && !running && !quickSynthAvailable)
         {
