@@ -13,11 +13,12 @@ using FFXIVClientStructs.FFXIV.Client.UI;
 using FFXIVClientStructs.FFXIV.Client.Game.UI;
 using FFXIVClientStructs.FFXIV.Client.Game;
 using RecipeSheet = Lumina.Excel.Sheets.Recipe;
+using GearSheet = Lumina.Excel.Sheets.Item;
 using FFXIVClientStructs.FFXIV.Component.GUI;
 
 namespace QuickSynthSpam;
 
-// v0.0.8 DEV8 - EARLY PROTOTYPE
+// v0.0.9 DEV9 - EARLY PROTOTYPE
 public sealed unsafe class Plugin : IDalamudPlugin
 {
     [PluginService] private static IDalamudPluginInterface Pi { get; set; } = null!;
@@ -57,6 +58,12 @@ public sealed unsafe class Plugin : IDalamudPlugin
     private int pendingCraftable = -1;
     private DateTime pendingSince;
 
+    private DateTime lastGearScan = DateTime.MinValue;
+    private DateTime lastGearError = DateTime.MinValue;
+    private bool gearSnapshotReady;
+    private float lowestGearDurability = 100f;
+    private int repairableGearCount;
+    private int fullyBondedGearCount;
     private string status = "Idle";
 
     public Plugin()
@@ -241,7 +248,7 @@ public sealed unsafe class Plugin : IDalamudPlugin
         // Header
         ImGui.TextColored(accent, "QUICKSYNTH SPAM");
         ImGui.SameLine();
-        ImGui.TextDisabled("v0.0.8 DEV8");
+        ImGui.TextDisabled("v0.0.9 DEV9");
 
         ImGui.TextDisabled(
             "Batch crafting automation  |  Early Prototype");
@@ -335,6 +342,79 @@ public sealed unsafe class Plugin : IDalamudPlugin
         ImGui.Spacing();
         ImGui.Separator();
 
+        // Gear maintenance - detection preview only.
+        ImGui.TextColored(accent, "GEAR MAINTENANCE");
+        ImGui.TextDisabled("Equipped gear only  |  DEV9 preview");
+
+        if (!gearSnapshotReady)
+        {
+            ImGui.TextColored(
+                warning, "Equipped gear data unavailable.");
+        }
+        else if (repairableGearCount == 0)
+        {
+            ImGui.TextDisabled(
+                "No repairable equipped gear detected.");
+        }
+        else
+        {
+            ImGui.TextUnformatted(
+                $"Lowest gear durability: {lowestGearDurability:F1}%");
+
+            if (lowestGearDurability < 50f)
+            {
+                ImGui.TextColored(
+                    warning, "Repair needed: below 50%.");
+            }
+            else
+            {
+                ImGui.TextDisabled(
+                    "Repair threshold not reached.");
+            }
+
+            ImGui.TextUnformatted(
+                $"Equipped pieces at 100% spiritbond: {fullyBondedGearCount}");
+
+            if (fullyBondedGearCount > 0)
+            {
+                ImGui.TextColored(
+                    warning, "Materia extraction ready.");
+            }
+            else
+            {
+                ImGui.TextDisabled(
+                    "No fully bonded equipped gear.");
+            }
+        }
+
+        ImGui.Spacing();
+
+        bool wantRepair = config.WantAutoRepair;
+
+        if (ImGui.Checkbox(
+                "Auto-repair below 50% (preview)",
+                ref wantRepair))
+        {
+            config.WantAutoRepair = wantRepair;
+            Pi.SavePluginConfig(config);
+        }
+
+        bool wantExtraction = config.WantAutoMateriaExtraction;
+
+        if (ImGui.Checkbox(
+                "Auto-extract at 100% (preview)",
+                ref wantExtraction))
+        {
+            config.WantAutoMateriaExtraction = wantExtraction;
+            Pi.SavePluginConfig(config);
+        }
+
+        ImGui.TextWrapped(
+            "Detection only: preferences are saved, but DEV9 does " +
+            "not perform repairs, extraction or crafting pauses.");
+
+        ImGui.Spacing();
+        ImGui.Separator();
         // Batch plan
         int planned = running ? target : config.TotalCount;
         int full = planned / 99;
@@ -542,8 +622,91 @@ public sealed unsafe class Plugin : IDalamudPlugin
         status = $"Opening batch {batchIndex} ({batch})";
     }
 
+    private void UpdateGearSnapshot()
+    {
+        var now = DateTime.UtcNow;
+
+        if ((now - lastGearScan).TotalSeconds < 1)
+            return;
+
+        lastGearScan = now;
+        gearSnapshotReady = false;
+
+        var manager = InventoryManager.Instance();
+
+        if (manager == null)
+            return;
+
+        var equipped = manager->GetInventoryContainer(
+            InventoryType.EquippedItems);
+
+        if (equipped == null || !equipped->IsLoaded)
+            return;
+
+        var sheet = Data.GetExcelSheet<GearSheet>();
+
+        if (sheet == null)
+            return;
+
+        float lowest = 100f;
+        int repairable = 0;
+        int fullyBonded = 0;
+
+        for (int i = 0; i < equipped->Size; i++)
+        {
+            // Waist and Soul Crystal are not repairable gear.
+            if (i == 5 || i == 13)
+                continue;
+
+            var item = equipped->GetInventorySlot(i);
+
+            if (item == null || item->ItemId == 0)
+                continue;
+
+            if (!sheet.TryGetRow(item->ItemId, out var row))
+                continue;
+
+            if (row.ClassJobRepair.RowId == 0)
+                continue;
+
+            repairable++;
+
+            // Condition uses 300 points per 1% durability.
+            float durability = Math.Clamp(
+                item->Condition / 300f, 0f, 100f);
+
+            lowest = Math.Min(lowest, durability);
+
+            // Spiritbond uses 100 points per 1%.
+            if (item->SpiritbondOrCollectability >= 10000)
+                fullyBonded++;
+        }
+
+        lowestGearDurability = lowest;
+        repairableGearCount = repairable;
+        fullyBondedGearCount = fullyBonded;
+        gearSnapshotReady = true;
+    }
     private void Update(IFramework framework)
     {
+        if (open)
+        {
+            try
+            {
+                UpdateGearSnapshot();
+            }
+            catch (Exception ex)
+            {
+                gearSnapshotReady = false;
+
+                if ((DateTime.UtcNow - lastGearError).TotalSeconds >= 30)
+                {
+                    lastGearError = DateTime.UtcNow;
+                    Log.Error(ex, "Gear maintenance preview failed");
+                }
+            }
+        }
+
         if (phase == Phase.Idle)
         {
             try

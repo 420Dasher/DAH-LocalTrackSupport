@@ -9,4 +9,6 @@ public sealed class Configuration : IPluginConfiguration
     public bool OpenWithCraftingLog { get; set; } = true;
     public bool CraftNqOnly { get; set; } = false;
     public bool AutoFillMaxCraftable { get; set; } = true;
+    public bool WantAutoRepair { get; set; } = false;
+    public bool WantAutoMateriaExtraction { get; set; } = false;
 }

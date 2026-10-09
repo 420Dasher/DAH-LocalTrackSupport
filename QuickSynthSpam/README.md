@@ -1,7 +1,7 @@
 # QuickSynthSpam
 
 Status: EARLY PROTOTYPE / EXPERIMENTAL
-Version: 0.0.8 DEV8
+Version: 0.0.9 DEV9
 Target: Dalamud API 15 / .NET 10
 
 Automates repeated Quick Synthesis of the selected crafting recipe.
@@ -17,6 +17,10 @@ Features:
 - Batches of up to 99
 - Remainder handling
 - Craftable quantity checks
+- DEV9 equipped-gear durability preview (below 50% detection)
+- DEV9 equipped-gear spiritbond preview (100% detection)
+- Saved maintenance preferences, initially disabled
+- No automatic repair or extraction actions in DEV9
 - Recipe eligibility, first-craft completion and Quick Synthesis button checks before every batch
 - Overall and per-batch progress bars
 - Clear run status and final progress
