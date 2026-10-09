@@ -1,7 +1,7 @@
 # QuickSynthSpam
 
 Status: EARLY PROTOTYPE / EXPERIMENTAL
-Version: 0.0.9 DEV9
+Version: 0.0.10 DEV10
 Target: Dalamud API 15 / .NET 10
 
 Automates repeated Quick Synthesis of the selected crafting recipe.
@@ -17,10 +17,14 @@ Features:
 - Batches of up to 99
 - Remainder handling
 - Craftable quantity checks
-- DEV9 equipped-gear durability preview (below 50% detection)
-- DEV9 equipped-gear spiritbond preview (100% detection)
-- Saved maintenance preferences, initially disabled
-- No automatic repair or extraction actions in DEV9
+- Equipped-gear durability and spiritbond monitoring
+- DEV10 opt-in automatic self-repair below 50% durability
+- Repairs before the first batch or between completed batches
+- Uses dark matter via the in-game self-repair interface
+- Restores the selected recipe and resumes remaining crafts
+- Stops on repair, confirmation or recipe-restoration failures
+- Existing DEV9 preview preference does not enable live repair
+- Materia extraction remains preview-only
 - Recipe eligibility, first-craft completion and Quick Synthesis button checks before every batch
 - Overall and per-batch progress bars
 - Clear run status and final progress

@@ -10,6 +10,7 @@ using Dalamud.IoC;
 using Dalamud.Plugin;
 using Dalamud.Plugin.Services;
 using FFXIVClientStructs.FFXIV.Client.UI;
+using FFXIVClientStructs.FFXIV.Client.UI.Agent;
 using FFXIVClientStructs.FFXIV.Client.Game.UI;
 using FFXIVClientStructs.FFXIV.Client.Game;
 using RecipeSheet = Lumina.Excel.Sheets.Recipe;
@@ -18,7 +19,7 @@ using FFXIVClientStructs.FFXIV.Component.GUI;
 
 namespace QuickSynthSpam;
 
-// v0.0.9 DEV9 - EARLY PROTOTYPE
+// v0.0.10 DEV10 - EARLY PROTOTYPE
 public sealed unsafe class Plugin : IDalamudPlugin
 {
     [PluginService] private static IDalamudPluginInterface Pi { get; set; } = null!;
@@ -37,7 +38,13 @@ public sealed unsafe class Plugin : IDalamudPlugin
         Idle,
         Dialog,
         Synthesis,
-        Return
+        Return,
+        RepairExit,
+        RepairOpen,
+        RepairConfirm,
+        RepairVerify,
+        RepairClose,
+        RepairResume
     }
 
     private Phase phase;
@@ -51,6 +58,11 @@ public sealed unsafe class Plugin : IDalamudPlugin
     private int batchDone;
     private int batchIndex;
     private bool runNqOnly;
+    private bool runAutoRepair;
+    private uint runRecipeId;
+    private bool ownsRepairWindow;
+    private bool repairCategoryRequested;
+    private bool repairCloseSent;
 
     private uint observedRecipeId;
     private uint filledRecipeId;
@@ -248,7 +260,7 @@ public sealed unsafe class Plugin : IDalamudPlugin
         // Header
         ImGui.TextColored(accent, "QUICKSYNTH SPAM");
         ImGui.SameLine();
-        ImGui.TextDisabled("v0.0.9 DEV9");
+        ImGui.TextDisabled("v0.0.10 DEV10");
 
         ImGui.TextDisabled(
             "Batch crafting automation  |  Early Prototype");
@@ -389,13 +401,13 @@ public sealed unsafe class Plugin : IDalamudPlugin
 
         ImGui.Spacing();
 
-        bool wantRepair = config.WantAutoRepair;
+        bool wantRepair = config.AutoRepairEnabled;
 
         if (ImGui.Checkbox(
-                "Auto-repair below 50% (preview)",
+                "Auto-repair below 50%",
                 ref wantRepair))
         {
-            config.WantAutoRepair = wantRepair;
+            config.AutoRepairEnabled = wantRepair;
             Pi.SavePluginConfig(config);
         }
 
@@ -410,8 +422,10 @@ public sealed unsafe class Plugin : IDalamudPlugin
         }
 
         ImGui.TextWrapped(
-            "Detection only: preferences are saved, but DEV9 does " +
-            "not perform repairs, extraction or crafting pauses.");
+            "Auto-repair runs before crafting or between completed " +
+            "batches. Requires dark matter and a suitable repair job. " +
+            "It stops the queue if repair fails. Materia extraction " +
+            "remains preview-only in DEV10.");
 
         ImGui.Spacing();
         ImGui.Separator();
@@ -565,6 +579,15 @@ public sealed unsafe class Plugin : IDalamudPlugin
             return;
         }
 
+        var recipeNote = RecipeNote.Instance();
+
+        if (recipeNote == null ||
+            recipeNote->RecipeList == null ||
+            recipeNote->RecipeList->SelectedRecipe == null)
+            return;
+
+        runRecipeId = recipeNote->RecipeList->SelectedRecipe->RecipeId;
+        runAutoRepair = config.AutoRepairEnabled;
         target = Math.Clamp(config.TotalCount, 1, 999999);
         runNqOnly = config.CraftNqOnly;
         completed = 0;
@@ -572,7 +595,18 @@ public sealed unsafe class Plugin : IDalamudPlugin
         batchDone = 0;
         batchIndex = 0;
 
-        NextBatch();
+        try
+        {
+            if (BeginRepairIfNeeded())
+                return;
+
+            NextBatch();
+        }
+        catch (Exception ex)
+        {
+            Log.Error(ex, "Initial repair check failed");
+            Stop(false, "Unable to check gear for repair");
+        }
     }
 
     private void NextBatch()
@@ -687,6 +721,291 @@ public sealed unsafe class Plugin : IDalamudPlugin
         fullyBondedGearCount = fullyBonded;
         gearSnapshotReady = true;
     }
+    // Called only before the first batch or after a completed
+    // batch. Never interrupts a running Quick Synthesis batch.
+    private bool BeginRepairIfNeeded()
+    {
+        if (!runAutoRepair)
+            return false;
+
+        lastGearScan = DateTime.MinValue;
+        UpdateGearSnapshot();
+
+        if (!gearSnapshotReady)
+        {
+            Stop(false, "Cannot read equipped gear for repair");
+            return true;
+        }
+
+        if (repairableGearCount == 0 || lowestGearDurability >= 50f)
+            return false;
+
+        if (Addon("SelectYesno") != null || Addon("Repair") != null)
+        {
+            Stop(false, "Close existing repair or confirmation windows first");
+            return true;
+        }
+
+        var recipeWindow = Addon("RecipeNote");
+
+        if (recipeWindow == null || runRecipeId == 0)
+        {
+            Stop(false, "Cannot preserve selected crafting recipe");
+            return true;
+        }
+
+        ownsRepairWindow = false;
+        repairCategoryRequested = false;
+        repairCloseSent = false;
+
+        // Exit the crafting stance before invoking general actions.
+        Callback(recipeWindow, -1);
+
+        phase = Phase.RepairExit;
+        entered = DateTime.UtcNow;
+        status = $"Repair due ({lowestGearDurability:F1}%): exiting crafting stance";
+        return true;
+    }
+
+    private void UpdateRepairExit(double elapsed)
+    {
+        if (Addon("RecipeNote") != null ||
+            Conditions[ConditionFlag.PreparingToCraft] ||
+            Conditions[ConditionFlag.Crafting])
+        {
+            if (elapsed > 12)
+                Stop(false, "Timed out leaving crafting stance for repair");
+            return;
+        }
+
+        if (elapsed < 0.5)
+            return;
+
+        var actions = ActionManager.Instance();
+
+        if (actions == null ||
+            !actions->UseAction(ActionType.GeneralAction, 6))
+        {
+            Stop(false, "Could not open self-repair (general action unavailable)");
+            return;
+        }
+
+        ownsRepairWindow = true;
+        phase = Phase.RepairOpen;
+        entered = DateTime.UtcNow;
+        status = "Opening the self-repair window";
+    }
+
+    private void UpdateRepairOpen(double elapsed)
+    {
+        var repair = (AddonRepair*)Addon("Repair");
+
+        if (repair == null)
+        {
+            if (elapsed > 8)
+                Stop(false, "Self-repair window did not open");
+            return;
+        }
+
+        if (elapsed < 0.5)
+            return;
+
+        if (repair->Dropdown == null)
+        {
+            if (elapsed > 8)
+                Stop(false, "Repair category selector unavailable");
+            return;
+        }
+
+        // Only repair the equipped-items category, never an
+        // unrelated inventory or Armoury Chest category.
+        if (repair->Dropdown->GetSelectedItemIndex() != 0)
+        {
+            if (!repairCategoryRequested)
+            {
+                repair->Dropdown->SelectItem(0);
+                repairCategoryRequested = true;
+                entered = DateTime.UtcNow;
+            }
+            else if (elapsed > 2)
+            {
+                Stop(false, "Could not select Equipped Items repair category");
+            }
+            return;
+        }
+
+        if (Addon("SelectYesno") != null)
+        {
+            Stop(false, "Unexpected confirmation dialog during repair");
+            return;
+        }
+
+        if (repair->RepairAllButton == null ||
+            !repair->RepairAllButton->IsEnabled)
+        {
+            if (elapsed > 6)
+            {
+                Stop(false,
+                    "Self-repair unavailable: check dark matter and repair-job level");
+            }
+            return;
+        }
+
+        // The game's native Repair All callback.
+        Callback((AtkUnitBase*)repair, 0);
+
+        phase = Phase.RepairConfirm;
+        entered = DateTime.UtcNow;
+        status = "Waiting for repair confirmation";
+    }
+
+    private void UpdateRepairConfirm(double elapsed)
+    {
+        if (Addon("Repair") == null)
+        {
+            Stop(false, "Repair window closed unexpectedly");
+            return;
+        }
+
+        var confirmation = (AddonSelectYesno*)Addon("SelectYesno");
+
+        if (confirmation == null)
+        {
+            if (elapsed > 6)
+                Stop(false, "Repair confirmation did not open");
+            return;
+        }
+
+        if (elapsed < 0.35)
+            return;
+
+        if (confirmation->YesButton == null ||
+            !confirmation->YesButton->IsEnabled)
+        {
+            if (elapsed > 6)
+                Stop(false, "Repair confirmation unavailable");
+            return;
+        }
+
+        Callback((AtkUnitBase*)confirmation, 0);
+
+        phase = Phase.RepairVerify;
+        entered = DateTime.UtcNow;
+        status = "Repairing equipped gear";
+    }
+
+    private void UpdateRepairVerify(double elapsed)
+    {
+        if (elapsed > 15)
+        {
+            Stop(false, "Repair timed out or did not restore gear above 50%");
+            return;
+        }
+
+        if (elapsed < 0.8 || Conditions[ConditionFlag.Occupied39])
+            return;
+
+        lastGearScan = DateTime.MinValue;
+        UpdateGearSnapshot();
+
+        if (!gearSnapshotReady)
+        {
+            Stop(false, "Unable to verify repaired equipment");
+            return;
+        }
+
+        if (lowestGearDurability < 50f)
+            return;
+
+        phase = Phase.RepairClose;
+        entered = DateTime.UtcNow;
+        status = $"Repair verified ({lowestGearDurability:F1}% minimum)";
+    }
+
+    private void UpdateRepairClose(double elapsed)
+    {
+        if (!repairCloseSent)
+        {
+            var repair = Addon("Repair");
+
+            if (repair != null)
+                repair->Close(true);
+
+            repairCloseSent = true;
+            entered = DateTime.UtcNow;
+            return;
+        }
+
+        if (Addon("Repair") != null)
+        {
+            if (elapsed > 8)
+                Stop(false, "Repair window would not close");
+            return;
+        }
+
+        if (elapsed < 0.5)
+            return;
+
+        if (runRecipeId == 0)
+        {
+            Stop(false, "Saved recipe was lost");
+            return;
+        }
+
+        var agent = AgentRecipeNote.Instance();
+
+        if (agent == null)
+        {
+            Stop(false, "Crafting Log agent unavailable");
+            return;
+        }
+
+        agent->OpenRecipeByRecipeId(runRecipeId);
+
+        ownsRepairWindow = false;
+        phase = Phase.RepairResume;
+        entered = DateTime.UtcNow;
+        status = "Restoring the selected recipe after repair";
+    }
+
+    private void UpdateRepairResume(double elapsed)
+    {
+        var note = RecipeNote.Instance();
+
+        if (Addon("RecipeNote") == null ||
+            note == null ||
+            note->RecipeList == null ||
+            note->RecipeList->SelectedRecipe == null ||
+            note->RecipeList->SelectedRecipe->RecipeId != runRecipeId)
+        {
+            if (elapsed > 10)
+                Stop(false, "Unable to restore the original crafting recipe");
+            return;
+        }
+
+        if (elapsed < 1.0 ||
+            Conditions[ConditionFlag.ExecutingCraftingAction])
+            return;
+
+        if (!CanQuickSynthesize(out var reason))
+        {
+            if (elapsed > 10)
+                Stop(false, "Cannot resume after repair: " + reason);
+            return;
+        }
+
+        lastGearScan = DateTime.MinValue;
+        UpdateGearSnapshot();
+
+        if (!gearSnapshotReady || lowestGearDurability < 50f)
+        {
+            Stop(false, "Equipped gear still needs repair");
+            return;
+        }
+
+        // Keeps the same total target and completed count.
+        NextBatch();
+    }
     private void Update(IFramework framework)
     {
         if (open)
@@ -737,6 +1056,24 @@ public sealed unsafe class Plugin : IDalamudPlugin
 
                 case Phase.Return:
                     UpdateReturn(elapsed);
+                    break;
+                case Phase.RepairExit:
+                    UpdateRepairExit(elapsed);
+                    break;
+                case Phase.RepairOpen:
+                    UpdateRepairOpen(elapsed);
+                    break;
+                case Phase.RepairConfirm:
+                    UpdateRepairConfirm(elapsed);
+                    break;
+                case Phase.RepairVerify:
+                    UpdateRepairVerify(elapsed);
+                    break;
+                case Phase.RepairClose:
+                    UpdateRepairClose(elapsed);
+                    break;
+                case Phase.RepairResume:
+                    UpdateRepairResume(elapsed);
                     break;
             }
         }
@@ -864,6 +1201,12 @@ public sealed unsafe class Plugin : IDalamudPlugin
             elapsed < 1.5)
             return;
 
+        if (completed >= target)
+        {
+            NextBatch();
+            return;
+        }
+
         if (!CanQuickSynthesize(out var reason))
         {
             if (elapsed > 10)
@@ -871,6 +1214,9 @@ public sealed unsafe class Plugin : IDalamudPlugin
 
             return;
         }
+
+        if (BeginRepairIfNeeded())
+            return;
 
         NextBatch();
     }
@@ -900,6 +1246,18 @@ public sealed unsafe class Plugin : IDalamudPlugin
             }
         }
 
+        // Close only the Repair window opened by this plugin.
+        // Never auto-confirm a dialog during cancellation.
+        if (ownsRepairWindow)
+        {
+            var repair = Addon("Repair");
+            if (repair != null && Addon("SelectYesno") == null)
+                repair->Close(true);
+        }
+
+        ownsRepairWindow = false;
+        runAutoRepair = false;
+        runRecipeId = 0;
         phase = Phase.Idle;
         batch = 0;
         batchDone = 0;
