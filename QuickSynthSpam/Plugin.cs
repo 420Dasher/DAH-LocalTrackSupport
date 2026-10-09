@@ -19,7 +19,7 @@ using FFXIVClientStructs.FFXIV.Component.GUI;
 
 namespace QuickSynthSpam;
 
-// v0.0.10.1 DEV10.1 - EARLY PROTOTYPE
+// v0.0.12 DEV12 - EARLY PROTOTYPE
 public sealed unsafe class Plugin : IDalamudPlugin
 {
     [PluginService] private static IDalamudPluginInterface Pi { get; set; } = null!;
@@ -59,6 +59,7 @@ public sealed unsafe class Plugin : IDalamudPlugin
     private int batchIndex;
     private bool runNqOnly;
     private bool runAutoRepair;
+    private int activeRepairThreshold = 50;
     private uint runRecipeId;
     private bool ownsRepairWindow;
     private bool repairCategoryRequested;
@@ -75,7 +76,7 @@ public sealed unsafe class Plugin : IDalamudPlugin
     private bool gearSnapshotReady;
     private float lowestGearDurability = 199f;
     private int repairableGearCount;
-    private int fullyBondedGearCount;
+
     private string status = "Idle";
 
     public Plugin()
@@ -260,7 +261,7 @@ public sealed unsafe class Plugin : IDalamudPlugin
         // Header
         ImGui.TextColored(accent, "QUICKSYNTH SPAM");
         ImGui.SameLine();
-        ImGui.TextDisabled("v0.0.10.1 DEV10.1");
+        ImGui.TextDisabled("v0.0.12 DEV12");
 
         ImGui.TextDisabled(
             "Batch crafting automation  |  Early Prototype");
@@ -354,81 +355,86 @@ public sealed unsafe class Plugin : IDalamudPlugin
         ImGui.Spacing();
         ImGui.Separator();
 
-        // Gear maintenance - detection preview only.
+        // Gear maintenance
         ImGui.TextColored(accent, "GEAR MAINTENANCE");
-        ImGui.TextDisabled("Equipped gear only  |  DEV9 preview");
+        ImGui.TextDisabled("Equipped gear  |  Automatic self-repair");
 
-        if (!gearSnapshotReady)
+        if (gearSnapshotReady && repairableGearCount > 0)
         {
-            ImGui.TextColored(
-                warning, "Equipped gear data unavailable.");
-        }
-        else if (repairableGearCount == 0)
-        {
-            ImGui.TextDisabled(
-                "No repairable equipped gear detected.");
+            ImGui.TextUnformatted(
+                $"Lowest durability: {lowestGearDurability:F1}%");
+
+            int limit = Math.Clamp(config.RepairThreshold, 5, 100);
+
+            if (lowestGearDurability < limit)
+            {
+                ImGui.TextColored(
+                    warning, $"Below repair threshold ({limit}%).");
+            }
+            else
+            {
+                ImGui.TextDisabled(
+                    "Gear condition is above repair threshold.");
+            }
         }
         else
         {
-            ImGui.TextUnformatted(
-                $"Lowest gear durability: {lowestGearDurability:F1}%");
-
-            if (lowestGearDurability < 50f)
-            {
-                ImGui.TextColored(
-                    warning, "Repair needed: below 50%.");
-            }
-            else
-            {
-                ImGui.TextDisabled(
-                    "Repair threshold not reached.");
-            }
-
-            ImGui.TextUnformatted(
-                $"Equipped pieces at 100% spiritbond: {fullyBondedGearCount}");
-
-            if (fullyBondedGearCount > 0)
-            {
-                ImGui.TextColored(
-                    warning, "Materia extraction ready.");
-            }
-            else
-            {
-                ImGui.TextDisabled(
-                    "No fully bonded equipped gear.");
-            }
+            ImGui.TextDisabled(
+                gearSnapshotReady
+                    ? "No repairable equipped gear detected."
+                    : "Equipped gear data unavailable.");
         }
 
         ImGui.Spacing();
 
         bool wantRepair = config.AutoRepairEnabled;
 
-        if (ImGui.Checkbox(
-                "Auto-repair below 50%",
-                ref wantRepair))
+        if (ImGui.Checkbox("Automatic self-repair", ref wantRepair))
         {
             config.AutoRepairEnabled = wantRepair;
             Pi.SavePluginConfig(config);
         }
 
-        bool wantExtraction = config.WantAutoMateriaExtraction;
+        int threshold = Math.Clamp(config.RepairThreshold, 5, 100);
 
-        if (ImGui.Checkbox(
-                "Auto-extract at 100% (preview)",
-                ref wantExtraction))
+        ImGui.SetNextItemWidth(250f);
+
+        if (ImGui.SliderInt(
+                "Repair below",
+                ref threshold,
+                5,
+                100,
+                "%d%%"))
         {
-            config.WantAutoMateriaExtraction = wantExtraction;
+            // Snap to increments of five percent.
+            config.RepairThreshold = Math.Clamp(
+                ((threshold + 2) / 5) * 5, 5, 100);
+
             Pi.SavePluginConfig(config);
         }
 
-        ImGui.TextWrapped(
-            "Auto-repair runs before crafting or between completed " +
-            "batches. Requires dark matter and a suitable repair job. " +
-            "It stops the queue if repair fails. Materia extraction " +
-            "remains preview-only in DEV10.");
+        if (running)
+        {
+            ImGui.TextDisabled(
+                runAutoRepair
+                    ? "This run: auto-repair enabled."
+                    : "This run: auto-repair disabled.");
+
+            ImGui.TextDisabled(
+                "Threshold edits apply at the next batch boundary.");
+        }
+        else
+        {
+            ImGui.TextDisabled(
+                "Checks before crafting and between completed batches.");
+        }
+
+        ImGui.TextDisabled(
+            "Uses dark matter. Stops if self-repair fails.");
 
         ImGui.Spacing();
         ImGui.Separator();
+
         // Batch plan
         int planned = running ? target : config.TotalCount;
         int full = planned / 99;
@@ -684,7 +690,7 @@ public sealed unsafe class Plugin : IDalamudPlugin
 
         float lowest = 199f;
         int repairable = 0;
-        int fullyBonded = 0;
+
 
         for (int i = 0; i < equipped->Size; i++)
         {
@@ -712,14 +718,12 @@ public sealed unsafe class Plugin : IDalamudPlugin
 
             lowest = Math.Min(lowest, durability);
 
-            // Spiritbond uses 100 points per 1%.
-            if (item->SpiritbondOrCollectability >= 10000)
-                fullyBonded++;
+
         }
 
         lowestGearDurability = lowest;
         repairableGearCount = repairable;
-        fullyBondedGearCount = fullyBonded;
+
         gearSnapshotReady = true;
     }
     // Called only before the first batch or after a completed
@@ -738,8 +742,12 @@ public sealed unsafe class Plugin : IDalamudPlugin
             return true;
         }
 
-        if (repairableGearCount == 0 || lowestGearDurability >= 50f)
+        int threshold = Math.Clamp(config.RepairThreshold, 5, 100);
+
+        if (repairableGearCount == 0 || lowestGearDurability >= threshold)
             return false;
+
+        activeRepairThreshold = threshold;
 
         if (Addon("SelectYesno") != null || Addon("Repair") != null)
         {
@@ -899,7 +907,7 @@ public sealed unsafe class Plugin : IDalamudPlugin
     {
         if (elapsed > 15)
         {
-            Stop(false, "Repair timed out or did not restore gear above 50%");
+            Stop(false, $"Repair timed out or did not restore gear above {activeRepairThreshold}%");
             return;
         }
 
@@ -915,7 +923,7 @@ public sealed unsafe class Plugin : IDalamudPlugin
             return;
         }
 
-        if (lowestGearDurability < 50f)
+        if (lowestGearDurability < activeRepairThreshold)
             return;
 
         phase = Phase.RepairClose;
@@ -998,7 +1006,7 @@ public sealed unsafe class Plugin : IDalamudPlugin
         lastGearScan = DateTime.MinValue;
         UpdateGearSnapshot();
 
-        if (!gearSnapshotReady || lowestGearDurability < 50f)
+        if (!gearSnapshotReady || lowestGearDurability < activeRepairThreshold)
         {
             Stop(false, "Equipped gear still needs repair");
             return;
