@@ -19,7 +19,7 @@ using FFXIVClientStructs.FFXIV.Component.GUI;
 
 namespace QuickSynthSpam;
 
-// v0.0.12.2 DEV12.2 - EARLY PROTOTYPE
+// v0.1.0 RC1 - RELEASE CANDIDATE
 public sealed unsafe class Plugin : IDalamudPlugin
 {
     [PluginService] private static IDalamudPluginInterface Pi { get; set; } = null!;
@@ -85,7 +85,7 @@ public sealed unsafe class Plugin : IDalamudPlugin
 
         Commands.AddHandler("/qspam", new CommandInfo(Command)
         {
-            HelpMessage = "QuickSynth Spam prototype. /qspam 250 sets the total."
+            HelpMessage = "Open QuickSynthSpam with /qspam. Use /qspam 250 to set the crafting target."
         });
 
         Pi.UiBuilder.Draw += Draw;
@@ -261,10 +261,10 @@ public sealed unsafe class Plugin : IDalamudPlugin
         // Header
         ImGui.TextColored(accent, "QUICKSYNTH SPAM");
         ImGui.SameLine();
-        ImGui.TextDisabled("v0.0.12.2 DEV12.2");
+        ImGui.TextDisabled("v0.1.0 RC1");
 
         ImGui.TextDisabled(
-            "Batch crafting automation  |  Early Prototype");
+            "Quick Synthesis batch automation  |  Release Candidate");
 
         ImGui.Spacing();
         ImGui.Separator();
@@ -1059,7 +1059,7 @@ public sealed unsafe class Plugin : IDalamudPlugin
                 if ((DateTime.UtcNow - lastGearError).TotalSeconds >= 30)
                 {
                     lastGearError = DateTime.UtcNow;
-                    Log.Error(ex, "Gear maintenance preview failed");
+                    Log.Error(ex, "Gear durability monitoring failed");
                 }
             }
         }

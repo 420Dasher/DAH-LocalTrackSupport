@@ -1,12 +1,12 @@
 <Project Sdk="Dalamud.NET.Sdk/15.0.0">
   <PropertyGroup>
     <TargetFramework>net10.0-windows</TargetFramework>
-    <Version>0.0.12.2</Version>
+    <Version>0.1.0.0</Version>
     <AssemblyName>QuickSynthSpam</AssemblyName>
     <RootNamespace>QuickSynthSpam</RootNamespace>
     <Name>QuickSynthSpam</Name>
     <Author>Dash + AI</Author>
-    <Description>Early prototype for chaining Quick Synthesis batches.</Description>
+    <Description>Quick Synthesis batch chaining with configurable automatic gear repair.</Description>
     <Punchline>Chain Quick Synthesis batches beyond 99 crafts.</Punchline>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
