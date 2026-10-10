@@ -82,7 +82,7 @@ public sealed class Plugin : IDalamudPlugin
         PluginInterface.UiBuilder.OpenMainUi += ToggleMainUi;
         PluginInterface.UiBuilder.OpenConfigUi += ToggleMainUi;
 
-        Log.Information("Retainer Undercut v0.1.2 TEST2 loaded.");
+        Log.Information("Retainer Undercut v0.1.3 loaded.");
     }
 
     public void Dispose()

@@ -1,3 +1,13 @@
+## 0.1.3 - simplified interface and responsive retainer controls
+
+- Redesigns the main window around the simpler Preview -> Review -> Apply workflow.
+- Reduces the main navigation to Home, Item Rules, and Settings.
+- Simplifies preview results and latest-run summaries for normal end users.
+- Moves developer diagnostics under Advanced diagnostics in Settings.
+- Renames Dry Run / Live Run controls to Preview / Apply Prices.
+- Uses clearer Protected sellers wording for friend and FC price protection.
+- Moves the quick controls underneath the native Adjust Price dialog while it is open, preventing overlap on smaller resolutions.
+- Pricing, market-check, scanner, safety, and automation behavior are unchanged.
 ## 0.1.2 TEST2 - responsive Adjust Price overlay
 
 - Moves the Retainer Undercut quick controls underneath the native Adjust Price dialog while it is open.

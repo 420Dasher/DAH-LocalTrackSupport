@@ -7,7 +7,7 @@
     <Tags>retainer;market-board;utility</Tags>
     <IconUrl>https://raw.githubusercontent.com/420Dasher/DAH-LocalTrackSupport/main/plugins/RetainerUndercut/icon.png</IconUrl>
 
-    <Version>0.1.2.1</Version>
+    <Version>0.1.3</Version>
     <Description>Safe, configurable FFXIV retainer market repricing with Dry Run, multi-retainer automation, HQ/NQ separation, Matchlist protection, item rules, and Price Recovery.</Description>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
     <IsPackable>false</IsPackable>
