@@ -1,4 +1,4 @@
-﻿[
+[
     {
         "Author":  "Dash + AI",
         "Name":  "SpotifyTrackHonorific",
@@ -86,5 +86,33 @@
         "TestingAssemblyVersion":  "0.1.2.0",
         "TestingDalamudApiLevel":  15,
         "DownloadLinkTesting":  "https://raw.githubusercontent.com/420Dasher/DAH-LocalTrackSupport/testing/plugins/RetainerUndercut/latest.zip"
+    },
+    {
+        "Author":  "Dash + AI",
+        "Name":  "QuickSynthSpam",
+        "InternalName":  "QuickSynthSpam",
+        "AssemblyVersion":  "0.1.0.0",
+        "TestingAssemblyVersion":  "0.1.0.0",
+        "Description":  "Automatic Quick Synthesis chaining beyond 99 crafts, NQ-only crafting, material and progress tracking, and configurable equipped-gear self-repair.",
+        "ApplicableVersion":  "any",
+        "Tags":  [
+                     "crafting",
+                     "quick synthesis",
+                     "utility"
+                 ],
+        "DalamudApiLevel":  15,
+        "TestingDalamudApiLevel":  15,
+        "LoadRequiredState":  0,
+        "LoadSync":  false,
+        "CanUnloadAsync":  false,
+        "LoadPriority":  0,
+        "Punchline":  "Chain Quick Synthesis beyond 99 crafts.",
+        "Changelog":  "v0.1.0 initial stable release: verified batch chaining, 1,360-craft test, configurable automatic self-repair, recipe restoration and synthesis-state detection.",
+        "AcceptsFeedback":  false,
+        "IsHide":  false,
+        "IsTestingExclusive":  false,
+        "DownloadLinkInstall":  "https://raw.githubusercontent.com/420Dasher/DAH-LocalTrackSupport/main/plugins/QuickSynthSpam/latest.zip",
+        "DownloadLinkUpdate":  "https://raw.githubusercontent.com/420Dasher/DAH-LocalTrackSupport/main/plugins/QuickSynthSpam/latest.zip",
+        "DownloadLinkTesting":  "https://raw.githubusercontent.com/420Dasher/DAH-LocalTrackSupport/main/plugins/QuickSynthSpam/latest.zip"
     }
 ]
