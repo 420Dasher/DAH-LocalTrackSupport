@@ -1,3 +1,9 @@
+## 0.1.2 TEST2 - responsive Adjust Price overlay
+
+- Moves the Retainer Undercut quick controls underneath the native Adjust Price dialog while it is open.
+- Returns the controls underneath the normal retainer window when Adjust Price closes.
+- Prevents the quick controls from covering Adjust Price controls on smaller resolutions.
+- Pricing, market-check, scanner, safety, and automation behavior are unchanged.
 ## 0.1.2 TEST1 - simplified end-user interface
 
 - Reworks the main window around the simple Preview -> Review -> Apply workflow.

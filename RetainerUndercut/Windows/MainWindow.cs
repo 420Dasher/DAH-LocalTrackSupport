@@ -23,7 +23,7 @@ public sealed class MainWindow : Window
         AutoRetainerUndercutRunner autoRunner,
         MultiRetainerUndercutRunner multiRunner,
         Configuration configuration)
-        : base("Retainer Undercut - v0.1.2 TEST1###RetainerUndercutMain")
+        : base("Retainer Undercut - v0.1.2 TEST2###RetainerUndercutMain")
     {
         this.scanner = scanner;
         this.marketCheck = marketCheck;
@@ -85,7 +85,7 @@ public sealed class MainWindow : Window
         ImGui.TextUnformatted("Retainer Undercut");
         ImGui.PopStyleColor();
         ImGui.SameLine();
-        ImGui.TextDisabled("v0.1.2 TEST1");
+        ImGui.TextDisabled("v0.1.2 TEST2");
         ImGui.TextDisabled("Preview first. Apply only when the results look right.");
         ImGui.Separator();
 

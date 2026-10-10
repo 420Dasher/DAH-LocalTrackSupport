@@ -1,4 +1,4 @@
-[
+﻿[
     {
         "Author":  "Dash + AI",
         "Name":  "SpotifyTrackHonorific",
@@ -77,13 +77,13 @@
         "CanUnloadAsync":  false,
         "LoadPriority":  0,
         "Punchline":  "Fast, safe retainer repricing with preview-first automation.",
-        "Changelog":  "Retainer Undercut 0.1.2 TEST1 introduces a much simpler end-user interface centered around Preview, Review, and Apply, while keeping pricing and safety behavior unchanged.",
+        "Changelog":  "Retainer Undercut 0.1.2 TEST2 moves the quick controls underneath the native Adjust Price dialog to prevent overlap on smaller resolutions.",
         "AcceptsFeedback":  false,
         "DownloadLinkInstall":  "https://raw.githubusercontent.com/420Dasher/DAH-LocalTrackSupport/main/plugins/RetainerUndercut/latest.zip",
         "IsHide":  false,
         "IsTestingExclusive":  false,
         "DownloadLinkUpdate":  "https://raw.githubusercontent.com/420Dasher/DAH-LocalTrackSupport/main/plugins/RetainerUndercut/latest.zip",
-        "TestingAssemblyVersion":  "0.1.2.0",
+        "TestingAssemblyVersion":  "0.1.2.1",
         "TestingDalamudApiLevel":  15,
         "DownloadLinkTesting":  "https://raw.githubusercontent.com/420Dasher/DAH-LocalTrackSupport/testing/plugins/RetainerUndercut/latest.zip"
     },
