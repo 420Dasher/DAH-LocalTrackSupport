@@ -12,9 +12,9 @@
                  "navigation",
                  "visual"
              ],
-    "Name":  "BlunderNav [DEV4.1]",
+    "Name":  "BlunderNav [DEV5]",
     "InternalName":  "BlunderNav",
-    "AssemblyVersion":  "0.0.9.0",
+    "AssemblyVersion":  "0.0.10.0",
     "DalamudApiLevel":  15,
-    "Description":  "Visual-only Fall Guys navigation helper with Splatoon route overlays, nearest-segment guidance, automatic checkpoint advancement, manual rejoining and read-only vnavmesh suggestions."
+    "Description":  "Visual-only Fall Guys navigation assistant with automatic recorded-course selection, Splatoon overlays, read-only vnavmesh suggestions and obstacle diagnostics."
 }

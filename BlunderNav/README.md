@@ -1,65 +1,79 @@
-# BlunderNav v0.0.9 DEV4.1
+# BlunderNav DEV5
 
+Version: 0.0.10.0
 Dalamud API 15 / .NET 10
 
-## Visual navigation only
+## Visual-only navigation
 
-BlunderNav NEVER moves the character automatically.
+BlunderNav never controls character movement.
 
-Splatoon displays recorded routes, waypoint markers,
-suggested paths and manually placed test hazard circles.
+Splatoon provides in-world rendering.
+vnavmesh provides path suggestions only.
 
-vnavmesh calculates suggestions without invoking movement.
+## DEV5: Automatic course selection
 
-## DEV4.1 changes
+- Uses territory 1197 for lobby and 1165 for duty
+- Matches player position to existing recorded routes
+- Compares three-dimensional distance to route segments
+- Requires a route match within 8 yalms
+- Requires at least 4 yalms separation from competing routes
+- Requires three stable detection scans
+- Refuses ambiguous or unknown matches
+- Leaves recorded routes unchanged
+- Manual route selection disables automatic selection
+- Re-enable via Select course automatically
 
-- Start visual guidance from anywhere along a recorded route
-- Select the next checkpoint from the nearest route segment
-- Rejoin the recorded route from your current position
-- Display the upcoming six recorded route segments by default
-- Continue automatically advancing checkpoints as you walk
-- Preserve the existing recorded-route configuration
+Automatic course selection is a conservative first stage.
 
-## Controls
+Stages that share the same territory and overlapping
+route geometry cannot yet be reliably distinguished.
 
-/bnav
+## DEV5: Diagnostic capture
 
-/bnav stop
+Open /bnav and expand:
 
-The stop command stops and hides visual guidance.
-It does not affect character movement.
+DEV5 - Object and mechanic diagnostics
+
+Select Capture nearby objects.
+
+Then select Copy diagnostic report.
+
+The report includes:
+- Territory ID
+- Player location
+- Selected profile and detection status
+- Saved route information
+- Up to 60 nearby game objects
+- Data IDs, object IDs, positions and object kinds
+- Recently observed cast action IDs
+
+Use captures from different Fall Guys courses to
+establish reliable course/object signatures.
+
+## Not implemented yet
+
+Automatic identification of real Fall Guys danger zones.
+
+The existing red test circle remains a manual marker.
+It must not be treated as confirmed mechanic detection.
+
+## Existing features retained
+
+- Start visual guidance anywhere
+- Rejoin from current position
+- Automatic checkpoint advancement
+- Splatoon route and checkpoint overlays
+- Read-only vnavmesh suggestions
+- Route recording
+- Manual test hazard and avoidance experiment
 
 ## Testing
 
-1. Enter the Blunderville lobby with Splatoon enabled.
-2. Select the existing recorded route.
-3. Stand near the middle of the route, not checkpoint one.
-4. Click Start visual guidance.
-5. Verify the highlighted checkpoint is nearby and ahead.
-6. Walk toward it.
-7. Verify subsequent checkpoints advance automatically.
-8. Click Rejoin from here at another section of the route.
-9. Verify the suggested section changes accordingly.
-
-## Limitations
-
-Near overlapping or crossing route sections, the nearest
-geometric segment may not be the intended segment.
-
-Rejoin from here provides manual correction.
-
-Recorded paths do not yet automatically avoid live
-Fall Guys obstacle mechanics.
-
-Manual test hazard circles are not actual AoE detection.
-
-## DEV5 direction
-
-- Automatically detect Fall Guys courses / stages
-- Automatically choose the matching route profile
-- Identify real obstacle danger zones
-- Recalculate recommended paths around detected hazards
-
-Multiple Fall Guys stages share territory 1165.
-Stage identification must therefore use additional
-course-specific evidence, with manual override.
+1. Enter the Blunderville lobby.
+2. Verify saved route automatically selects if distinct.
+3. Start visual guidance and walk manually.
+4. Verify checkpoint advancement still works.
+5. Switch to a course with a recorded route.
+6. Check whether profile selection is confident.
+7. Capture diagnostic reports during different courses.
+8. Manually select a route when detection is ambiguous.

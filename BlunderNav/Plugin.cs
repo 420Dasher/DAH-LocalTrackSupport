@@ -13,7 +13,7 @@ using Dalamud.Plugin.Services;
 
 namespace BlunderNav;
 
-public sealed class Plugin : IDalamudPlugin
+public sealed partial class Plugin : IDalamudPlugin
 {
     [PluginService]
     private static IDalamudPluginInterface Pi { get; set; } = null!;
@@ -135,7 +135,7 @@ public sealed class Plugin : IDalamudPlugin
         Pi.UiBuilder.OpenConfigUi += Open;
 
         Log.Information(
-            "BlunderNav DEV4 loaded: no automatic movement.");
+            "BlunderNav DEV5 loaded: visual guidance and course detection.");
     }
 
     private void Save()
@@ -588,6 +588,8 @@ public sealed class Plugin : IDalamudPlugin
 
         var position = player.Position;
 
+        UpdateCourseSelection(position, now);
+
         if ((now - lastNavPoll).TotalMilliseconds >= 1000)
         {
             lastNavPoll = now;
@@ -782,7 +784,7 @@ public sealed class Plugin : IDalamudPlugin
             return;
 
         if (!ImGui.Begin(
-            "BlunderNav | DEV4.1 Visual Navigation",
+            "BlunderNav | DEV5 Visual Navigation",
             ref windowOpen,
             ImGuiWindowFlags.AlwaysAutoResize))
         {
@@ -795,7 +797,7 @@ public sealed class Plugin : IDalamudPlugin
             ImGui.TextUnformatted("BLUNDERNAV");
             ImGui.Separator();
 
-            ImGui.TextUnformatted("Version: 0.0.9 DEV4.1");
+            ImGui.TextUnformatted("Version: 0.0.10 DEV5");
             ImGui.TextUnformatted("Mode: VISUAL GUIDANCE ONLY");
 
             ImGui.TextWrapped(
@@ -830,6 +832,8 @@ public sealed class Plugin : IDalamudPlugin
                 $"Position: {position.X:F1}, " +
                 $"{position.Y:F1}, {position.Z:F1}");
 
+            DrawCourseDetection(position);
+
             int slot = config.SelectedSlot;
 
             if (guideRunning)
@@ -841,6 +845,11 @@ public sealed class Plugin : IDalamudPlugin
             {
                 config.SelectedSlot = slot;
                 config.AutoRecord = false;
+                config.AutoSelectCourse = false;
+                ResetCourseCandidate();
+
+                courseDetectionStatus =
+                    "Manual profile override active.";
 
                 clearArmed = false;
                 suggestedPath = null;
@@ -1081,7 +1090,7 @@ public sealed class Plugin : IDalamudPlugin
             ImGui.Spacing();
 
             ImGui.TextDisabled(
-                "DEV4.1 | Splatoon + read-only vnavmesh | " +
+                "DEV5 | Splatoon + read-only vnavmesh | " +
                 "/bnav");
         }
         finally

@@ -7,6 +7,7 @@ public sealed class RouteConfiguration : IPluginConfiguration
 {
     public int Version { get; set; } = 1;
     public int SelectedSlot { get; set; } = 0;
+    public bool AutoSelectCourse { get; set; } = true;
     public bool AutoRecord { get; set; } = false;
     public bool AutoAdvance { get; set; } = false;
     public bool SmoothCorners { get; set; } = false;
