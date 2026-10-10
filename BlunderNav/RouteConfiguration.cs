@@ -8,6 +8,7 @@ public sealed class RouteConfiguration : IPluginConfiguration
     public int Version { get; set; } = 1;
     public int SelectedSlot { get; set; } = 0;
     public bool AutoSelectCourse { get; set; } = true;
+    public List<CourseSignature> CourseSignatures { get; set; } = new();
     public bool AutoRecord { get; set; } = false;
     public bool AutoAdvance { get; set; } = false;
     public bool SmoothCorners { get; set; } = false;
@@ -41,4 +42,10 @@ public sealed class RoutePoint
 
     public System.Numerics.Vector3 Position =>
         new(X, Y, Z);
+}
+public sealed class CourseSignature
+{
+    public int Slot { get; set; }
+    public uint MapId { get; set; }
+    public List<string> ObjectKeys { get; set; } = new();
 }

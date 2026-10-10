@@ -1,53 +1,233 @@
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Numerics;
 using System.Text;
 using Dalamud.Bindings.ImGui;
+using Dalamud.Game.ClientState.Objects.Enums;
 
 namespace BlunderNav;
 
 public sealed partial class Plugin
 {
-    // Conservative learning-based course selection.
+    // Map recognition never reads recorded route geometry.
     //
-    // Territory 1165 contains several stages.
-    // Without known game-object signatures, we can only
-    // identify a route by proximity to saved recordings.
+    // Sources:
+    // - Client territory
+    // - Client MapId
+    // - Current player position
+    // - Stage-specific object signatures
     //
-    // When route geometries overlap or no recording exists,
-    // leave the current profile unchanged.
+    // Map IDs may be shared. They are NOT treated as
+    // definitive without supporting observations.
 
     private DateTime lastCourseScan;
+
+    private uint lastDetectionTerritory;
+    private uint lastDetectionMapId;
+
+    private int detectedMapSlot = -1;
     private int candidateCourse = -1;
     private int candidateSamples;
+    private int teachingSlot = 1;
 
     private string courseDetectionStatus =
-        "Waiting for a recorded route near your position.";
+        "Waiting for map identification.";
 
     private string diagnosticReport = "";
 
-    private const float MaximumDetectionDistance = 8f;
-    private const float MinimumCandidateSeparation = 4f;
-
-    private static float DistanceToRecordedRoute(
-        RecordedRoute route,
-        Vector3 position)
-    {
-        if (route.Points == null || route.Points.Count < 2)
-            return float.MaxValue;
-
-        FindNearestUpcomingCheckpoint(
-            route,
-            position,
-            out float distance);
-
-        return distance;
-    }
+    private string DetectedMapName =>
+        Client.TerritoryType == 1197
+            ? "Blunderville Lobby"
+            : detectedMapSlot >= 1 &&
+              detectedMapSlot < Names.Length
+                ? Names[detectedMapSlot]
+                : "Unknown Fall Guys course";
 
     private void ResetCourseCandidate()
     {
         candidateCourse = -1;
         candidateSamples = 0;
+    }
+
+    private HashSet<string> CollectMapObjects(
+        Vector3 position)
+    {
+        var keys = new HashSet<string>(
+            StringComparer.Ordinal);
+
+        foreach (var obj in Objects)
+        {
+            if (obj == null ||
+                obj.ObjectKind == ObjectKind.Pc ||
+                obj.DataId == 0)
+                continue;
+
+            if (Vector3.DistanceSquared(
+                position, obj.Position) > 120f * 120f)
+                continue;
+
+            // Stable across sessions; excludes actor instance IDs.
+            keys.Add(
+                $"{(int)obj.ObjectKind}:{obj.DataId}");
+        }
+
+        return keys;
+    }
+
+    private int IdentifyCourse(
+        Vector3 position,
+        out string evidence)
+    {
+        evidence = "";
+
+        if (Client.TerritoryType == 1197)
+        {
+            evidence = "Blunderville lobby territory.";
+            return 0;
+        }
+
+        if (Client.TerritoryType != 1165)
+        {
+            evidence = "Outside Fall Guys event duty.";
+            return -1;
+        }
+
+        // Established Stage 3 location from vFallguy.
+        // Other stages require observed game signatures.
+        if (position.X >= -40f &&
+            position.X <= 40f &&
+            position.Z >= 100f &&
+            position.Z <= 350f)
+        {
+            evidence = "Manderville Mountain arena location.";
+            return 5;
+        }
+
+        var live = CollectMapObjects(position);
+
+        var samples = config.CourseSignatures
+            .Where(s =>
+                s != null &&
+                s.Slot >= 1 &&
+                s.Slot < Names.Length &&
+                s.ObjectKeys != null &&
+                (s.MapId == 0 ||
+                 Client.MapId == 0 ||
+                 s.MapId == Client.MapId))
+            .ToList();
+
+        if (samples.Count == 0)
+        {
+            evidence =
+                $"Map ID {Client.MapId}; " +
+                "no learned signatures for this area.";
+            return -1;
+        }
+
+        int bestSlot = -1;
+        float bestScore = 0f;
+        float secondScore = 0f;
+        int bestHits = 0;
+
+        foreach (var sample in samples)
+        {
+            // Ignore object IDs also associated with
+            // another known course. They are not useful
+            // for distinguishing the stages.
+
+            var competingKeys = new HashSet<string>(
+                config.CourseSignatures
+                    .Where(s =>
+                        s != null &&
+                        s.Slot != sample.Slot &&
+                        s.ObjectKeys != null)
+                    .SelectMany(s => s.ObjectKeys),
+                StringComparer.Ordinal);
+
+            var uniqueKeys = sample.ObjectKeys
+                .Distinct(StringComparer.Ordinal)
+                .Where(k => !competingKeys.Contains(k))
+                .ToArray();
+
+            if (uniqueKeys.Length < 3)
+                continue;
+
+            int hits = uniqueKeys.Count(live.Contains);
+
+            float coverage =
+                (float)hits / uniqueKeys.Length;
+
+            // Reject weak or incidental matches.
+
+            if (hits < 3 || coverage < 0.20f)
+                continue;
+
+            float score = hits + coverage * 2f;
+
+            if (score > bestScore)
+            {
+                if (bestSlot >= 0 &&
+                    bestSlot != sample.Slot)
+                {
+                    secondScore = bestScore;
+                }
+
+                bestSlot = sample.Slot;
+                bestScore = score;
+                bestHits = hits;
+            }
+            else if (sample.Slot != bestSlot &&
+                     score > secondScore)
+            {
+                secondScore = score;
+            }
+        }
+
+        if (bestSlot < 0)
+        {
+            evidence =
+                $"Map ID {Client.MapId}; " +
+                "no sufficiently strong object match.";
+            return -1;
+        }
+
+        if (secondScore > 0 &&
+            bestScore - secondScore < 2.5f)
+        {
+            evidence =
+                "Ambiguous object signatures.";
+            return -1;
+        }
+
+        evidence =
+            $"{bestHits} distinctive object IDs matched; " +
+            $"Map ID {Client.MapId}.";
+
+        return bestSlot;
+    }
+
+    private void ApplyDetectedMap(int slot)
+    {
+        if (!config.AutoSelectCourse ||
+            config.AutoRecord ||
+            guideRunning ||
+            slot < 0 ||
+            slot >= Names.Length ||
+            config.SelectedSlot == slot)
+        {
+            return;
+        }
+
+        config.SelectedSlot = slot;
+        Save();
+
+        ResetSuggestion();
+        splatoon.Clear();
+
+        status =
+            $"Map identified: {DetectedMapName}. " +
+            "Matching route profile selected.";
     }
 
     private void UpdateCourseSelection(
@@ -59,96 +239,45 @@ public sealed partial class Plugin
 
         lastCourseScan = now;
 
-        if (!config.AutoSelectCourse)
+        uint territory = Client.TerritoryType;
+        uint mapId = Client.MapId;
+
+        if (lastDetectionTerritory != territory ||
+            lastDetectionMapId != mapId)
         {
-            courseDetectionStatus = "Manual profile override active.";
+            lastDetectionTerritory = territory;
+            lastDetectionMapId = mapId;
+
+            detectedMapSlot = -1;
             ResetCourseCandidate();
+        }
+
+        int result = IdentifyCourse(
+            position, out string evidence);
+
+        if (result == -1)
+        {
+            detectedMapSlot = -1;
+            ResetCourseCandidate();
+
+            courseDetectionStatus =
+                "Unidentified: " + evidence;
+
             return;
         }
 
-        if (config.AutoRecord)
+        if (detectedMapSlot == result)
         {
             courseDetectionStatus =
-                "Course selection paused during recording.";
-            ResetCourseCandidate();
+                $"Detected: {DetectedMapName}. {evidence}";
+
+            ApplyDetectedMap(result);
             return;
         }
 
-        ushort territory = (ushort)Client.TerritoryType;
-
-        int bestSlot = -1;
-        float bestDistance = float.MaxValue;
-        float secondDistance = float.MaxValue;
-
-        for (int slot = 0; slot < Names.Length; slot++)
+        if (candidateCourse != result)
         {
-            string routeName = Names[slot];
-
-            foreach (var route in config.Routes)
-            {
-                if (route == null ||
-                    route.Territory != territory ||
-                    route.Name != routeName)
-                    continue;
-
-                float distance = DistanceToRecordedRoute(
-                    route, position);
-
-                if (distance < bestDistance)
-                {
-                    secondDistance = bestDistance;
-                    bestDistance = distance;
-                    bestSlot = slot;
-                }
-                else if (distance < secondDistance)
-                {
-                    secondDistance = distance;
-                }
-            }
-        }
-
-        if (bestSlot < 0)
-        {
-            courseDetectionStatus =
-                "Unknown: no recorded route for this territory.";
-            ResetCourseCandidate();
-            return;
-        }
-
-        if (bestDistance > MaximumDetectionDistance)
-        {
-            courseDetectionStatus =
-                $"No confident match. Closest route: " +
-                $"{Names[bestSlot]} ({bestDistance:F1}y away).";
-            ResetCourseCandidate();
-            return;
-        }
-
-        if (secondDistance < float.MaxValue &&
-            secondDistance - bestDistance <
-                MinimumCandidateSeparation)
-        {
-            courseDetectionStatus =
-                $"Ambiguous routes near {Names[bestSlot]}. " +
-                "Manual selection available.";
-
-            ResetCourseCandidate();
-            return;
-        }
-
-        if (config.SelectedSlot == bestSlot)
-        {
-            courseDetectionStatus =
-                $"Matched: {Names[bestSlot]} " +
-                $"({bestDistance:F1}y from recorded route).";
-
-            ResetCourseCandidate();
-            return;
-        }
-
-        if (candidateCourse != bestSlot)
-        {
-            candidateCourse = bestSlot;
+            candidateCourse = result;
             candidateSamples = 1;
         }
         else
@@ -157,100 +286,132 @@ public sealed partial class Plugin
         }
 
         courseDetectionStatus =
-            $"Candidate: {Names[bestSlot]} " +
-            $"({candidateSamples}/3 checks, " +
-            $"{bestDistance:F1}y away).";
-
-        // Require a stable match across three separate scans
-        // before changing any profile.
+            $"Checking: {(result == 0 ? "Lobby" : Names[result])} " +
+            $"({candidateSamples}/3). {evidence}";
 
         if (candidateSamples < 3)
             return;
 
-        if (guideRunning)
-        {
-            StopGuide(
-                "Course profile changed. Restart visual guidance.");
-        }
-
-        config.SelectedSlot = bestSlot;
-        Save();
-
-        ResetSuggestion();
-        splatoon.Clear();
+        detectedMapSlot = result;
         ResetCourseCandidate();
 
         courseDetectionStatus =
-            $"Auto-selected: {Names[bestSlot]}.";
+            $"Detected: {DetectedMapName}. {evidence}";
+
+        ApplyDetectedMap(result);
+    }
+
+    private void TeachCurrentMap(Vector3 position)
+    {
+        if (Client.TerritoryType != 1165)
+        {
+            status = "Enter a Fall Guys event course first.";
+            return;
+        }
+
+        if (teachingSlot < 1 ||
+            teachingSlot >= Names.Length)
+        {
+            status = "Select the actual course name first.";
+            return;
+        }
+
+        var keys = CollectMapObjects(position)
+            .OrderBy(k => k, StringComparer.Ordinal)
+            .ToList();
+
+        if (keys.Count < 3)
+        {
+            status =
+                "Too few identifiable objects. " +
+                "Move further into the active course.";
+            return;
+        }
+
+        config.CourseSignatures ??= new();
+
+        config.CourseSignatures.Add(
+            new CourseSignature
+            {
+                Slot = teachingSlot,
+                MapId = Client.MapId,
+                ObjectKeys = keys
+            });
+
+        // Keep up to 6 observations per map.
+        var same = config.CourseSignatures
+            .Where(s => s.Slot == teachingSlot)
+            .ToList();
+
+        while (same.Count > 6)
+        {
+            config.CourseSignatures.Remove(same[0]);
+            same.RemoveAt(0);
+        }
+
+        Save();
+        ResetCourseCandidate();
 
         status =
-            $"Course detected: {Names[bestSlot]}. " +
-            "Visual guidance can now be started.";
+            $"Learned {keys.Count} object IDs for " +
+            $"{Names[teachingSlot]} (Map ID {Client.MapId}).";
+
+        courseDetectionStatus =
+            "Learning saved. Automatic recognition will " +
+            "be evaluated from live evidence.";
     }
 
     private string CaptureCourseDiagnostics(Vector3 position)
     {
         var report = new StringBuilder();
 
-        report.AppendLine("=== BLUNDERNAV DEV5 DIAGNOSTICS ===");
+        report.AppendLine("=== BLUNDERNAV DEV5 FIX1 ===");
         report.AppendLine($"UTC: {DateTime.UtcNow:O}");
+        report.AppendLine($"Territory: {Client.TerritoryType}");
+        report.AppendLine($"Map ID: {Client.MapId}");
+        report.AppendLine($"Detected map: {DetectedMapName}");
         report.AppendLine(
-            $"Territory: {Client.TerritoryType}");
+            $"Detection: {courseDetectionStatus}");
 
         report.AppendLine(
-            $"Player XYZ: " +
-            $"{position.X:F3}, " +
-            $"{position.Y:F3}, " +
-            $"{position.Z:F3}");
+            $"Player XYZ: {position.X:F2}, " +
+            $"{position.Y:F2}, {position.Z:F2}");
 
         report.AppendLine(
-            $"Selected profile: {Names[config.SelectedSlot]}");
+            $"Route profile: {Names[config.SelectedSlot]}");
 
         report.AppendLine(
-            $"Automatic selection: {config.AutoSelectCourse}");
+            $"Auto-load route: {config.AutoSelectCourse}");
 
         report.AppendLine(
-            $"Course status: {courseDetectionStatus}");
+            $"Saved map signatures: " +
+            $"{config.CourseSignatures.Count}");
 
         report.AppendLine();
-        report.AppendLine("=== RECORDED PROFILES ===");
+        report.AppendLine("=== OBJECT SIGNATURE ===");
 
-        foreach (var route in config.Routes)
+        foreach (var key in CollectMapObjects(position)
+            .OrderBy(k => k, StringComparer.Ordinal))
         {
-            if (route == null || route.Points == null)
-                continue;
-
-            report.AppendLine(
-                $"{route.Name} | " +
-                $"Territory={route.Territory} | " +
-                $"Points={route.Points.Count}");
-
-            if (route.Points.Count > 0)
-            {
-                Vector3 first = route.Points[0].Position;
-
-                report.AppendLine(
-                    $"  Start: {first.X:F2}, " +
-                    $"{first.Y:F2}, {first.Z:F2}");
-            }
+            report.AppendLine(key);
         }
 
         report.AppendLine();
-        report.AppendLine(
-            "=== NEARBY GAME OBJECTS (UP TO 60, 80Y) ===");
+        report.AppendLine("=== NEARBY NON-PLAYER OBJECTS ===");
 
         var nearby = Objects
-            .Where(obj => obj != null)
+            .Where(obj =>
+                obj != null &&
+                obj.ObjectKind != ObjectKind.Pc)
             .Select(obj => new
             {
                 Object = obj,
                 Distance = Vector3.Distance(
                     position, obj.Position)
             })
-            .Where(entry => entry.Distance <= 80f)
+            .Where(entry => entry.Distance <= 120f)
             .OrderBy(entry => entry.Distance)
-            .Take(60)
-            .ToList();
+            .Take(80);
 
         foreach (var entry in nearby)
         {
@@ -258,24 +419,22 @@ public sealed partial class Plugin
             var p = obj.Position;
 
             report.AppendLine(
-                $"Distance={entry.Distance:F1}y | " +
+                $"{entry.Distance:F1}y | " +
                 $"Kind={obj.ObjectKind} | " +
                 $"DataID={obj.DataId} | " +
-                $"ObjectID=0x{obj.GameObjectId:X} | " +
                 $"Name={obj.Name} | " +
                 $"XYZ={p.X:F2},{p.Y:F2},{p.Z:F2}");
         }
 
         report.AppendLine();
-        report.AppendLine(
-            "=== OBSERVED CAST ACTIONS (UP TO 30) ===");
+        report.AppendLine("=== OBSERVED CASTS ===");
 
         foreach (var cast in casts.Take(30))
             report.AppendLine(cast);
 
         report.AppendLine();
         report.AppendLine(
-            "Observations are not verified hazard definitions.");
+            "No hazard geometry has been inferred.");
 
         return report.ToString();
     }
@@ -283,45 +442,58 @@ public sealed partial class Plugin
     private void DrawCourseDetection(Vector3 position)
     {
         ImGui.Separator();
-        ImGui.TextUnformatted("AUTOMATIC COURSE SELECTION");
+        ImGui.TextUnformatted("FALL GUYS MAP DETECTION");
 
-        bool autoSelect = config.AutoSelectCourse;
+        ImGui.TextUnformatted(
+            $"Detected map: {DetectedMapName}");
 
-        if (ImGui.Checkbox(
-            "Select course automatically",
-            ref autoSelect))
-        {
-            config.AutoSelectCourse = autoSelect;
-            ResetCourseCandidate();
-            Save();
-        }
+        ImGui.TextUnformatted(
+            $"Territory: {Client.TerritoryType} | " +
+            $"Map ID: {Client.MapId}");
 
         ImGui.TextWrapped(courseDetectionStatus);
 
-        ImGui.TextWrapped(
-            "Uses territory and recorded-route locations. " +
-            "Ambiguous or unrecorded courses are not guessed.");
+        bool autoLoad = config.AutoSelectCourse;
 
-        if (!config.AutoSelectCourse)
+        if (ImGui.Checkbox(
+            "Auto-load route for detected map",
+            ref autoLoad))
         {
-            ImGui.TextWrapped(
-                "Manual override enabled. Check the option " +
-                "above to resume automatic selection.");
+            config.AutoSelectCourse = autoLoad;
+            Save();
         }
 
+        ImGui.TextWrapped(
+            "Map identification runs independently of " +
+            "recorded routes. Only confirmed map detections " +
+            "can automatically select a route profile.");
+
         if (ImGui.CollapsingHeader(
-            "DEV5 - Object and mechanic diagnostics"))
+            "Map identification calibration"))
         {
             ImGui.TextWrapped(
-                "Capture nearby game objects and observed " +
-                "casts to help identify Fall Guys stages " +
-                "and obstacle IDs. No hazard shapes are " +
-                "automatically inferred yet.");
+                "For unidentified maps, choose the map " +
+                "you are actually playing and capture its " +
+                "object signature. Repeat in different areas " +
+                "to improve recognition.");
 
-            if (ImGui.Button("Capture nearby objects"))
+            ImGui.Combo(
+                "This map is...",
+                ref teachingSlot,
+                Names,
+                Names.Length);
+
+            if (ImGui.Button("Teach current map"))
+                TeachCurrentMap(position);
+
+            ImGui.TextUnformatted(
+                $"Saved observations: " +
+                $"{config.CourseSignatures.Count}");
+
+            if (ImGui.Button("Capture diagnostic snapshot"))
             {
-                diagnosticReport = CaptureCourseDiagnostics(
-                    position);
+                diagnosticReport =
+                    CaptureCourseDiagnostics(position);
 
                 status = "Diagnostic snapshot captured.";
             }
@@ -331,18 +503,16 @@ public sealed partial class Plugin
                 if (ImGui.Button("Copy diagnostic report"))
                 {
                     ImGui.SetClipboardText(diagnosticReport);
-                    status = "Diagnostics copied to clipboard.";
+                    status = "Report copied to clipboard.";
                 }
-
-                ImGui.TextUnformatted(
-                    $"Report length: {diagnosticReport.Length} characters");
 
                 if (ImGui.TreeNode("Diagnostic preview"))
                 {
                     foreach (var line in diagnosticReport
-                        .Split('\n').Take(20))
+                        .Split('\n').Take(25))
                     {
-                        ImGui.TextUnformatted(line.TrimEnd('\r'));
+                        ImGui.TextUnformatted(
+                            line.TrimEnd('\r'));
                     }
 
                     ImGui.TreePop();

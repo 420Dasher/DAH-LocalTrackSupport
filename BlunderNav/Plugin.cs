@@ -784,7 +784,7 @@ public sealed partial class Plugin : IDalamudPlugin
             return;
 
         if (!ImGui.Begin(
-            "BlunderNav | DEV5 Visual Navigation",
+            "BlunderNav | DEV5 FIX1 Visual Navigation",
             ref windowOpen,
             ImGuiWindowFlags.AlwaysAutoResize))
         {
@@ -797,7 +797,7 @@ public sealed partial class Plugin : IDalamudPlugin
             ImGui.TextUnformatted("BLUNDERNAV");
             ImGui.Separator();
 
-            ImGui.TextUnformatted("Version: 0.0.10 DEV5");
+            ImGui.TextUnformatted("Version: 0.0.11 DEV5 FIX1");
             ImGui.TextUnformatted("Mode: VISUAL GUIDANCE ONLY");
 
             ImGui.TextWrapped(
@@ -849,7 +849,7 @@ public sealed partial class Plugin : IDalamudPlugin
                 ResetCourseCandidate();
 
                 courseDetectionStatus =
-                    "Manual profile override active.";
+                    "Manual route override. Map detection remains active.";
 
                 clearArmed = false;
                 suggestedPath = null;
@@ -1090,7 +1090,7 @@ public sealed partial class Plugin : IDalamudPlugin
             ImGui.Spacing();
 
             ImGui.TextDisabled(
-                "DEV5 | Splatoon + read-only vnavmesh | " +
+                "DEV5 FIX1 | Splatoon + read-only vnavmesh | " +
                 "/bnav");
         }
         finally

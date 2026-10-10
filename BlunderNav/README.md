@@ -1,79 +1,50 @@
-# BlunderNav DEV5
+# BlunderNav DEV5 FIX1
 
-Version: 0.0.10.0
+Version: 0.0.11.0
 Dalamud API 15 / .NET 10
 
-## Visual-only navigation
+## Actual map identification
 
-BlunderNav never controls character movement.
+Map identification does not use recorded routes.
 
-Splatoon provides in-world rendering.
-vnavmesh provides path suggestions only.
+Evidence:
+- Territory type
+- Current Map ID
+- Player position
+- Distinctive non-player object Data IDs
 
-## DEV5: Automatic course selection
+Built-in:
+- Blunderville lobby: territory 1197
+- Manderville Mountain: published Stage 3 coordinate region
 
-- Uses territory 1197 for lobby and 1165 for duty
-- Matches player position to existing recorded routes
-- Compares three-dimensional distance to route segments
-- Requires a route match within 8 yalms
-- Requires at least 4 yalms separation from competing routes
-- Requires three stable detection scans
-- Refuses ambiguous or unknown matches
-- Leaves recorded routes unchanged
-- Manual route selection disables automatic selection
-- Re-enable via Select course automatically
+Other course signatures must initially be collected in-game.
 
-Automatic course selection is a conservative first stage.
+## Calibration
 
-Stages that share the same territory and overlapping
-route geometry cannot yet be reliably distinguished.
+1. Enter a Fall Guys course.
+2. Open /bnav.
+3. Expand Map identification calibration.
+4. Choose the actual course name.
+5. Click Teach current map.
+6. Capture additional samples in different areas.
+7. Repeat for other courses.
 
-## DEV5: Diagnostic capture
+Learned signatures persist in the existing Dalamud config.
 
-Open /bnav and expand:
+## Route integration
 
-DEV5 - Object and mechanic diagnostics
+Once a map is detected, its matching route profile
+can be selected automatically.
 
-Select Capture nearby objects.
+Unidentified maps do not trigger route switching.
 
-Then select Copy diagnostic report.
+Manual route selection disables auto-loading, but map
+identification itself continues.
 
-The report includes:
-- Territory ID
-- Player location
-- Selected profile and detection status
-- Saved route information
-- Up to 60 nearby game objects
-- Data IDs, object IDs, positions and object kinds
-- Recently observed cast action IDs
+## Safety
 
-Use captures from different Fall Guys courses to
-establish reliable course/object signatures.
+No movement automation.
 
-## Not implemented yet
+No guessed obstacle AoEs.
 
-Automatic identification of real Fall Guys danger zones.
-
-The existing red test circle remains a manual marker.
-It must not be treated as confirmed mechanic detection.
-
-## Existing features retained
-
-- Start visual guidance anywhere
-- Rejoin from current position
-- Automatic checkpoint advancement
-- Splatoon route and checkpoint overlays
-- Read-only vnavmesh suggestions
-- Route recording
-- Manual test hazard and avoidance experiment
-
-## Testing
-
-1. Enter the Blunderville lobby.
-2. Verify saved route automatically selects if distinct.
-3. Start visual guidance and walk manually.
-4. Verify checkpoint advancement still works.
-5. Switch to a course with a recorded route.
-6. Check whether profile selection is confident.
-7. Capture diagnostic reports during different courses.
-8. Manually select a route when detection is ambiguous.
+The existing Splatoon visual guidance is retained.
