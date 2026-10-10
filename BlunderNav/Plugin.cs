@@ -270,6 +270,85 @@ public sealed class Plugin : IDalamudPlugin
         status = message;
     }
 
+    // Find the nearest recorded line segment, rather than
+    // requiring the player to stand at checkpoint one.
+    //
+    // Projection onto a 3D segment also distinguishes
+    // overlapping paths at different heights.
+    //
+    // When several segments are equally close, prefer
+    // the earlier recorded segment for predictable behavior.
+
+    private static int FindNearestUpcomingCheckpoint(
+        RecordedRoute route,
+        Vector3 position,
+        out float distance)
+    {
+        distance = float.MaxValue;
+
+        if (route.Points.Count < 2)
+            return 1;
+
+        int bestSegment = 0;
+
+        for (int i = 0; i < route.Points.Count - 1; i++)
+        {
+            Vector3 a = route.Points[i].Position;
+            Vector3 b = route.Points[i + 1].Position;
+            Vector3 segment = b - a;
+
+            float squaredLength = segment.LengthSquared();
+
+            float t = squaredLength > 0.0001f
+                ? Math.Clamp(
+                    Vector3.Dot(position - a, segment) /
+                    squaredLength,
+                    0f, 1f)
+                : 0f;
+
+            Vector3 closest = a + segment * t;
+
+            float candidateDistance =
+                Vector3.Distance(position, closest);
+
+            if (candidateDistance < distance - 0.01f)
+            {
+                distance = candidateDistance;
+                bestSegment = i;
+            }
+        }
+
+        return bestSegment + 1;
+    }
+
+    private void ResetSuggestion()
+    {
+        pending = null;
+        suggestedPath = null;
+        lastPathRequest = DateTime.MinValue;
+    }
+
+    private void RejoinGuide(Vector3 position)
+    {
+        var route = CurrentRoute();
+
+        if (route.Points.Count < 2)
+        {
+            StopGuide("Route has too few checkpoints.");
+            return;
+        }
+
+        nextIndex = FindNearestUpcomingCheckpoint(
+            route, position, out float distance);
+
+        ResetSuggestion();
+
+        status =
+            $"Rejoined near segment {nextIndex}/" +
+            $"{route.Points.Count - 1}. " +
+            $"Distance from recorded trail: {distance:F1} yalms.";
+    }
+
     private void StartGuide()
     {
         if (!InArea || Objects.LocalPlayer == null)
@@ -286,28 +365,25 @@ public sealed class Plugin : IDalamudPlugin
             return;
         }
 
-        var position = Objects.LocalPlayer.Position;
+        Vector3 position = Objects.LocalPlayer.Position;
 
-        if (Vector3.Distance(
-            position, route.Points[0].Position) > 5f)
-        {
-            status = "Stand within 5 yalms of checkpoint 1.";
-            return;
-        }
+        int selected = FindNearestUpcomingCheckpoint(
+            route, position, out float distance);
 
         config.AutoRecord = false;
         Save();
 
         guideRunning = true;
         showOverlay = true;
-        nextIndex = 1;
+        nextIndex = selected;
 
-        pending = null;
-        suggestedPath = null;
-        lastPathRequest = DateTime.MinValue;
+        ResetSuggestion();
 
         status =
-            "Guidance active. Follow the green route manually.";
+            $"Visual guidance started near segment " +
+            $"{selected}/{route.Points.Count - 1}. " +
+            $"Distance from trail: {distance:F1} yalms. " +
+            "Movement remains manual.";
     }
 
     private void ObserveCasts()
@@ -639,7 +715,8 @@ public sealed class Plugin : IDalamudPlugin
         if (guideRunning && !showEntireRoute)
         {
             begin = Math.Max(0, nextIndex - 1);
-            end = Math.Min(end, begin + 8);
+            // Keep only the next six recorded segments visible.
+            end = Math.Min(end, begin + 6);
         }
 
         for (int i = begin; i < end; i++)
@@ -705,7 +782,7 @@ public sealed class Plugin : IDalamudPlugin
             return;
 
         if (!ImGui.Begin(
-            "BlunderNav | DEV4 Visual Navigation",
+            "BlunderNav | DEV4.1 Visual Navigation",
             ref windowOpen,
             ImGuiWindowFlags.AlwaysAutoResize))
         {
@@ -718,7 +795,7 @@ public sealed class Plugin : IDalamudPlugin
             ImGui.TextUnformatted("BLUNDERNAV");
             ImGui.Separator();
 
-            ImGui.TextUnformatted("Version: 0.0.8 DEV4");
+            ImGui.TextUnformatted("Version: 0.0.9 DEV4.1");
             ImGui.TextUnformatted("Mode: VISUAL GUIDANCE ONLY");
 
             ImGui.TextWrapped(
@@ -811,6 +888,11 @@ public sealed class Plugin : IDalamudPlugin
             ImGui.Separator();
             ImGui.TextUnformatted("ROUTE GUIDANCE");
 
+            ImGui.TextWrapped(
+                "Start anywhere along a recorded route. " +
+                "The nearest route segment determines the " +
+                "upcoming checkpoint. Movement is manual.");
+
             if (!guideRunning)
             {
                 if (ImGui.Button("Start visual guidance"))
@@ -822,9 +904,22 @@ public sealed class Plugin : IDalamudPlugin
                     $"Next checkpoint: {nextIndex + 1}/" +
                     $"{route.Points.Count}");
 
+                if (ImGui.Button("Rejoin from here"))
+                {
+                    RejoinGuide(position);
+                }
+
+                ImGui.SameLine();
+
                 if (ImGui.Button("Stop visual guidance"))
+                {
                     StopGuide("Guidance stopped manually.");
+                }
             }
+
+            ImGui.TextWrapped(
+                "At crossings or loops, use Rejoin from here " +
+                "if the wrong section was selected.");
 
             if (!navAvailable)
             {
@@ -986,7 +1081,7 @@ public sealed class Plugin : IDalamudPlugin
             ImGui.Spacing();
 
             ImGui.TextDisabled(
-                "DEV4 | Splatoon + read-only vnavmesh | " +
+                "DEV4.1 | Splatoon + read-only vnavmesh | " +
                 "/bnav");
         }
         finally

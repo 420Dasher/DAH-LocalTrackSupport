@@ -1,67 +1,65 @@
-# BlunderNav DEV4 - Visual Navigation
+# BlunderNav v0.0.9 DEV4.1
 
-Version: 0.0.8.0
 Dalamud API 15 / .NET 10
 
-## Design
+## Visual navigation only
 
-BlunderNav is now a visual-only navigation assistant.
+BlunderNav NEVER moves the character automatically.
 
-The plugin NEVER invokes vnavmesh movement or stop APIs.
+Splatoon displays recorded routes, waypoint markers,
+suggested paths and manually placed test hazard circles.
 
-## Integrations
+vnavmesh calculates suggestions without invoking movement.
 
-Splatoon:
-- Recorded route lines
-- Highlighted suggested path
-- Next checkpoint marker
-- Manual hazard circle
+## DEV4.1 changes
 
-vnavmesh:
-- Read-only pathfinding
-- Experimental pathfinding around one manually
-  marked hazard circle
-
-## Existing routes
-
-Routes are preserved through the existing
-RouteConfiguration and RecordedRoute structures.
-
-Lobby territory: 1197
-Duty territory: 1165
+- Start visual guidance from anywhere along a recorded route
+- Select the next checkpoint from the nearest route segment
+- Rejoin the recorded route from your current position
+- Display the upcoming six recorded route segments by default
+- Continue automatically advancing checkpoints as you walk
+- Preserve the existing recorded-route configuration
 
 ## Controls
 
 /bnav
+
 /bnav stop
 
-The stop command stops VISUAL guidance.
-It does not control character movement.
+The stop command stops and hides visual guidance.
+It does not affect character movement.
 
-## DEV4 testing
+## Testing
 
-1. Enter the Blunderville lobby.
-2. Ensure Splatoon is enabled.
-3. Open /bnav.
-4. Choose an existing recorded route.
-5. Enable the in-world overlay.
-6. Check the cyan recorded route.
-7. Return to checkpoint one.
-8. Start visual guidance.
-9. Walk manually and check the green suggestion.
-10. Optionally mark a test hazard.
+1. Enter the Blunderville lobby with Splatoon enabled.
+2. Select the existing recorded route.
+3. Stand near the middle of the route, not checkpoint one.
+4. Click Start visual guidance.
+5. Verify the highlighted checkpoint is nearby and ahead.
+6. Walk toward it.
+7. Verify subsequent checkpoints advance automatically.
+8. Click Rejoin from here at another section of the route.
+9. Verify the suggested section changes accordingly.
 
 ## Limitations
 
-Real Fall Guys AoE detection is not implemented yet.
+Near overlapping or crossing route sections, the nearest
+geometric segment may not be the intended segment.
 
-Manual test hazards are illustrative markers, not
-automatically recognized game mechanics.
+Rejoin from here provides manual correction.
 
-The point avoidance API is not a guarantee of safety.
-Candidate paths intersecting the manual hazard are
-rejected rather than shown as safe.
+Recorded paths do not yet automatically avoid live
+Fall Guys obstacle mechanics.
 
-Splatoon integration uses dynamic elements.
-If Splatoon is unavailable, routes are still saved
-and visible as coordinates in the BlunderNav UI.
+Manual test hazard circles are not actual AoE detection.
+
+## DEV5 direction
+
+- Automatically detect Fall Guys courses / stages
+- Automatically choose the matching route profile
+- Identify real obstacle danger zones
+- Recalculate recommended paths around detected hazards
+
+Multiple Fall Guys stages share territory 1165.
+Stage identification must therefore use additional
+course-specific evidence, with manual override.

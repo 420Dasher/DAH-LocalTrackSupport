@@ -5,16 +5,16 @@
     "LoadSync":  false,
     "CanUnloadAsync":  false,
     "LoadPriority":  0,
-    "Name":  "BlunderNav [DEV4]",
-    "InternalName":  "BlunderNav",
-    "AssemblyVersion":  "0.0.8.0",
-    "DalamudApiLevel":  15,
     "Punchline":  "See the route. You do the moving.",
-    "Description":  "Visual-only Fall Guys navigation assistant using Splatoon overlays and read-only vnavmesh pathfinding. Includes route recording, suggested paths and manual test-hazard visualization.",
     "Tags":  [
                  "fall guys",
                  "splatoon",
                  "navigation",
                  "visual"
-             ]
+             ],
+    "Name":  "BlunderNav [DEV4.1]",
+    "InternalName":  "BlunderNav",
+    "AssemblyVersion":  "0.0.9.0",
+    "DalamudApiLevel":  15,
+    "Description":  "Visual-only Fall Guys navigation helper with Splatoon route overlays, nearest-segment guidance, automatic checkpoint advancement, manual rejoining and read-only vnavmesh suggestions."
 }
