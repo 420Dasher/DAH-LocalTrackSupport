@@ -27,6 +27,7 @@ public sealed partial class Plugin
     private DateTime autoPreviewLastRequestUtc = DateTime.MinValue;
 
     private float autoPreviewLength;
+    private float autoPreviewLongestSegment;
     private int sauceryTestTarget;
 
     private string autoPreviewStatus =
@@ -50,6 +51,7 @@ public sealed partial class Plugin
         autoPreviewPath = null;
         autoPreviewMapId = 0;
         autoPreviewLength = 0f;
+        autoPreviewLongestSegment = 0f;
 
         autoPreviewLastRequestUtc = DateTime.MinValue;
         autoPreviewRequestedUtc = DateTime.MinValue;
@@ -124,9 +126,11 @@ public sealed partial class Plugin
         Vector3 origin,
         Vector3 target,
         out float length,
+        out float longestSegment,
         out string error)
     {
         length = 0f;
+        longestSegment = 0f;
         error = "";
 
         if (points == null ||
@@ -146,20 +150,43 @@ public sealed partial class Plugin
 
         Vector3 previous = origin;
 
-        foreach (var point in points)
+        for (int i = 0; i < points.Count; i++)
         {
+            Vector3 point = points[i];
+
             if (!Valid(point))
             {
-                error = "Invalid path coordinates.";
+                error = $"Invalid coordinates at node {i}.";
                 return false;
             }
 
             float segment = Vector3.Distance(
                 previous, point);
 
-            if (segment > 140f)
+            if (!float.IsFinite(segment))
             {
-                error = "Unexpected large path segment.";
+                error = $"Invalid distance at node {i}.";
+                return false;
+            }
+
+            longestSegment = MathF.Max(
+                longestSegment, segment);
+
+            // Long straight segments can be legitimate
+            // in a sparse navmesh path. DEV6.2 previously
+            // rejected all segments above 140 yalms.
+            //
+            // We now tolerate long segments, but keep
+            // a sanity limit against extreme jumps.
+            //
+            // Sparse sections are rendered as warning
+            // dashes instead of trusted green guidance.
+
+            if (segment > 450f)
+            {
+                error =
+                    $"Extreme segment {segment:F1}y " +
+                    $"at node {i}.";
                 return false;
             }
 
@@ -167,7 +194,7 @@ public sealed partial class Plugin
 
             if (length > 1000f)
             {
-                error = "Path exceeds safety length limit.";
+                error = "Path exceeds 1000 yalms.";
                 return false;
             }
 
@@ -177,7 +204,7 @@ public sealed partial class Plugin
         if (Vector3.Distance(
             points[^1], target) > 4.5f)
         {
-            error = "Path does not reach the objective.";
+            error = "Path endpoint mismatch.";
             return false;
         }
 
@@ -272,6 +299,7 @@ public sealed partial class Plugin
                         autoPreviewOrigin,
                         autoPreviewTarget,
                         out float length,
+                        out float longestSegment,
                         out string reason))
                     {
                         autoPreviewPath = null;
@@ -282,10 +310,16 @@ public sealed partial class Plugin
                     {
                         autoPreviewPath = result;
                         autoPreviewLength = length;
+                        autoPreviewLongestSegment =
+                            longestSegment;
 
                         autoPreviewStatus =
                             $"Calculated {length:F0}y path " +
                             $"({result.Count} nodes). " +
+                            $"Longest segment {longestSegment:F0}y. " +
+                            (longestSegment > 40f
+                                ? "Sparse sections marked amber. "
+                                : "") +
                             "Hazards NOT evaluated.";
                     }
                 }
@@ -378,58 +412,165 @@ public sealed partial class Plugin
         Vector3 playerPosition)
     {
         if (!AutoPreviewShown ||
-            autoPreviewPath == null)
+            autoPreviewPath == null ||
+            autoPreviewPath.Count == 0)
             return;
 
-        if (Vector3.Distance(
-            playerPosition, autoPreviewOrigin) > 22f)
-            return;
+        // Find the nearest 3D segment on the calculated
+        // route, instead of restarting at the original
+        // pathfinding position after the player moves.
 
-        // Draw only the first 130 yalms of the returned
-        // path to keep Splatoon overlays readable.
+        int bestSegment = -1;
+        float bestDistanceSquared = float.MaxValue;
+        Vector3 bestPoint = default;
 
-        const uint color = 0xEE55FF44;
-        const float maxVisibleLength = 130f;
-
-        float visibleLength = 0f;
-        Vector3 previous = playerPosition;
-        int count = 0;
-
-        foreach (var next in autoPreviewPath)
+        for (int i = 0; i < autoPreviewPath.Count; i++)
         {
-            if (count >= 90 ||
-                visibleLength >= maxVisibleLength)
-                break;
+            Vector3 a = i == 0
+                ? autoPreviewOrigin
+                : autoPreviewPath[i - 1];
 
-            float segment = Vector3.Distance(
-                previous, next);
+            Vector3 b = autoPreviewPath[i];
+            Vector3 ab = b - a;
+
+            float squared = ab.LengthSquared();
+
+            float t = squared > 0.0001f
+                ? Math.Clamp(
+                    Vector3.Dot(
+                        playerPosition - a, ab) /
+                    squared,
+                    0f, 1f)
+                : 0f;
+
+            Vector3 nearest = a + ab * t;
+
+            float distanceSquared =
+                Vector3.DistanceSquared(
+                    playerPosition, nearest);
+
+            if (distanceSquared < bestDistanceSquared)
+            {
+                bestDistanceSquared = distanceSquared;
+                bestSegment = i;
+                bestPoint = nearest;
+            }
+        }
+
+        if (bestSegment < 0 ||
+            bestDistanceSquared > 14f * 14f)
+        {
+            // Off the calculated route. Wait for a
+            // recalculation; do not draw a connector
+            // directly across unverified terrain.
+            return;
+        }
+
+        const float maxVisibleLength = 55f;
+        const float sparseThreshold = 40f;
+
+        // Splatoon colors are ABGR.
+        const uint pathColor = 0xEE55FF44;
+        const uint sparseColor = 0xDD00CCFF;
+
+        float remaining = maxVisibleLength;
+        int rendered = 0;
+
+        // Join a nearby route point without drawing
+        // a long arbitrary line through geometry.
+
+        float joinDistance = MathF.Sqrt(
+            bestDistanceSquared);
+
+        if (joinDistance > 0.05f &&
+            joinDistance <= 2f)
+        {
+            lines.Add(new VisualLine(
+                playerPosition,
+                bestPoint,
+                pathColor,
+                3f));
+        }
+
+        for (int i = bestSegment;
+             i < autoPreviewPath.Count &&
+             remaining > 0.05f &&
+             rendered < 80;
+             i++)
+        {
+            Vector3 originalStart = i == 0
+                ? autoPreviewOrigin
+                : autoPreviewPath[i - 1];
+
+            Vector3 a = i == bestSegment
+                ? bestPoint
+                : originalStart;
+
+            Vector3 b = autoPreviewPath[i];
+
+            float fullSegment = Vector3.Distance(
+                originalStart, b);
+
+            float segment = Vector3.Distance(a, b);
 
             if (segment <= 0.05f)
-            {
-                previous = next;
                 continue;
+
+            float visible = MathF.Min(
+                segment, remaining);
+
+            Vector3 direction = (b - a) / segment;
+
+            if (fullSegment <= sparseThreshold)
+            {
+                // Short, connected navmesh segments
+                // are rendered as solid green.
+
+                lines.Add(new VisualLine(
+                    a,
+                    a + direction * visible,
+                    pathColor,
+                    4f));
+
+                rendered++;
+            }
+            else
+            {
+                // A very long pair of navmesh nodes
+                // is not proof the intervening terrain
+                // is safely traversable.
+                //
+                // Draw amber dashes so the player can
+                // distinguish sparse geometry from
+                // our ordinary green preview.
+
+                const float dash = 5f;
+                const float gap = 4f;
+
+                float offset = 0f;
+
+                while (offset < visible &&
+                       rendered < 80)
+                {
+                    float end = MathF.Min(
+                        offset + dash, visible);
+
+                    if (end > offset + 0.05f)
+                    {
+                        lines.Add(new VisualLine(
+                            a + direction * offset,
+                            a + direction * end,
+                            sparseColor,
+                            3f));
+
+                        rendered++;
+                    }
+
+                    offset += dash + gap;
+                }
             }
 
-            float remaining =
-                maxVisibleLength - visibleLength;
-
-            Vector3 endpoint = segment > remaining
-                ? previous +
-                    (next - previous) *
-                    (remaining / segment)
-                : next;
-
-            lines.Add(new VisualLine(
-                previous,
-                endpoint,
-                color,
-                4.0f));
-
-            visibleLength += Vector3.Distance(
-                previous, endpoint);
-
-            previous = endpoint;
-            count++;
+            remaining -= visible;
         }
     }
 
@@ -504,6 +645,18 @@ public sealed partial class Plugin
                 ImGui.TextDisabled(
                     $"Returned path: " +
                     $"{autoPreviewLength:F0} yalms");
+
+                ImGui.TextDisabled(
+                    $"Longest node segment: " +
+                    $"{autoPreviewLongestSegment:F1} yalms");
+
+                if (autoPreviewLongestSegment > 40f)
+                {
+                    ImGui.TextWrapped(
+                        "Amber dashes indicate sparse " +
+                        "navmesh segments. They are not " +
+                        "verified safe corridors.");
+                }
             }
 
             if (ImGui.Button("Recalculate now"))
@@ -520,6 +673,6 @@ public sealed partial class Plugin
         }
 
         ImGui.TextDisabled(
-            "Read-only vnavmesh | No hazard guarantees");
+            "Next 55 yalms preview | No hazard guarantees");
     }
 }

@@ -12,9 +12,9 @@
                  "navigation",
                  "visual"
              ],
-    "Name":  "BlunderNav [DEV6.2]",
     "InternalName":  "BlunderNav",
-    "AssemblyVersion":  "0.0.14.0",
+    "Name":  "BlunderNav [DEV6.2 FIX1]",
+    "AssemblyVersion":  "0.0.15.0",
     "DalamudApiLevel":  15,
-    "Description":  "Visual Fall Guys navigation with automatic course detection, experimental calculated route previews, objective research and Splatoon."
+    "Description":  "Visual Fall Guys navigation with automatic map detection, experimental forward-looking vnavmesh route previews and Splatoon overlays."
 }

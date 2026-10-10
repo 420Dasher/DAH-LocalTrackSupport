@@ -29,7 +29,7 @@ public sealed partial class Plugin
         {
             ImGui.TextUnformatted("BLUNDERNAV");
             ImGui.SameLine();
-            ImGui.TextDisabled("DEV6.2  |  0.0.14");
+            ImGui.TextDisabled("DEV6.2 FIX1  |  0.0.15");
 
             ImGui.TextUnformatted(DetectedMapName);
 

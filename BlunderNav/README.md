@@ -1,6 +1,6 @@
-# BlunderNav DEV6.2
+# BlunderNav DEV6.2 FIX1
 
-Version 0.0.14.0
+Version 0.0.15.0
 Dalamud API 15 / .NET 10
 
 ## Experimental calculated route previews
@@ -93,3 +93,25 @@ No movement commands are sent.
 
 Do not assume pathfinding understands
 moving obstacles or qualification triggers.
+## DEV6.2 FIX1
+
+The previous long-range path validator rejected
+all segments longer than 140 yalms.
+
+A plausible long navmesh segment is now accepted,
+subject to endpoint, total length, finite-coordinate
+and extreme-jump checks.
+
+Visual guidance now joins the nearest 3D path
+segment rather than redrawing from an old origin.
+
+Only approximately 55 yalms ahead are displayed.
+
+Short navmesh segments: solid green.
+Sparse segments over 40 yalms: amber dashes.
+
+An amber dashed section is NOT proof of a safe
+corridor. Moving obstacle detection remains
+future work.
+
+Movement is always manual.
