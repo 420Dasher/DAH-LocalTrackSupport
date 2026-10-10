@@ -6,7 +6,7 @@ $ErrorActionPreference = "Stop"
 $Root = Split-Path -Parent $MyInvocation.MyCommand.Path
 $Project = Join-Path $Root "RetainerUndercut.csproj"
 
-Write-Host "== Retainer Undercut v0.1.1 ==" -ForegroundColor Cyan
+Write-Host "== Retainer Undercut v0.1.3 ==" -ForegroundColor Cyan
 Write-Host "Project: $Root"
 
 Push-Location $Root
@@ -53,7 +53,7 @@ try {
     Write-Host "Dalamud: /xlsettings -> Experimental -> Dev Plugin Locations"
     Write-Host "Add: $(Split-Path -Parent $Dll)"
     Write-Host "Then load 'Retainer Undercut' and use /rundercut"
-    Write-Host "Expected window title: Retainer Undercut - v0.1.1" -ForegroundColor Yellow
+    Write-Host "Expected window title: Retainer Undercut - v0.1.3" -ForegroundColor Yellow
 }
 finally {
     Pop-Location

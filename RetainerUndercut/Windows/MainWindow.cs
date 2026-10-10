@@ -23,7 +23,7 @@ public sealed class MainWindow : Window
         AutoRetainerUndercutRunner autoRunner,
         MultiRetainerUndercutRunner multiRunner,
         Configuration configuration)
-        : base("Retainer Undercut - v0.1.1###RetainerUndercutMain")
+        : base("Retainer Undercut - v0.1.3###RetainerUndercutMain")
     {
         this.scanner = scanner;
         this.marketCheck = marketCheck;
@@ -46,7 +46,7 @@ public sealed class MainWindow : Window
 
         if (ImGui.BeginTabBar("##RetainerUndercutMainTabs"))
         {
-            if (ImGui.BeginTabItem("Dashboard"))
+            if (ImGui.BeginTabItem("Home"))
             {
                 DrawRunAndPreviewTab();
                 ImGui.EndTabItem();
@@ -58,15 +58,9 @@ public sealed class MainWindow : Window
                 ImGui.EndTabItem();
             }
 
-            if (ImGui.BeginTabItem("Pricing & Safety"))
+            if (ImGui.BeginTabItem("Settings"))
             {
                 DrawPricingAndMatchlistTab();
-                ImGui.EndTabItem();
-            }
-
-            if (ImGui.BeginTabItem("Developer"))
-            {
-                DrawDiagnosticsTab();
                 ImGui.EndTabItem();
             }
 
@@ -91,17 +85,16 @@ public sealed class MainWindow : Window
         ImGui.TextUnformatted("Retainer Undercut");
         ImGui.PopStyleColor();
         ImGui.SameLine();
-        ImGui.TextDisabled("v0.1.1");
-        ImGui.TextDisabled("Preview first, then apply. Advanced details stay out of the way until you need them.");
+        ImGui.TextDisabled("v0.1.3");
+        ImGui.TextDisabled("Preview first. Apply only when the results look right.");
         ImGui.Separator();
 
-        if (ImGui.BeginTable("##HeaderStatus", 4, ImGuiTableFlags.SizingStretchSame | ImGuiTableFlags.BordersInnerV))
+        if (ImGui.BeginTable("##HeaderStatus", 3, ImGuiTableFlags.SizingStretchSame | ImGuiTableFlags.BordersInnerV))
         {
             ImGui.TableNextRow();
-            DrawStatusCell("STATUS", state, busy ? "Automation is controlling the retainer UI" : "Waiting for you");
-            DrawStatusCell("RETAINERS", $"{multiRunner.EnabledRetainerCount}/{multiRunner.AvailableRetainers.Count} enabled", $"{multiRunner.EnabledListingCount} listing(s) in the next all-retainer run");
-            DrawStatusCell("PRICING", BuildHumanPricingSummary(), configuration.PriceRecoveryEnabled ? "Price Recovery is enabled" : "Only lowers prices unless Recovery is enabled");
-            DrawStatusCell("SAFETY", BuildHumanSafetySummary(), $"{configuration.ItemRules.Count} item rule(s) | {configuration.MatchlistedRetainerNames.Count} protected seller(s)");
+            DrawStatusCell("STATUS", state, busy ? "Pricing is currently running" : "Ready for a preview");
+            DrawStatusCell("RETAINERS", $"{multiRunner.EnabledRetainerCount} of {multiRunner.AvailableRetainers.Count} enabled", $"{multiRunner.EnabledListingCount} listings");
+            DrawStatusCell("YOUR SETTINGS", BuildHumanPricingSummary(), BuildHumanSafetySummary());
             ImGui.EndTable();
         }
     }
@@ -116,11 +109,11 @@ public sealed class MainWindow : Window
 
     private void DrawRunAndPreviewTab()
     {
-        DrawSectionHeader("Run prices", "Preview is read-only. Apply changes only after the preview looks right.");
-        DrawRunControlBar();
-        ImGui.Spacing();
+        DrawSectionHeader(
+            "Update market prices",
+            "Preview checks your listings without changing anything.");
 
-        DrawRetainerOverview();
+        DrawRunControlBar();
         ImGui.Spacing();
 
         DrawRunProgressAndCounters();
@@ -128,68 +121,126 @@ public sealed class MainWindow : Window
 
         DrawLatestSuggestions();
         ImGui.Spacing();
+
+        if (ImGui.CollapsingHeader(
+                $"Manage retainers ({multiRunner.EnabledRetainerCount}/{multiRunner.AvailableRetainers.Count} enabled)##manage_retainers"))
+        {
+            DrawRetainerOverview();
+        }
+
+        ImGui.Spacing();
         DrawLatestRunChanges();
     }
-
     private void DrawRunControlBar()
     {
         var allCanStart = multiRunner.CanStartAll;
-        var currentCanStart = !multiRunner.IsRunning && !autoRunner.IsRunning && !marketCheck.IsBusy &&
-                              scanner.SellListVisible && scanner.MarketContainerLoaded && scanner.UiOrderMappingReady && scanner.Listings.Count > 0;
 
-        if (!multiRunner.IsRunning && !autoRunner.IsRunning)
+        var currentCanStart =
+            !multiRunner.IsRunning &&
+            !autoRunner.IsRunning &&
+            !marketCheck.IsBusy &&
+            scanner.SellListVisible &&
+            scanner.MarketContainerLoaded &&
+            scanner.UiOrderMappingReady &&
+            scanner.Listings.Count > 0;
+
+        if (multiRunner.IsRunning)
         {
-            if (ImGui.Button("Refresh retainer list"))
-                multiRunner.RefreshRetainers();
-            ImGui.SameLine();
-            ImGui.TextDisabled("Use this after opening the Summoning Bell retainer list.");
+            DrawStopButton(
+                multiRunner.DryRunMode ? "Stop Preview##stop_all" : "EMERGENCY STOP##stop_all",
+                multiRunner.RequestStop);
 
-            ImGui.Spacing();
-            ImGui.TextUnformatted("Preview prices - safe, no prices are written");
-            if (!allCanStart) ImGui.BeginDisabled();
-            if (ImGui.Button("Preview all enabled retainers##preview_all"))
-                multiRunner.Start(dryRun: true);
-            if (!allCanStart) ImGui.EndDisabled();
             ImGui.SameLine();
-            if (!currentCanStart) ImGui.BeginDisabled();
-            if (ImGui.Button("Preview current retainer##preview_current"))
-                autoRunner.Start(dryRun: true);
-            if (!currentCanStart) ImGui.EndDisabled();
-
-            ImGui.Spacing();
-            ImGui.TextUnformatted("Apply prices - actually changes listings");
-            if (!allCanStart) ImGui.BeginDisabled();
-            DrawLiveButton("Apply to all enabled retainers##live_all", () => multiRunner.Start(dryRun: false));
-            if (!allCanStart) ImGui.EndDisabled();
-            ImGui.SameLine();
-            if (!currentCanStart) ImGui.BeginDisabled();
-            DrawLiveButton("Apply to current retainer##live_current", () => autoRunner.Start(dryRun: false));
-            if (!currentCanStart) ImGui.EndDisabled();
-
-            if (!allCanStart)
-                ImGui.TextDisabled($"All retainers unavailable: {multiRunner.StartBlockReason}");
-            if (!currentCanStart)
-                ImGui.TextDisabled("Current retainer unavailable: open its sell list and wait until the rows are detected.");
-            else
-                ImGui.TextDisabled($"Current retainer ready: {scanner.ActiveRetainerName} | {scanner.Listings.Count} listing(s)");
+            ImGui.TextUnformatted(
+                $"{multiRunner.CurrentRetainerNumber}/{multiRunner.TotalRetainers} | " +
+                $"{multiRunner.CurrentRetainerName} | {FormatDuration(multiRunner.RunElapsed)}");
+            return;
         }
-        else
+
+        if (autoRunner.IsRunning)
         {
-            if (multiRunner.IsRunning)
-            {
-                DrawStopButton(multiRunner.DryRunMode ? "Stop preview##stop_all" : "EMERGENCY STOP##stop_all", multiRunner.RequestStop);
-                ImGui.SameLine();
-                ImGui.TextUnformatted($"{multiRunner.CurrentRetainerNumber}/{multiRunner.TotalRetainers} | {multiRunner.CurrentRetainerName} | {FormatDuration(multiRunner.RunElapsed)}");
-            }
-            else if (autoRunner.IsRunning)
-            {
-                DrawStopButton(autoRunner.DryRunMode ? "Stop preview##stop_current" : "EMERGENCY STOP##stop_current", autoRunner.RequestStop);
-                ImGui.SameLine();
-                ImGui.TextUnformatted($"{autoRunner.CurrentNumber}/{autoRunner.TotalItems} | {autoRunner.CurrentItemName} | {FormatDuration(autoRunner.RunElapsed)}");
-            }
+            DrawStopButton(
+                autoRunner.DryRunMode ? "Stop Preview##stop_current" : "EMERGENCY STOP##stop_current",
+                autoRunner.RequestStop);
+
+            ImGui.SameLine();
+            ImGui.TextUnformatted(
+                $"{autoRunner.CurrentNumber}/{autoRunner.TotalItems} | " +
+                $"{autoRunner.CurrentItemName} | {FormatDuration(autoRunner.RunElapsed)}");
+            return;
+        }
+
+        if (multiRunner.AvailableRetainers.Count == 0)
+        {
+            ImGui.TextUnformatted("No retainers loaded yet.");
+            ImGui.TextDisabled("Open the Summoning Bell retainer list, then refresh.");
+
+            if (ImGui.Button("Refresh Retainers"))
+                multiRunner.RefreshRetainers();
+
+            return;
+        }
+
+        var buttonWidth = Math.Max(
+            190f,
+            (ImGui.GetContentRegionAvail().X - 10f) * 0.5f);
+
+        var buttonSize = new Vector2(buttonWidth, 44f);
+
+        if (!allCanStart)
+            ImGui.BeginDisabled();
+
+        if (ImGui.Button("Preview Changes##preview_all", buttonSize))
+            multiRunner.Start(dryRun: true);
+
+        if (!allCanStart)
+            ImGui.EndDisabled();
+
+        ImGui.SameLine();
+
+        if (!allCanStart)
+            ImGui.BeginDisabled();
+
+        ImGui.PushStyleColor(ImGuiCol.Button, new Vector4(0.16f, 0.48f, 0.34f, 1f));
+        ImGui.PushStyleColor(ImGuiCol.ButtonHovered, new Vector4(0.20f, 0.60f, 0.42f, 1f));
+        ImGui.PushStyleColor(ImGuiCol.ButtonActive, new Vector4(0.12f, 0.38f, 0.28f, 1f));
+
+        if (ImGui.Button("Apply Prices##apply_all", buttonSize))
+            multiRunner.Start(dryRun: false);
+
+        ImGui.PopStyleColor(3);
+
+        if (!allCanStart)
+            ImGui.EndDisabled();
+
+        ImGui.TextDisabled(
+            $"{multiRunner.EnabledRetainerCount} retainers | " +
+            $"{multiRunner.EnabledListingCount} listings");
+
+        ImGui.TextDisabled(
+            allCanStart
+                ? "Preview is safe and makes no changes."
+                : $"Not ready: {multiRunner.StartBlockReason}");
+
+        if (ImGui.SmallButton("Refresh retainers##refresh_all"))
+            multiRunner.RefreshRetainers();
+
+        if (currentCanStart &&
+            ImGui.CollapsingHeader("Current retainer only##current_retainer"))
+        {
+            ImGui.TextDisabled(
+                $"{scanner.ActiveRetainerName} | {scanner.Listings.Count} listings");
+
+            if (ImGui.Button("Preview Current Retainer##preview_current"))
+                autoRunner.Start(dryRun: true);
+
+            ImGui.SameLine();
+
+            DrawLiveButton(
+                "Apply Current Retainer##apply_current",
+                () => autoRunner.Start(dryRun: false));
         }
     }
-
     private void DrawRetainerOverview()
     {
         DrawSectionHeader("Retainers", "Enable/disable retainers here. The selection persists between reloads.");
@@ -275,92 +326,119 @@ public sealed class MainWindow : Window
 
     private void DrawRunProgressAndCounters()
     {
-        DrawSectionHeader("Latest run", "The important results stay visible; technical counters are tucked underneath.");
-
         var preferMulti = PreferMultiRunAsLatest();
-        if (preferMulti && (multiRunner.TotalRetainers > 0 || multiRunner.Summaries.Count > 0))
+
+        if (preferMulti &&
+            (multiRunner.TotalRetainers > 0 || multiRunner.Summaries.Count > 0))
         {
-            var actionLabel = multiRunner.DryRunMode ? "Would change" : "Changed";
-            var actionValue = multiRunner.DryRunMode ? multiRunner.TotalWouldChange : multiRunner.TotalChanged;
-            var protectionCount = multiRunner.TotalMatchlistProtected + multiRunner.TotalSafetyFloor + multiRunner.TotalMaxDropBlocked + multiRunner.TotalOutlierBlocked + multiRunner.TotalPriceRecoveryBlocked + multiRunner.TotalIgnoredByRule;
-            var problems = multiRunner.TotalMarketThrottled + multiRunner.TotalMissingListings + multiRunner.TotalSkippedFailed;
+            var changes = multiRunner.DryRunMode
+                ? multiRunner.TotalWouldChange
+                : multiRunner.TotalChanged;
 
-            var recoveryLabel = multiRunner.DryRunMode ? "Would recover" : "Price recovered";
-            DrawCounterTable(new[]
-            {
-                ("Checked", multiRunner.TotalListingsChecked),
-                (actionLabel, actionValue),
-                ("Already cheapest", multiRunner.TotalAlreadyCheapest),
-                (recoveryLabel, multiRunner.TotalPriceRecovered),
-                ("Protected / skipped", protectionCount),
-                ("Problems", problems),
-            });
+            var protectedCount =
+                multiRunner.TotalMatchlistProtected +
+                multiRunner.TotalSafetyFloor +
+                multiRunner.TotalMaxDropBlocked +
+                multiRunner.TotalOutlierBlocked +
+                multiRunner.TotalPriceRecoveryBlocked +
+                multiRunner.TotalIgnoredByRule;
 
-            if (ImGui.CollapsingHeader("Detailed counters##multi_details"))
-            {
-                DrawCounterTable(new[]
-                {
-                    ("Matchlist", multiRunner.TotalMatchlistProtected),
-                    ("Ignored by rule", multiRunner.TotalIgnoredByRule),
-                    ("No competitor", multiRunner.TotalNoCompetitor),
-                    ("Minimum price", multiRunner.TotalSafetyFloor),
-                    ("Large drop blocked", multiRunner.TotalMaxDropBlocked),
-                    ("Suspicious price", multiRunner.TotalOutlierBlocked),
-                    ("Large raise blocked", multiRunner.TotalPriceRecoveryBlocked),
-                    ("Market throttled", multiRunner.TotalMarketThrottled),
-                    ("Missing listing", multiRunner.TotalMissingListings),
-                    ("Failed", multiRunner.TotalSkippedFailed),
-                    ("Retries", multiRunner.TotalRetries),
-                });
-            }
+            var problems =
+                multiRunner.TotalMarketThrottled +
+                multiRunner.TotalMissingListings +
+                multiRunner.TotalSkippedFailed;
+
+            DrawSectionHeader(
+                multiRunner.DryRunMode ? "Preview complete" : "Latest price update",
+                multiRunner.DryRunMode
+                    ? "Review the proposed changes below. Nothing has been edited yet."
+                    : "Results from the latest applied price update.");
+
+            DrawSimpleRunSummary(
+                multiRunner.TotalListingsChecked,
+                changes,
+                multiRunner.TotalAlreadyCheapest,
+                protectedCount,
+                problems,
+                multiRunner.DryRunMode);
 
             ImGui.TextDisabled(multiRunner.Status);
-            if (!multiRunner.IsRunning && multiRunner.LastRunFinishedUtc is { } finished)
-                ImGui.TextDisabled($"Finished {finished.ToLocalTime():HH:mm:ss} | {FormatDuration(multiRunner.RunElapsed)}");
             return;
         }
 
-        if (autoRunner.TotalItems > 0 || autoRunner.PreviewResults.Count > 0)
+        if (autoRunner.TotalItems > 0 ||
+            autoRunner.PreviewResults.Count > 0)
         {
-            var actionLabel = autoRunner.DryRunMode ? "Would change" : "Changed";
-            var actionValue = autoRunner.DryRunMode ? autoRunner.WouldChangeCount : autoRunner.ChangedCount;
-            var protectionCount = autoRunner.MatchlistProtectedCount + autoRunner.SafetyFloorCount + autoRunner.MaxDropBlockedCount + autoRunner.OutlierBlockedCount + autoRunner.PriceRecoveryBlockedCount + autoRunner.IgnoredByRuleCount;
-            var problems = autoRunner.MarketThrottledCount + autoRunner.MissingListingCount + autoRunner.FailedSkippedCount;
+            var changes = autoRunner.DryRunMode
+                ? autoRunner.WouldChangeCount
+                : autoRunner.ChangedCount;
 
-            var recoveryLabel = autoRunner.DryRunMode ? "Would recover" : "Price recovered";
-            DrawCounterTable(new[]
-            {
-                ("Checked", autoRunner.ProcessedItemsCount),
-                (actionLabel, actionValue),
-                ("Already cheapest", autoRunner.AlreadyCheapestCount),
-                (recoveryLabel, autoRunner.PriceRecoveredCount),
-                ("Protected / skipped", protectionCount),
-                ("Problems", problems),
-            });
+            var protectedCount =
+                autoRunner.MatchlistProtectedCount +
+                autoRunner.SafetyFloorCount +
+                autoRunner.MaxDropBlockedCount +
+                autoRunner.OutlierBlockedCount +
+                autoRunner.PriceRecoveryBlockedCount +
+                autoRunner.IgnoredByRuleCount;
 
-            if (ImGui.CollapsingHeader("Detailed counters##single_details"))
-            {
-                DrawCounterTable(new[]
-                {
-                    ("Matchlist", autoRunner.MatchlistProtectedCount),
-                    ("Ignored by rule", autoRunner.IgnoredByRuleCount),
-                    ("No competitor", autoRunner.NoCompetitorCount),
-                    ("Minimum price", autoRunner.SafetyFloorCount),
-                    ("Large drop blocked", autoRunner.MaxDropBlockedCount),
-                    ("Suspicious price", autoRunner.OutlierBlockedCount),
-                    ("Large raise blocked", autoRunner.PriceRecoveryBlockedCount),
-                    ("Market throttled", autoRunner.MarketThrottledCount),
-                    ("Missing listing", autoRunner.MissingListingCount),
-                    ("Failed", autoRunner.FailedSkippedCount),
-                    ("Retries", autoRunner.RetryCount),
-                });
-            }
+            var problems =
+                autoRunner.MarketThrottledCount +
+                autoRunner.MissingListingCount +
+                autoRunner.FailedSkippedCount;
+
+            DrawSectionHeader(
+                autoRunner.DryRunMode ? "Preview complete" : "Latest price update",
+                autoRunner.DryRunMode
+                    ? "Review the proposed changes below. Nothing has been edited yet."
+                    : "Results from the latest applied price update.");
+
+            DrawSimpleRunSummary(
+                autoRunner.ProcessedItemsCount,
+                changes,
+                autoRunner.AlreadyCheapestCount,
+                protectedCount,
+                problems,
+                autoRunner.DryRunMode);
 
             ImGui.TextDisabled(autoRunner.Status);
             return;
         }
 
-        ImGui.TextDisabled("No run yet. Start with Preview to see exactly what the plugin wants to do.");
+        DrawSectionHeader(
+            "Latest result",
+            "No preview yet. Start with Preview Changes to see what the plugin wants to do.");
+    }
+
+    private static void DrawSimpleRunSummary(
+        int checkedCount,
+        int changeCount,
+        int alreadyGood,
+        int protectedCount,
+        int problems,
+        bool preview)
+    {
+        if (!ImGui.BeginTable(
+                "##SimpleRunSummary",
+                5,
+                ImGuiTableFlags.Borders | ImGuiTableFlags.SizingStretchSame))
+            return;
+
+        ImGui.TableNextRow();
+
+        DrawSimpleSummaryCell("Checked", checkedCount);
+        DrawSimpleSummaryCell(preview ? "Will change" : "Changed", changeCount);
+        DrawSimpleSummaryCell("Already good", alreadyGood);
+        DrawSimpleSummaryCell("Protected", protectedCount);
+        DrawSimpleSummaryCell("Problems", problems);
+
+        ImGui.EndTable();
+    }
+
+    private static void DrawSimpleSummaryCell(string label, int value)
+    {
+        ImGui.TableNextColumn();
+        ImGui.TextDisabled(label);
+        ImGui.TextUnformatted(value.ToString("N0"));
     }
 
     private static void DrawCounterTable(IEnumerable<(string Label, int Value)> counters)
@@ -389,11 +467,11 @@ public sealed class MainWindow : Window
             ? multiRunner.PreviewResults
             : autoRunner.PreviewResults;
 
-        DrawSectionHeader("Preview suggestions", "After a Preview, every item is grouped by retainer with its current price, market reference, and proposed action.");
+        DrawSectionHeader("Preview results", "Check the proposed prices below before applying them.");
 
         if (results.Count == 0)
         {
-            ImGui.TextDisabled("No Preview results yet. Use one of the Preview buttons above to populate this section.");
+            ImGui.TextDisabled("No preview results yet.");
             return;
         }
 
@@ -518,19 +596,20 @@ public sealed class MainWindow : Window
     {
         if (!ImGui.BeginTable(
                 $"##SuggestionTable_{id}",
-                7,
-                ImGuiTableFlags.Borders | ImGuiTableFlags.RowBg | ImGuiTableFlags.ScrollY | ImGuiTableFlags.Resizable | ImGuiTableFlags.SizingStretchProp,
+                4,
+                ImGuiTableFlags.Borders |
+                ImGuiTableFlags.RowBg |
+                ImGuiTableFlags.ScrollY |
+                ImGuiTableFlags.Resizable |
+                ImGuiTableFlags.SizingStretchProp,
                 new Vector2(0, Math.Min(330f, 46f + (results.Count * 26f)))))
             return;
 
         ImGui.TableSetupScrollFreeze(0, 1);
-        ImGui.TableSetupColumn("Item", ImGuiTableColumnFlags.WidthStretch, 2.0f);
-        ImGui.TableSetupColumn("Current", ImGuiTableColumnFlags.WidthFixed, 88);
-        ImGui.TableSetupColumn("Cheapest market", ImGuiTableColumnFlags.WidthFixed, 105);
-        ImGui.TableSetupColumn("Suggested price", ImGuiTableColumnFlags.WidthFixed, 105);
-        ImGui.TableSetupColumn("What happens", ImGuiTableColumnFlags.WidthStretch, 1.3f);
-        ImGui.TableSetupColumn("Pricing rule", ImGuiTableColumnFlags.WidthStretch, 1.5f);
-        ImGui.TableSetupColumn("Reason", ImGuiTableColumnFlags.WidthStretch, 2.0f);
+        ImGui.TableSetupColumn("Item", ImGuiTableColumnFlags.WidthStretch, 2.2f);
+        ImGui.TableSetupColumn("Current", ImGuiTableColumnFlags.WidthFixed, 95);
+        ImGui.TableSetupColumn("New", ImGuiTableColumnFlags.WidthFixed, 95);
+        ImGui.TableSetupColumn("Result", ImGuiTableColumnFlags.WidthStretch, 1.6f);
         ImGui.TableHeadersRow();
 
         foreach (var result in results)
@@ -538,31 +617,46 @@ public sealed class MainWindow : Window
             var resolved = configuration.ResolveItemPricing(result.ItemId, result.IsHq);
 
             ImGui.TableNextRow();
+
             ImGui.TableNextColumn();
-            ImGui.TextUnformatted($"{result.ItemName}{(result.IsHq ? " HQ" : string.Empty)}");
+            ImGui.TextUnformatted(
+                $"{result.ItemName}{(result.IsHq ? " HQ" : string.Empty)}");
 
             ImGui.TableNextColumn();
             ImGui.TextUnformatted($"{result.CurrentPrice:N0}");
 
             ImGui.TableNextColumn();
-            ImGui.TextUnformatted(result.LowestCompetitorPrice is { } competitor ? $"{competitor:N0}" : "-");
+            ImGui.TextUnformatted(
+                result.ProposedPrice is { } proposed
+                    ? $"{proposed:N0}"
+                    : "-");
 
             ImGui.TableNextColumn();
-            ImGui.TextUnformatted(result.ProposedPrice is { } proposed ? $"{proposed:N0}" : "-");
+            ImGui.TextWrapped(BuildDecisionLabel(result));
 
-            ImGui.TableNextColumn();
-            ImGui.TextUnformatted(BuildDecisionLabel(result));
+            if (ImGui.IsItemHovered())
+            {
+                ImGui.BeginTooltip();
 
-            ImGui.TableNextColumn();
-            ImGui.TextWrapped(resolved.Ignore ? "IGNORE" : resolved.HasItemRule ? resolved.RuleSummary : resolved.PricingModeLabel);
+                if (result.LowestCompetitorPrice is { } competitor)
+                    ImGui.TextUnformatted($"Cheapest eligible market price: {competitor:N0}");
 
-            ImGui.TableNextColumn();
-            ImGui.TextWrapped(result.Reason);
+                ImGui.TextWrapped(
+                    resolved.Ignore
+                        ? "Item rule: Do not touch"
+                        : resolved.HasItemRule
+                            ? $"Item rule: {resolved.RuleSummary}"
+                            : $"Pricing: {resolved.PricingModeLabel}");
+
+                if (!string.IsNullOrWhiteSpace(result.Reason))
+                    ImGui.TextWrapped(result.Reason);
+
+                ImGui.EndTooltip();
+            }
         }
 
         ImGui.EndTable();
     }
-
     private static string BuildDecisionLabel(DryRunPreviewResult result)
     {
         if (result.PriceRecoveryBlocked)
@@ -618,7 +712,7 @@ public sealed class MainWindow : Window
         DrawSectionHeader("Items on the open retainer", "Add special behavior only where you need it. HQ and NQ can have separate rules.");
         DrawCurrentRetainerRuleTable();
         ImGui.Spacing();
-        DrawSectionHeader("Custom item rules", "Everything without a custom rule simply uses the global Pricing & Safety settings.");
+        DrawSectionHeader("Custom item rules", "Items without a custom rule simply use your normal Settings.");
         DrawConfiguredRulesEditor();
     }
 
@@ -833,13 +927,31 @@ public sealed class MainWindow : Window
 
     private void DrawPricingAndMatchlistTab()
     {
-        DrawSectionHeader("Pricing & Safety", "Global defaults for normal items. Every option below explains what it changes in plain language.");
-        DrawPricingPanel();
-        ImGui.Spacing();
-        DrawSectionHeader("Friend / FC price protection", "Retainers on this list are matched at the cheapest tier instead of being undercut.");
-        DrawMatchlistPanel();
-    }
+        DrawSectionHeader(
+            "Pricing",
+            "These defaults apply to every item unless an Item Rule overrides them.");
 
+        DrawPricingPanel();
+
+        ImGui.Spacing();
+
+        DrawSectionHeader(
+            "Protected sellers",
+            "Add friends or FC members here if you do not want the plugin to undercut them.");
+
+        DrawMatchlistPanel();
+
+        ImGui.Spacing();
+        ImGui.Separator();
+
+        if (ImGui.CollapsingHeader("Advanced diagnostics"))
+        {
+            ImGui.TextDisabled(
+                "Only needed when troubleshooting. Normal users can leave this closed.");
+
+            DrawDiagnosticsTab();
+        }
+    }
     private void DrawPricingPanel()
     {
         var editingLocked = multiRunner.IsRunning || autoRunner.IsRunning || marketCheck.IsBusy;
@@ -1065,7 +1177,7 @@ public sealed class MainWindow : Window
 
         if (configuration.MatchlistedRetainerNames.Count == 0)
         {
-            ImGui.TextDisabled("No protected seller names yet.");
+            ImGui.TextDisabled("No protected sellers yet.");
         }
         else if (ImGui.BeginTable("##MatchlistTable", 2, ImGuiTableFlags.Borders | ImGuiTableFlags.RowBg | ImGuiTableFlags.SizingStretchProp))
         {
@@ -1086,7 +1198,7 @@ public sealed class MainWindow : Window
             ImGui.EndTable();
 
             if (removeName is not null && configuration.RemoveMatchlistedRetainer(removeName))
-                matchlistFeedback = $"Removed {removeName} from price protection.";
+                matchlistFeedback = $"Removed {removeName} from protected sellers.";
         }
 
         if (editingLocked)
@@ -1110,13 +1222,13 @@ public sealed class MainWindow : Window
 
         if (configuration.IsRetainerMatchlisted(trimmed))
         {
-            matchlistFeedback = $"{trimmed} is already on the Matchlist.";
+            matchlistFeedback = $"{trimmed} is already protected.";
             return;
         }
 
         if (configuration.AddMatchlistedRetainer(trimmed))
         {
-            matchlistFeedback = $"Added {trimmed} to the Matchlist.";
+            matchlistFeedback = $"Added {trimmed} to protected sellers.";
             matchlistInput = string.Empty;
         }
     }

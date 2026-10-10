@@ -68,25 +68,52 @@ internal sealed class RetainerQuickRunOverlay
 
     private unsafe void DrawInternal()
     {
-        // Prefer the sell list if a transition briefly leaves both addons visible.
+        // Prefer the sell list if a transition briefly leaves both main retainer addons visible.
         var sellListRef = gameGui.GetAddonByName("RetainerSellList");
         if (!sellListRef.IsNull && sellListRef.IsVisible)
         {
             retainerListWasVisible = false;
-            DrawForAddon((AtkUnitBase*)sellListRef.Address, QuickRunSurface.CurrentRetainer);
+
+            // When the native Adjust Price dialog is open, attach our companion
+            // bar to that dialog instead of leaving it attached to the market list.
+            //
+            // This keeps the controls visually associated with the window the
+            // user is currently interacting with and prevents the bar from
+            // sitting across the Adjust Price dialog on smaller resolutions.
+            var adjustPriceRef = gameGui.GetAddonByName("RetainerSell");
+
+            if (!adjustPriceRef.IsNull && adjustPriceRef.IsVisible)
+            {
+                DrawForAddon(
+                    (AtkUnitBase*)adjustPriceRef.Address,
+                    QuickRunSurface.CurrentRetainer);
+            }
+            else
+            {
+                DrawForAddon(
+                    (AtkUnitBase*)sellListRef.Address,
+                    QuickRunSurface.CurrentRetainer);
+            }
+
             return;
         }
 
         var retainerListRef = gameGui.GetAddonByName("RetainerList");
         if (!retainerListRef.IsNull && retainerListRef.IsVisible)
         {
-            // Refresh once when the bell list opens so the quick buttons immediately reflect the current retainers,
-            // enabled state, and listing counts even if the main plugin window has never been opened this session.
-            if (!retainerListWasVisible && !multiRunner.IsRunning && !autoRunner.IsRunning)
+            if (!retainerListWasVisible &&
+                !multiRunner.IsRunning &&
+                !autoRunner.IsRunning)
+            {
                 multiRunner.RefreshRetainers();
+            }
 
             retainerListWasVisible = true;
-            DrawForAddon((AtkUnitBase*)retainerListRef.Address, QuickRunSurface.AllRetainers);
+
+            DrawForAddon(
+                (AtkUnitBase*)retainerListRef.Address,
+                QuickRunSurface.AllRetainers);
+
             return;
         }
 
@@ -158,7 +185,7 @@ internal sealed class RetainerQuickRunOverlay
         if (multiRunner.IsRunning)
         {
             DrawStopButton(
-                multiRunner.DryRunMode ? "Stop preview##quick_stop_all" : "EMERGENCY STOP##quick_stop_all",
+                multiRunner.DryRunMode ? "Stop Preview##quick_stop_all" : "EMERGENCY STOP##quick_stop_all",
                 multiRunner.RequestStop);
             ImGui.SameLine();
             ImGui.TextDisabled($"{multiRunner.CurrentRetainerNumber}/{multiRunner.TotalRetainers} • {multiRunner.CurrentRetainerName}");
@@ -168,7 +195,7 @@ internal sealed class RetainerQuickRunOverlay
         if (autoRunner.IsRunning)
         {
             DrawStopButton(
-                autoRunner.DryRunMode ? "Stop preview##quick_stop_current" : "EMERGENCY STOP##quick_stop_current",
+                autoRunner.DryRunMode ? "Stop Preview##quick_stop_current" : "EMERGENCY STOP##quick_stop_current",
                 autoRunner.RequestStop);
             ImGui.SameLine();
             ImGui.TextDisabled($"{autoRunner.CurrentNumber}/{autoRunner.TotalItems}");
@@ -190,11 +217,11 @@ internal sealed class RetainerQuickRunOverlay
         if (!canStart)
             ImGui.BeginDisabled();
 
-        if (ImGui.Button("Dry Run##quick_preview_current", new Vector2(137f, 0f)))
+        if (ImGui.Button("Preview##quick_preview_current", new Vector2(137f, 0f)))
             autoRunner.Start(dryRun: true);
 
         ImGui.SameLine();
-        DrawLiveButton("Live Run##quick_live_current", new Vector2(137f, 0f), () => autoRunner.Start(dryRun: false));
+        DrawLiveButton("Apply Prices##quick_live_current", new Vector2(137f, 0f), () => autoRunner.Start(dryRun: false));
 
         if (!canStart)
             ImGui.EndDisabled();
@@ -210,11 +237,11 @@ internal sealed class RetainerQuickRunOverlay
         if (!canStart)
             ImGui.BeginDisabled();
 
-        if (ImGui.Button("Dry Run All##quick_preview_all", new Vector2(137f, 0f)))
+        if (ImGui.Button("Preview##quick_preview_all", new Vector2(137f, 0f)))
             multiRunner.Start(dryRun: true);
 
         ImGui.SameLine();
-        DrawLiveButton("Live Run All##quick_live_all", new Vector2(137f, 0f), () => multiRunner.Start(dryRun: false));
+        DrawLiveButton("Apply Prices##quick_live_all", new Vector2(137f, 0f), () => multiRunner.Start(dryRun: false));
 
         if (!canStart)
             ImGui.EndDisabled();
