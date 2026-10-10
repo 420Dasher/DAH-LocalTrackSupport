@@ -1,4 +1,4 @@
-[
+﻿[
     {
         "Author":  "Dash + AI",
         "Name":  "SpotifyTrackHonorific",
@@ -83,7 +83,7 @@
         "IsHide":  false,
         "IsTestingExclusive":  false,
         "DownloadLinkUpdate":  "https://raw.githubusercontent.com/420Dasher/DAH-LocalTrackSupport/main/plugins/RetainerUndercut/latest.zip",
-        "TestingAssemblyVersion":  "0.1.2.0",
+        "TestingAssemblyVersion":  "0.1.2.1",
         "TestingDalamudApiLevel":  15,
         "DownloadLinkTesting":  "https://raw.githubusercontent.com/420Dasher/DAH-LocalTrackSupport/testing/plugins/RetainerUndercut/latest.zip"
     },
