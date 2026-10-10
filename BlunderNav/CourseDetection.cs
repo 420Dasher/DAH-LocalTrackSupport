@@ -1,240 +1,79 @@
 using System;
-using System.Collections.Generic;
 using System.Linq;
 using System.Numerics;
 using System.Text;
-using Dalamud.Bindings.ImGui;
 using Dalamud.Game.ClientState.Objects.Enums;
 
 namespace BlunderNav;
 
 public sealed partial class Plugin
 {
-    // Map recognition never reads recorded route geometry.
+    // Verified through live Fall Guys diagnostic captures.
     //
-    // Sources:
-    // - Client territory
-    // - Client MapId
-    // - Current player position
-    // - Stage-specific object signatures
+    // 878 Gentlebean's Fever
+    // 879 Manderville-can Parade
+    // 880 The Gold Swiveller
+    // 881 Saucery Siege
+    // 882 Manderville Mountain
+    // 883 Pre-round waiting room
     //
-    // Map IDs may be shared. They are NOT treated as
-    // definitive without supporting observations.
+    // Territory 1197 is the Blunderville hub.
+    //
+    // Map detection never depends on recorded routes.
 
     private DateTime lastCourseScan;
-
     private uint lastDetectionTerritory;
     private uint lastDetectionMapId;
 
     private int detectedMapSlot = -1;
-    private int candidateCourse = -1;
-    private int candidateSamples;
-    private int teachingSlot = 1;
 
     private string courseDetectionStatus =
-        "Waiting for map identification.";
+        "Waiting for Fall Guys map data.";
 
     private string diagnosticReport = "";
 
-    private string DetectedMapName =>
-        Client.TerritoryType == 1197
-            ? "Blunderville Lobby"
-            : detectedMapSlot >= 1 &&
-              detectedMapSlot < Names.Length
-                ? Names[detectedMapSlot]
-                : "Unknown Fall Guys course";
+    private bool IsWaitingRoom =>
+        Client.TerritoryType == 1165 &&
+        Client.MapId == 883;
 
-    private void ResetCourseCandidate()
+    private int IdentifyCourseMapId()
     {
-        candidateCourse = -1;
-        candidateSamples = 0;
-    }
-
-    private HashSet<string> CollectMapObjects(
-        Vector3 position)
-    {
-        var keys = new HashSet<string>(
-            StringComparer.Ordinal);
-
-        foreach (var obj in Objects)
-        {
-            if (obj == null ||
-                obj.ObjectKind == ObjectKind.Pc ||
-                obj.DataId == 0)
-                continue;
-
-            if (Vector3.DistanceSquared(
-                position, obj.Position) > 120f * 120f)
-                continue;
-
-            // Stable across sessions; excludes actor instance IDs.
-            keys.Add(
-                $"{(int)obj.ObjectKind}:{obj.DataId}");
-        }
-
-        return keys;
-    }
-
-    private int IdentifyCourse(
-        Vector3 position,
-        out string evidence)
-    {
-        evidence = "";
-
         if (Client.TerritoryType == 1197)
-        {
-            evidence = "Blunderville lobby territory.";
             return 0;
-        }
 
         if (Client.TerritoryType != 1165)
-        {
-            evidence = "Outside Fall Guys event duty.";
             return -1;
-        }
 
-        // Established Stage 3 location from vFallguy.
-        // Other stages require observed game signatures.
-        if (position.X >= -40f &&
-            position.X <= 40f &&
-            position.Z >= 100f &&
-            position.Z <= 350f)
+        return Client.MapId switch
         {
-            evidence = "Manderville Mountain arena location.";
-            return 5;
-        }
-
-        var live = CollectMapObjects(position);
-
-        var samples = config.CourseSignatures
-            .Where(s =>
-                s != null &&
-                s.Slot >= 1 &&
-                s.Slot < Names.Length &&
-                s.ObjectKeys != null &&
-                (s.MapId == 0 ||
-                 Client.MapId == 0 ||
-                 s.MapId == Client.MapId))
-            .ToList();
-
-        if (samples.Count == 0)
-        {
-            evidence =
-                $"Map ID {Client.MapId}; " +
-                "no learned signatures for this area.";
-            return -1;
-        }
-
-        int bestSlot = -1;
-        float bestScore = 0f;
-        float secondScore = 0f;
-        int bestHits = 0;
-
-        foreach (var sample in samples)
-        {
-            // Ignore object IDs also associated with
-            // another known course. They are not useful
-            // for distinguishing the stages.
-
-            var competingKeys = new HashSet<string>(
-                config.CourseSignatures
-                    .Where(s =>
-                        s != null &&
-                        s.Slot != sample.Slot &&
-                        s.ObjectKeys != null)
-                    .SelectMany(s => s.ObjectKeys),
-                StringComparer.Ordinal);
-
-            var uniqueKeys = sample.ObjectKeys
-                .Distinct(StringComparer.Ordinal)
-                .Where(k => !competingKeys.Contains(k))
-                .ToArray();
-
-            if (uniqueKeys.Length < 3)
-                continue;
-
-            int hits = uniqueKeys.Count(live.Contains);
-
-            float coverage =
-                (float)hits / uniqueKeys.Length;
-
-            // Reject weak or incidental matches.
-
-            if (hits < 3 || coverage < 0.20f)
-                continue;
-
-            float score = hits + coverage * 2f;
-
-            if (score > bestScore)
-            {
-                if (bestSlot >= 0 &&
-                    bestSlot != sample.Slot)
-                {
-                    secondScore = bestScore;
-                }
-
-                bestSlot = sample.Slot;
-                bestScore = score;
-                bestHits = hits;
-            }
-            else if (sample.Slot != bestSlot &&
-                     score > secondScore)
-            {
-                secondScore = score;
-            }
-        }
-
-        if (bestSlot < 0)
-        {
-            evidence =
-                $"Map ID {Client.MapId}; " +
-                "no sufficiently strong object match.";
-            return -1;
-        }
-
-        if (secondScore > 0 &&
-            bestScore - secondScore < 2.5f)
-        {
-            evidence =
-                "Ambiguous object signatures.";
-            return -1;
-        }
-
-        evidence =
-            $"{bestHits} distinctive object IDs matched; " +
-            $"Map ID {Client.MapId}.";
-
-        return bestSlot;
+            878 => 1,
+            879 => 2,
+            880 => 4,
+            881 => 3,
+            882 => 5,
+            883 => -2,
+            _ => -1
+        };
     }
 
-    private void ApplyDetectedMap(int slot)
-    {
-        if (!config.AutoSelectCourse ||
-            config.AutoRecord ||
-            guideRunning ||
-            slot < 0 ||
-            slot >= Names.Length ||
-            config.SelectedSlot == slot)
+    private string DetectedMapName =>
+        IdentifyCourseMapId() switch
         {
-            return;
-        }
-
-        config.SelectedSlot = slot;
-        Save();
-
-        ResetSuggestion();
-        splatoon.Clear();
-
-        status =
-            $"Map identified: {DetectedMapName}. " +
-            "Matching route profile selected.";
-    }
+            0 => "Blunderville Hub",
+            -2 => "Pre-round Waiting Room",
+            1 => Names[1],
+            2 => Names[2],
+            3 => Names[3],
+            4 => Names[4],
+            5 => Names[5],
+            _ => "Unknown Fall Guys Map"
+        };
 
     private void UpdateCourseSelection(
         Vector3 position,
         DateTime now)
     {
-        if ((now - lastCourseScan).TotalMilliseconds < 1000)
+        if ((now - lastCourseScan).TotalMilliseconds < 350)
             return;
 
         lastCourseScan = now;
@@ -242,140 +81,109 @@ public sealed partial class Plugin
         uint territory = Client.TerritoryType;
         uint mapId = Client.MapId;
 
-        if (lastDetectionTerritory != territory ||
-            lastDetectionMapId != mapId)
-        {
-            lastDetectionTerritory = territory;
-            lastDetectionMapId = mapId;
+        bool previousKnown = lastDetectionTerritory != 0;
 
-            detectedMapSlot = -1;
-            ResetCourseCandidate();
+        bool changed =
+            previousKnown &&
+            (lastDetectionTerritory != territory ||
+             lastDetectionMapId != mapId);
+
+        lastDetectionTerritory = territory;
+        lastDetectionMapId = mapId;
+
+        if (changed)
+        {
+            // Territory 1165 can contain several distinct
+            // maps. Reset stage-specific state on Map ID
+            // changes even if the territory stays the same.
+
+            if (guideRunning)
+            {
+                StopGuide(
+                    "Map changed. Visual guidance stopped.");
+            }
+
+            if (config.AutoRecord)
+            {
+                config.AutoRecord = false;
+                Save();
+            }
+
+            hazardEnabled = false;
+            clearArmed = false;
+
+            casts.Clear();
+            previousCasts.Clear();
+
+            ResetSuggestion();
+            splatoon.Clear();
         }
 
-        int result = IdentifyCourse(
-            position, out string evidence);
+        int result = IdentifyCourseMapId();
+
+        detectedMapSlot = result;
+
+        if (result == -2)
+        {
+            courseDetectionStatus =
+                "Waiting room detected. No course route loaded.";
+            return;
+        }
 
         if (result == -1)
         {
-            detectedMapSlot = -1;
-            ResetCourseCandidate();
-
             courseDetectionStatus =
-                "Unidentified: " + evidence;
-
+                $"Unrecognized map ID {mapId}. " +
+                "No automatic route change.";
             return;
         }
 
-        if (detectedMapSlot == result)
+        if (result == 0)
         {
             courseDetectionStatus =
-                $"Detected: {DetectedMapName}. {evidence}";
-
-            ApplyDetectedMap(result);
+                "Blunderville hub detected.";
             return;
-        }
-
-        if (candidateCourse != result)
-        {
-            candidateCourse = result;
-            candidateSamples = 1;
-        }
-        else
-        {
-            candidateSamples++;
         }
 
         courseDetectionStatus =
-            $"Checking: {(result == 0 ? "Lobby" : Names[result])} " +
-            $"({candidateSamples}/3). {evidence}";
+            $"Confirmed Map ID {mapId}: {Names[result]}.";
 
-        if (candidateSamples < 3)
+        // Identifying the current map is unconditional.
+        // Selecting its saved route is optional.
+
+        if (!config.AutoSelectCourse ||
+            config.AutoRecord ||
+            guideRunning ||
+            config.SelectedSlot == result)
             return;
 
-        detectedMapSlot = result;
-        ResetCourseCandidate();
-
-        courseDetectionStatus =
-            $"Detected: {DetectedMapName}. {evidence}";
-
-        ApplyDetectedMap(result);
-    }
-
-    private void TeachCurrentMap(Vector3 position)
-    {
-        if (Client.TerritoryType != 1165)
-        {
-            status = "Enter a Fall Guys event course first.";
-            return;
-        }
-
-        if (teachingSlot < 1 ||
-            teachingSlot >= Names.Length)
-        {
-            status = "Select the actual course name first.";
-            return;
-        }
-
-        var keys = CollectMapObjects(position)
-            .OrderBy(k => k, StringComparer.Ordinal)
-            .ToList();
-
-        if (keys.Count < 3)
-        {
-            status =
-                "Too few identifiable objects. " +
-                "Move further into the active course.";
-            return;
-        }
-
-        config.CourseSignatures ??= new();
-
-        config.CourseSignatures.Add(
-            new CourseSignature
-            {
-                Slot = teachingSlot,
-                MapId = Client.MapId,
-                ObjectKeys = keys
-            });
-
-        // Keep up to 6 observations per map.
-        var same = config.CourseSignatures
-            .Where(s => s.Slot == teachingSlot)
-            .ToList();
-
-        while (same.Count > 6)
-        {
-            config.CourseSignatures.Remove(same[0]);
-            same.RemoveAt(0);
-        }
-
+        config.SelectedSlot = result;
         Save();
-        ResetCourseCandidate();
+
+        ResetSuggestion();
+        splatoon.Clear();
 
         status =
-            $"Learned {keys.Count} object IDs for " +
-            $"{Names[teachingSlot]} (Map ID {Client.MapId}).";
-
-        courseDetectionStatus =
-            "Learning saved. Automatic recognition will " +
-            "be evaluated from live evidence.";
+            $"Detected {Names[result]}. " +
+            "Matching route profile selected.";
     }
 
     private string CaptureCourseDiagnostics(Vector3 position)
     {
         var report = new StringBuilder();
 
-        report.AppendLine("=== BLUNDERNAV DEV5 FIX1 ===");
+        report.AppendLine(
+            "=== BLUNDERNAV DEV5 FIX2 DIAGNOSTICS ===");
+
         report.AppendLine($"UTC: {DateTime.UtcNow:O}");
         report.AppendLine($"Territory: {Client.TerritoryType}");
         report.AppendLine($"Map ID: {Client.MapId}");
         report.AppendLine($"Detected map: {DetectedMapName}");
-        report.AppendLine(
-            $"Detection: {courseDetectionStatus}");
+        report.AppendLine($"Detection: {courseDetectionStatus}");
 
         report.AppendLine(
-            $"Player XYZ: {position.X:F2}, " +
-            $"{position.Y:F2}, {position.Z:F2}");
+            $"Player XYZ: " +
+            $"{position.X:F2}, {position.Y:F2}, {position.Z:F2}");
 
         report.AppendLine(
             $"Route profile: {Names[config.SelectedSlot]}");
@@ -383,34 +191,21 @@ public sealed partial class Plugin
         report.AppendLine(
             $"Auto-load route: {config.AutoSelectCourse}");
 
-        report.AppendLine(
-            $"Saved map signatures: " +
-            $"{config.CourseSignatures.Count}");
-
-        report.AppendLine();
-        report.AppendLine("=== OBJECT SIGNATURE ===");
-
-        foreach (var key in CollectMapObjects(position)
-            .OrderBy(k => k, StringComparer.Ordinal))
-        {
-            report.AppendLine(key);
-        }
-
         report.AppendLine();
         report.AppendLine("=== NEARBY NON-PLAYER OBJECTS ===");
 
         var nearby = Objects
-            .Where(obj =>
-                obj != null &&
-                obj.ObjectKind != ObjectKind.Pc)
-            .Select(obj => new
+            .Where(o =>
+                o != null &&
+                o.ObjectKind != ObjectKind.Pc)
+            .Select(o => new
             {
-                Object = obj,
+                Object = o,
                 Distance = Vector3.Distance(
-                    position, obj.Position)
+                    position, o.Position)
             })
-            .Where(entry => entry.Distance <= 120f)
-            .OrderBy(entry => entry.Distance)
+            .Where(x => x.Distance <= 120f)
+            .OrderBy(x => x.Distance)
             .Take(80);
 
         foreach (var entry in nearby)
@@ -427,97 +222,15 @@ public sealed partial class Plugin
         }
 
         report.AppendLine();
-        report.AppendLine("=== OBSERVED CASTS ===");
+        report.AppendLine("=== CURRENT MAP CAST HISTORY ===");
 
         foreach (var cast in casts.Take(30))
             report.AppendLine(cast);
 
         report.AppendLine();
         report.AppendLine(
-            "No hazard geometry has been inferred.");
+            "No automatic AoE geometry is inferred.");
 
         return report.ToString();
-    }
-
-    private void DrawCourseDetection(Vector3 position)
-    {
-        ImGui.Separator();
-        ImGui.TextUnformatted("FALL GUYS MAP DETECTION");
-
-        ImGui.TextUnformatted(
-            $"Detected map: {DetectedMapName}");
-
-        ImGui.TextUnformatted(
-            $"Territory: {Client.TerritoryType} | " +
-            $"Map ID: {Client.MapId}");
-
-        ImGui.TextWrapped(courseDetectionStatus);
-
-        bool autoLoad = config.AutoSelectCourse;
-
-        if (ImGui.Checkbox(
-            "Auto-load route for detected map",
-            ref autoLoad))
-        {
-            config.AutoSelectCourse = autoLoad;
-            Save();
-        }
-
-        ImGui.TextWrapped(
-            "Map identification runs independently of " +
-            "recorded routes. Only confirmed map detections " +
-            "can automatically select a route profile.");
-
-        if (ImGui.CollapsingHeader(
-            "Map identification calibration"))
-        {
-            ImGui.TextWrapped(
-                "For unidentified maps, choose the map " +
-                "you are actually playing and capture its " +
-                "object signature. Repeat in different areas " +
-                "to improve recognition.");
-
-            ImGui.Combo(
-                "This map is...",
-                ref teachingSlot,
-                Names,
-                Names.Length);
-
-            if (ImGui.Button("Teach current map"))
-                TeachCurrentMap(position);
-
-            ImGui.TextUnformatted(
-                $"Saved observations: " +
-                $"{config.CourseSignatures.Count}");
-
-            if (ImGui.Button("Capture diagnostic snapshot"))
-            {
-                diagnosticReport =
-                    CaptureCourseDiagnostics(position);
-
-                status = "Diagnostic snapshot captured.";
-            }
-
-            if (diagnosticReport.Length > 0)
-            {
-                if (ImGui.Button("Copy diagnostic report"))
-                {
-                    ImGui.SetClipboardText(diagnosticReport);
-                    status = "Report copied to clipboard.";
-                }
-
-                if (ImGui.TreeNode("Diagnostic preview"))
-                {
-                    foreach (var line in diagnosticReport
-                        .Split('\n').Take(25))
-                    {
-                        ImGui.TextUnformatted(
-                            line.TrimEnd('\r'));
-                    }
-
-                    ImGui.TreePop();
-                }
-            }
-        }
     }
 }

@@ -12,9 +12,9 @@
                  "navigation",
                  "visual"
              ],
-    "Name":  "BlunderNav [DEV5 FIX1]",
     "InternalName":  "BlunderNav",
-    "AssemblyVersion":  "0.0.11.0",
+    "Name":  "BlunderNav [DEV5 FIX2]",
+    "AssemblyVersion":  "0.0.12.0",
     "DalamudApiLevel":  15,
-    "Description":  "Visual Fall Guys navigation with independent map identification, persistent object signatures, Splatoon overlays and read-only vnavmesh suggestions."
+    "Description":  "Visual-only Fall Guys navigation with built-in Map ID detection, automatic matching route selection, Splatoon overlays and read-only vnavmesh guidance."
 }

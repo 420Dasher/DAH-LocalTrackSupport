@@ -1,50 +1,72 @@
-# BlunderNav DEV5 FIX1
+# BlunderNav DEV5 FIX2
 
-Version: 0.0.11.0
+Version 0.0.12.0
 Dalamud API 15 / .NET 10
 
-## Actual map identification
+## Verified Fall Guys Map IDs
 
-Map identification does not use recorded routes.
+Territory 1165:
+- 878: Gentlebean's Fever
+- 879: Manderville-can Parade
+- 880: The Gold Swiveller
+- 881: Saucery Siege
+- 882: Manderville Mountain
+- 883: Pre-round Waiting Room
 
-Evidence:
-- Territory type
-- Current Map ID
-- Player position
-- Distinctive non-player object Data IDs
+Territory 1197:
+- Blunderville Hub
 
-Built-in:
-- Blunderville lobby: territory 1197
-- Manderville Mountain: published Stage 3 coordinate region
+These identifiers were collected during live testing.
 
-Other course signatures must initially be collected in-game.
+Map identification works without recorded routes.
 
-## Calibration
+## Automatic route loading
 
-1. Enter a Fall Guys course.
-2. Open /bnav.
-3. Expand Map identification calibration.
-4. Choose the actual course name.
-5. Click Teach current map.
-6. Capture additional samples in different areas.
-7. Repeat for other courses.
+When enabled, a recognized course selects the
+corresponding saved route profile.
 
-Learned signatures persist in the existing Dalamud config.
+The waiting room never loads a course route.
 
-## Route integration
+Manual route selection disables automatic route
+loading until it is re-enabled in the Guide tab.
 
-Once a map is detected, its matching route profile
-can be selected automatically.
+## Interface
 
-Unidentified maps do not trigger route switching.
+Guide:
+- Detected map
+- Automatic route setting
+- Start, stop, rejoin
+- Checkpoint progress
+- Overlay visibility
 
-Manual route selection disables auto-loading, but map
-identification itself continues.
+Routes:
+- Profile selection
+- Checkpoint recording
+- Recording spacing
+- Route clearing
+- Recorded checkpoint list
 
-## Safety
+Diagnostics:
+- Map and position details
+- Capture and copy object/cast report
+- Cast history
+- Experimental manual test hazard
 
-No movement automation.
+## Runtime behavior
 
-No guessed obstacle AoEs.
+Map changes clear stale cast observations and
+stop active visual guidance.
 
-The existing Splatoon visual guidance is retained.
+The waiting room does not render a course route.
+
+Recorded routes and configuration are preserved.
+
+## Navigation
+
+BlunderNav NEVER controls player movement.
+
+Splatoon is responsible for route visualization.
+vnavmesh is used for read-only path suggestions.
+
+Real automatic Fall Guys AoE detection remains
+future work and is not claimed by this build.
