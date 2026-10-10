@@ -114,6 +114,7 @@ public sealed partial class Plugin
 
             casts.Clear();
             previousCasts.Clear();
+            ResetObjectiveDiscovery();
 
             ResetSuggestion();
             splatoon.Clear();

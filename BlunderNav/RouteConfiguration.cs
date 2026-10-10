@@ -9,6 +9,7 @@ public sealed class RouteConfiguration : IPluginConfiguration
     public int SelectedSlot { get; set; } = 0;
     public bool AutoSelectCourse { get; set; } = true;
     public List<CourseSignature> CourseSignatures { get; set; } = new();
+    public List<ObjectiveSurveyPoint> ObjectiveSurveyPoints { get; set; } = new();
     public bool AutoRecord { get; set; } = false;
     public bool AutoAdvance { get; set; } = false;
     public bool SmoothCorners { get; set; } = false;
@@ -48,4 +49,12 @@ public sealed class CourseSignature
     public int Slot { get; set; }
     public uint MapId { get; set; }
     public List<string> ObjectKeys { get; set; } = new();
+}
+public sealed class ObjectiveSurveyPoint
+{
+    public uint MapId { get; set; }
+    public string Label { get; set; } = "";
+    public float X { get; set; }
+    public float Y { get; set; }
+    public float Z { get; set; }
 }

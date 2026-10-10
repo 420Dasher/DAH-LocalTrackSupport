@@ -1,72 +1,86 @@
-# BlunderNav DEV5 FIX2
+# BlunderNav DEV6.1
 
-Version 0.0.12.0
+Version: 0.0.13.0
 Dalamud API 15 / .NET 10
 
-## Verified Fall Guys Map IDs
+## Objective discovery research
+
+DEV6.1 gathers evidence for future automatically
+calculated routes. It does not guess destinations.
+
+During each active Fall Guys course, it observes:
+
+- Current Map ID
+- Player starting position
+- Player position coverage
+- Nearby game-object Base IDs
+- Whether objects are targetable
+- Object names and positions
+- Repeated object types
+- Object movement
+- Player target changes
+- Observed cast action IDs
+
+All runtime observations are scoped to the current map.
+
+## Optional goal samples
+
+Diagnostics > Objective research tools
+
+- Mark finish / goal here
+- Mark selected target
+
+These are optional one-time research samples,
+NOT manually recorded paths.
+
+Samples persist in the existing plugin configuration.
+
+They are not used for guidance until objectives
+have been verified.
+
+## Current map IDs
 
 Territory 1165:
-- 878: Gentlebean's Fever
-- 879: Manderville-can Parade
-- 880: The Gold Swiveller
-- 881: Saucery Siege
-- 882: Manderville Mountain
-- 883: Pre-round Waiting Room
+
+878 Gentlebean's Fever
+879 Manderville-can Parade
+880 The Gold Swiveller
+881 Saucery Siege
+882 Manderville Mountain
+883 Pre-round Waiting Room
 
 Territory 1197:
-- Blunderville Hub
 
-These identifiers were collected during live testing.
+Blunderville Hub
 
-Map identification works without recorded routes.
+## Existing functionality
 
-## Automatic route loading
+- Automatic map detection
+- Automatic route profile selection
+- Optional recorded route guidance
+- Read-only vnavmesh suggestions
+- Splatoon visual overlays
+- Map-specific cast observation
+- Manual test hazard
 
-When enabled, a recognized course selects the
-corresponding saved route profile.
+## DEV6.1 test
 
-The waiting room never loads a course route.
+1. Enter a Fall Guys course.
+2. Open /bnav > Diagnostics.
+3. Expand Objective research tools.
+4. Move through the map normally.
+5. Optionally mark the actual finish or objective.
+6. Near the end, select Capture + copy objective report.
+7. Share the report for objective analysis.
 
-Manual route selection disables automatic route
-loading until it is re-enabled in the Guide tab.
+For Saucery Siege, samples of crystal pickup
+and delivery locations are especially valuable.
 
-## Interface
+## Safety
 
-Guide:
-- Detected map
-- Automatic route setting
-- Start, stop, rejoin
-- Checkpoint progress
-- Overlay visibility
+No automatic character movement.
+No guessed objective route.
+No inferred AoE shapes.
 
-Routes:
-- Profile selection
-- Checkpoint recording
-- Recording spacing
-- Route clearing
-- Recorded checkpoint list
-
-Diagnostics:
-- Map and position details
-- Capture and copy object/cast report
-- Cast history
-- Experimental manual test hazard
-
-## Runtime behavior
-
-Map changes clear stale cast observations and
-stop active visual guidance.
-
-The waiting room does not render a course route.
-
-Recorded routes and configuration are preserved.
-
-## Navigation
-
-BlunderNav NEVER controls player movement.
-
-Splatoon is responsible for route visualization.
-vnavmesh is used for read-only path suggestions.
-
-Real automatic Fall Guys AoE detection remains
-future work and is not claimed by this build.
+DEV6.2 will use verified destinations
+to test automatically calculated visual paths.

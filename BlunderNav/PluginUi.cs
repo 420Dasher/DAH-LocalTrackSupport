@@ -17,7 +17,7 @@ public sealed partial class Plugin
             ImGuiCond.FirstUseEver);
 
         if (!ImGui.Begin(
-            "BlunderNav | DEV5",
+            "BlunderNav | DEV6",
             ref windowOpen,
             ImGuiWindowFlags.None))
         {
@@ -29,7 +29,7 @@ public sealed partial class Plugin
         {
             ImGui.TextUnformatted("BLUNDERNAV");
             ImGui.SameLine();
-            ImGui.TextDisabled("DEV5 FIX2  |  0.0.12");
+            ImGui.TextDisabled("DEV6.1  |  0.0.13");
 
             ImGui.TextUnformatted(DetectedMapName);
 
@@ -128,6 +128,9 @@ public sealed partial class Plugin
 
         ImGui.TextDisabled(
             $"{route.Points.Count} recorded checkpoints");
+
+        ImGui.TextDisabled(
+            "Automatic goal routing: research in progress");
 
         if (detectedMapSlot >= 1 &&
             config.SelectedSlot != detectedMapSlot)
@@ -353,6 +356,9 @@ public sealed partial class Plugin
         ImGui.TextDisabled(
             $"XYZ: {position.X:F1}, " +
             $"{position.Y:F1}, {position.Z:F1}");
+
+        ImGui.Separator();
+        DrawObjectiveResearch(position);
 
         ImGui.Separator();
         ImGui.TextDisabled("MECHANIC RESEARCH");

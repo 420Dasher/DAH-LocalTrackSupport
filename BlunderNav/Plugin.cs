@@ -101,6 +101,7 @@ public sealed partial class Plugin : IDalamudPlugin
             ?? new RouteConfiguration();
 
         config.Routes ??= new List<RecordedRoute>();
+        config.ObjectiveSurveyPoints ??= new List<ObjectiveSurveyPoint>();
 
         config.SelectedSlot = Math.Clamp(
             config.SelectedSlot, 0, Names.Length - 1);
@@ -135,7 +136,7 @@ public sealed partial class Plugin : IDalamudPlugin
         Pi.UiBuilder.OpenConfigUi += Open;
 
         Log.Information(
-            "BlunderNav DEV5 FIX2: direct map IDs, visual guidance.");
+            "BlunderNav DEV6.1: objective research and visual guidance.");
     }
 
     private void Save()
@@ -589,6 +590,7 @@ public sealed partial class Plugin : IDalamudPlugin
         var position = player.Position;
 
         UpdateCourseSelection(position, now);
+        UpdateObjectiveDiscovery(position, now);
 
         if ((now - lastNavPoll).TotalMilliseconds >= 1000)
         {

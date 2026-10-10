@@ -1,9 +1,9 @@
 <Project Sdk="Dalamud.NET.Sdk/15.0.0">
   <PropertyGroup>
     <TargetFramework>net10.0-windows</TargetFramework>
-    <Version>0.0.12.0</Version>
-    <AssemblyVersion>0.0.12.0</AssemblyVersion>
-    <FileVersion>0.0.12.0</FileVersion>
+    <Version>0.0.13.0</Version>
+    <AssemblyVersion>0.0.13.0</AssemblyVersion>
+    <FileVersion>0.0.13.0</FileVersion>
     <AssemblyName>BlunderNav</AssemblyName>
     <RootNamespace>BlunderNav</RootNamespace>
     <Name>BlunderNav</Name>
