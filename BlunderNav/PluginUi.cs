@@ -29,7 +29,7 @@ public sealed partial class Plugin
         {
             ImGui.TextUnformatted("BLUNDERNAV");
             ImGui.SameLine();
-            ImGui.TextDisabled("DEV6.1  |  0.0.13");
+            ImGui.TextDisabled("DEV6.2  |  0.0.14");
 
             ImGui.TextUnformatted(DetectedMapName);
 
@@ -121,7 +121,10 @@ public sealed partial class Plugin
         var route = CurrentRoute();
 
         ImGui.Separator();
-        ImGui.TextDisabled("ACTIVE ROUTE");
+        DrawAutoPreviewUi(position);
+
+        ImGui.Separator();
+        ImGui.TextDisabled("RECORDED ROUTE (OPTIONAL)");
 
         ImGui.TextUnformatted(
             Names[config.SelectedSlot]);
@@ -130,7 +133,7 @@ public sealed partial class Plugin
             $"{route.Points.Count} recorded checkpoints");
 
         ImGui.TextDisabled(
-            "Automatic goal routing: research in progress");
+            "Manual checkpoint guide remains available.");
 
         if (detectedMapSlot >= 1 &&
             config.SelectedSlot != detectedMapSlot)
@@ -145,8 +148,14 @@ public sealed partial class Plugin
 
         if (!guideRunning)
         {
-            if (ImGui.Button("Start guidance"))
+            if (route.Points.Count < 2)
+                ImGui.BeginDisabled();
+
+            if (ImGui.Button("Start recorded guide"))
                 StartGuide();
+
+            if (route.Points.Count < 2)
+                ImGui.EndDisabled();
         }
         else
         {
@@ -176,7 +185,7 @@ public sealed partial class Plugin
         }
 
         ImGui.TextDisabled(
-            "Cyan: recording  |  Green: suggested path");
+            "Cyan: recorded route | Green: calculated path");
 
         if (!navAvailable)
         {

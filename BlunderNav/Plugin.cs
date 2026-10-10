@@ -136,7 +136,7 @@ public sealed partial class Plugin : IDalamudPlugin
         Pi.UiBuilder.OpenConfigUi += Open;
 
         Log.Information(
-            "BlunderNav DEV6.1: objective research and visual guidance.");
+            "BlunderNav DEV6.2: experimental calculated visual paths.");
     }
 
     private void Save()
@@ -612,6 +612,8 @@ public sealed partial class Plugin : IDalamudPlugin
             ObserveCasts();
         }
 
+        UpdateAutoPreview(position, now);
+
         if (config.AutoRecord && !guideRunning)
             Record(position, true);
 
@@ -731,13 +733,27 @@ public sealed partial class Plugin : IDalamudPlugin
             end = Math.Min(end, begin + 6);
         }
 
-        for (int i = begin; i < end; i++)
+        // The calculated route becomes the primary
+        // display when available. The saved route
+        // remains a fallback.
+
+        if (!AutoPreviewShown)
         {
-            lines.Add(new VisualLine(
-                route.Points[i].Position,
-                route.Points[i + 1].Position,
-                recordedColor,
-                2.5f));
+            for (int i = begin; i < end; i++)
+            {
+                lines.Add(new VisualLine(
+                    route.Points[i].Position,
+                    route.Points[i + 1].Position,
+                    recordedColor,
+                    2.5f));
+            }
+        }
+
+        if (AutoPreviewShown && Objects.LocalPlayer != null)
+        {
+            AppendAutoPreviewLines(
+                lines,
+                Objects.LocalPlayer.Position);
         }
 
         if (guideRunning && suggestedPath != null)
@@ -769,6 +785,15 @@ public sealed partial class Plugin : IDalamudPlugin
             target = new VisualCircle(
                 route.Points[nextIndex].Position,
                 0.8f,
+                targetColor,
+                4f);
+        }
+
+        if (AutoPreviewShown)
+        {
+            target = new VisualCircle(
+                autoPreviewTarget,
+                1.0f,
                 targetColor,
                 4f);
         }

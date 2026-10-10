@@ -1,86 +1,95 @@
-# BlunderNav DEV6.1
+# BlunderNav DEV6.2
 
-Version: 0.0.13.0
+Version 0.0.14.0
 Dalamud API 15 / .NET 10
 
-## Objective discovery research
+## Experimental calculated route previews
 
-DEV6.1 gathers evidence for future automatically
-calculated routes. It does not guess destinations.
+DEV6.2 adds a separate read-only long-range
+vnavmesh path calculation pipeline.
 
-During each active Fall Guys course, it observes:
+Supported objective destinations:
 
-- Current Map ID
-- Player starting position
-- Player position coverage
-- Nearby game-object Base IDs
-- Whether objects are targetable
-- Object names and positions
-- Repeated object types
-- Object movement
-- Player target changes
-- Observed cast action IDs
+Map 878 - Gentlebean's Fever
+Post-finish reference:
+-198.32, 13.59, -364.44
 
-All runtime observations are scoped to the current map.
+Map 879 - Manderville-can Parade
+Post-finish reference:
+-3.38, 18.94, -379.94
 
-## Optional goal samples
+Map 881 - Saucery Siege
+Manual test targets:
 
-Diagnostics > Objective research tools
+Pickup:
+-200.30, 5.46, 252.90
 
-- Mark finish / goal here
-- Mark selected target
+Blue:
+-200.26, 6.00, 204.02
 
-These are optional one-time research samples,
-NOT manually recorded paths.
+Red:
+-241.04, 6.00, 274.59
 
-Samples persist in the existing plugin configuration.
+Yellow:
+-158.90, 6.00, 273.09
 
-They are not used for guidance until objectives
-have been verified.
+Saucery Siege does NOT detect carried
+crystal color automatically in DEV6.2.
 
-## Current map IDs
+Map 880 - The Gold Swiveller
+Survival mode; no fixed-route preview.
 
-Territory 1165:
+Map 882 - Manderville Mountain
+Two qualifying finish gates, exact
+positions not yet verified.
+No guessed target is used.
 
-878 Gentlebean's Fever
-879 Manderville-can Parade
-880 The Gold Swiveller
-881 Saucery Siege
-882 Manderville Mountain
-883 Pre-round Waiting Room
+## How it works
 
-Territory 1197:
+The Guide tab automatically requests a
+calculated path on supported maps.
 
-Blunderville Hub
+The pathfinder is read-only.
 
-## Existing functionality
+Results undergo basic validation:
+- finite coordinates
+- reasonable length
+- expected endpoint
+- bounded number of nodes
+- stale-origin rejection
+- calculation timeout
 
-- Automatic map detection
-- Automatic route profile selection
-- Optional recorded route guidance
-- Read-only vnavmesh suggestions
-- Splatoon visual overlays
-- Map-specific cast observation
-- Manual test hazard
+Splatoon draws only the nearby portion
+of a returned route.
 
-## DEV6.1 test
+Paths may cross active Fall Guys hazards.
+A calculated route is not a safe route.
 
-1. Enter a Fall Guys course.
-2. Open /bnav > Diagnostics.
-3. Expand Objective research tools.
-4. Move through the map normally.
-5. Optionally mark the actual finish or objective.
-6. Near the end, select Capture + copy objective report.
-7. Share the report for objective analysis.
+No movement commands are sent.
 
-For Saucery Siege, samples of crystal pickup
-and delivery locations are especially valuable.
+## Existing features retained
 
-## Safety
+- Automatic Map ID detection
+- Waiting room detection
+- Optional saved route profiles
+- Recorded checkpoint guide
+- DEV6.1 objective observer
+- Cast diagnostics
+- Experimental manual hazard marker
 
-No automatic character movement.
-No guessed objective route.
-No inferred AoE shapes.
+## Test priorities
 
-DEV6.2 will use verified destinations
-to test automatically calculated visual paths.
+1. Gentlebean's Fever:
+   Does vnavmesh return a valid path?
+   Does the green route follow the course?
+
+2. Manderville-can Parade:
+   Same tests, especially near obstacles.
+
+3. Saucery Siege:
+   Verify central pickup, then manually
+   select Blue, Red or Yellow and test
+   whether the target is reachable.
+
+Do not assume pathfinding understands
+moving obstacles or qualification triggers.

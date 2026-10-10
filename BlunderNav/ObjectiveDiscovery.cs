@@ -385,7 +385,14 @@ public sealed partial class Plugin
             "NOT verified finish lines or hazard geometry.");
 
         report.AppendLine(
-            "No automatic route generation is enabled.");
+            "DEV6.2 route preview: " + autoPreviewStatus);
+
+        report.AppendLine(
+            "Calculated paths are experimental and " +
+            "do not verify dynamic hazard safety.");
+
+        report.AppendLine(
+            "Character movement is always manual.");
 
         return report.ToString();
     }

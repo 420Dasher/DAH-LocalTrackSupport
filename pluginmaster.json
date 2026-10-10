@@ -1,4 +1,4 @@
-﻿[
+[
     {
         "Author":  "Dash + AI",
         "Name":  "SpotifyTrackHonorific",
@@ -131,13 +131,13 @@
         "IsTestingExclusive":  false,
         "LastUpdate":  1791483264,
         "Punchline":  "See the route. You do the moving.",
-        "Name":  "BlunderNav [DEV6.1]",
-        "AssemblyVersion":  "0.0.13.0",
-        "TestingAssemblyVersion":  "0.0.13.0",
+        "Name":  "BlunderNav [DEV6.2]",
+        "AssemblyVersion":  "0.0.14.0",
+        "TestingAssemblyVersion":  "0.0.14.0",
         "DalamudApiLevel":  15,
         "TestingDalamudApiLevel":  15,
-        "Changelog":  "DEV6.1: Read-only objective discovery, per-map object tracking, target observations, position coverage and optional goal samples. Fixed missing Dalamud.IoC import.",
-        "Description":  "Visual Fall Guys navigation with automatic course detection, objective research, Splatoon overlays and read-only vnavmesh.",
+        "Changelog":  "DEV6.2: Experimental read-only long-range vnavmesh route previews for confirmed race finishes and manually selected Saucery Siege destinations; live Splatoon path display with validation and no automatic movement.",
+        "Description":  "Visual Fall Guys navigation with automatic map detection, experimental route calculation, Splatoon overlays and objective research.",
         "DownloadLinkInstall":  "https://raw.githubusercontent.com/420Dasher/DAH-LocalTrackSupport/testing/plugins/BlunderNav/latest.zip",
         "DownloadLinkUpdate":  "https://raw.githubusercontent.com/420Dasher/DAH-LocalTrackSupport/testing/plugins/BlunderNav/latest.zip",
         "DownloadLinkTesting":  "https://raw.githubusercontent.com/420Dasher/DAH-LocalTrackSupport/testing/plugins/BlunderNav/latest.zip"

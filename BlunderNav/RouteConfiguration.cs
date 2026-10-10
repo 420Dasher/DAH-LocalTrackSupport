@@ -8,6 +8,7 @@ public sealed class RouteConfiguration : IPluginConfiguration
     public int Version { get; set; } = 1;
     public int SelectedSlot { get; set; } = 0;
     public bool AutoSelectCourse { get; set; } = true;
+    public bool AutoPreviewEnabled { get; set; } = true;
     public List<CourseSignature> CourseSignatures { get; set; } = new();
     public List<ObjectiveSurveyPoint> ObjectiveSurveyPoints { get; set; } = new();
     public bool AutoRecord { get; set; } = false;
