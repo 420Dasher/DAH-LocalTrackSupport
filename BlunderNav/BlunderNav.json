@@ -13,8 +13,8 @@
                  "visual"
              ],
     "InternalName":  "BlunderNav",
-    "Name":  "BlunderNav [DEV6.2 FIX1]",
-    "AssemblyVersion":  "0.0.15.0",
+    "Name":  "BlunderNav [DEV6.3]",
+    "AssemblyVersion":  "0.0.16.0",
     "DalamudApiLevel":  15,
-    "Description":  "Visual Fall Guys navigation with automatic map detection, experimental forward-looking vnavmesh route previews and Splatoon overlays."
+    "Description":  "Visual Fall Guys navigation with automatic map recognition, experimental route previews, Manderville Mountain hazard research and color-changing Splatoon overlays."
 }

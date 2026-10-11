@@ -116,6 +116,7 @@ public sealed partial class Plugin
             previousCasts.Clear();
             ResetObjectiveDiscovery();
             ResetAutoPreviewForMapChange();
+            ResetMountainHazards();
 
             ResetSuggestion();
             splatoon.Clear();

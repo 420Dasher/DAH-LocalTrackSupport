@@ -136,7 +136,7 @@ public sealed partial class Plugin : IDalamudPlugin
         Pi.UiBuilder.OpenConfigUi += Open;
 
         Log.Information(
-            "BlunderNav DEV6.2: experimental calculated visual paths.");
+            "BlunderNav DEV6.3: live visual hazard research.");
     }
 
     private void Save()
@@ -408,6 +408,8 @@ public sealed partial class Plugin : IDalamudPlugin
                 old == action)
                 continue;
 
+            ObserveMountainCast(actor, DateTime.UtcNow);
+
             casts.Insert(0,
                 $"{DateTime.Now:HH:mm:ss} | " +
                 $"Action {action} | " +
@@ -591,6 +593,7 @@ public sealed partial class Plugin : IDalamudPlugin
 
         UpdateCourseSelection(position, now);
         UpdateObjectiveDiscovery(position, now);
+        UpdateMountainMotion(position, now);
 
         if ((now - lastNavPoll).TotalMilliseconds >= 1000)
         {
@@ -688,7 +691,9 @@ public sealed partial class Plugin : IDalamudPlugin
             }
         }
 
-        if ((now - lastOverlayUpdate).TotalMilliseconds >= 650)
+        if ((now - lastOverlayUpdate).TotalMilliseconds >=
+            (Client.MapId == 882 &&
+             config.HazardForecastEnabled ? 200 : 650))
         {
             lastOverlayUpdate = now;
             RefreshOverlay();
@@ -808,6 +813,13 @@ public sealed partial class Plugin : IDalamudPlugin
                 hazardRadius,
                 dangerColor,
                 4f);
+        }
+
+        if (Objects.LocalPlayer != null)
+        {
+            AppendMountainHazards(
+                lines,
+                Objects.LocalPlayer.Position);
         }
 
         splatoon.Publish(lines, target, danger);

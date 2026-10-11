@@ -394,6 +394,13 @@ public sealed partial class Plugin
         report.AppendLine(
             "Character movement is always manual.");
 
+        if (Client.MapId == 882)
+        {
+            report.AppendLine();
+            report.AppendLine(
+                BuildMountainHazardReport());
+        }
+
         return report.ToString();
     }
 

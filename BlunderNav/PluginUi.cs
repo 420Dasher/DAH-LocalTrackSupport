@@ -29,7 +29,7 @@ public sealed partial class Plugin
         {
             ImGui.TextUnformatted("BLUNDERNAV");
             ImGui.SameLine();
-            ImGui.TextDisabled("DEV6.2 FIX1  |  0.0.15");
+            ImGui.TextDisabled("DEV6.3  |  0.0.16");
 
             ImGui.TextUnformatted(DetectedMapName);
 
@@ -122,6 +122,12 @@ public sealed partial class Plugin
 
         ImGui.Separator();
         DrawAutoPreviewUi(position);
+
+        if (Client.MapId == 882)
+        {
+            ImGui.Separator();
+            DrawMountainHazardUi();
+        }
 
         ImGui.Separator();
         ImGui.TextDisabled("RECORDED ROUTE (OPTIONAL)");
@@ -374,7 +380,10 @@ public sealed partial class Plugin
 
         ImGui.TextWrapped(
             "Captures live object IDs and cast actions. " +
-            "AoE geometry is not automatically detected yet.");
+            "DEV6.3 adds experimental 34812 square geometry " +
+            "for Manderville Mountain only.");
+
+        DrawMountainHazardDiagnostics();
 
         if (ImGui.Button("Capture + copy report"))
         {

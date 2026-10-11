@@ -1,117 +1,96 @@
-# BlunderNav DEV6.2 FIX1
+# BlunderNav DEV6.3
 
-Version 0.0.15.0
+Version: 0.0.16.0
 Dalamud API 15 / .NET 10
+Testing branch only
 
-## Experimental calculated route previews
+## Live hazard research
 
-DEV6.2 adds a separate read-only long-range
-vnavmesh path calculation pipeline.
+The first experimental hazard model supports
+Manderville Mountain, Map ID 882.
 
-Supported objective destinations:
+BlunderNav observes new in-game casts of
+action 34812 from the known obstacle emitters.
 
-Map 878 - Gentlebean's Fever
-Post-finish reference:
--198.32, 13.59, -364.44
+It displays square forecast outlines through
+the existing Splatoon bridge.
 
-Map 879 - Manderville-can Parade
-Post-finish reference:
--3.38, 18.94, -379.94
+Colors:
 
-Map 881 - Saucery Siege
-Manual test targets:
+Blue: early predicted activation.
+Yellow: approaching predicted activation.
+Red: simple projected player overlap near
+     the predicted activation time.
 
-Pickup:
--200.30, 5.46, 252.90
+The red state is NOT proof of an actual hit.
+The yellow state is NOT proof of a safe route.
 
-Blue:
--200.26, 6.00, 204.02
+Current modeled square half-width: 3 yalms.
+Current forecast timing:
+- first square approximately 1 second
+  after the cast is observed
+- subsequent squares every 0.5 seconds
 
-Red:
--241.04, 6.00, 274.59
+The live cast observer polls every 300 ms,
+so timing can lag real game events.
 
-Yellow:
--158.90, 6.00, 273.09
+Exact hit windows and collision predictions
+must be verified in-game before any routing
+system uses these forecasts.
 
-Saucery Siege does NOT detect carried
-crystal color automatically in DEV6.2.
+## Scope
 
-Map 880 - The Gold Swiveller
-Survival mode; no fixed-route preview.
+- No character movement
+- No automatic hazard avoidance
+- No fixed finish goal for Mountain yet
+- Existing DEV6.2 FIX1 path previews retained
+- Existing research and diagnostics retained
+- Other four repository plugins untouched
 
-Map 882 - Manderville Mountain
-Two qualifying finish gates, exact
-positions not yet verified.
-No guessed target is used.
+## Test instructions
 
-## How it works
+Enter Manderville Mountain and proceed
+toward the obstacle section at Z ~190.
 
-The Guide tab automatically requests a
-calculated path on supported maps.
+Open /bnav.
 
-The pathfinder is read-only.
+Under Guide, confirm:
+- Experimental hazard forecasts enabled
+- New 34812 casts recognized
+- Squares appear near relevant lanes
+- Color changes as the event approaches
 
-Results undergo basic validation:
-- finite coordinates
-- reasonable length
-- expected endpoint
-- bounded number of nodes
-- stale-origin rejection
-- calculation timeout
+Compare actual danger against yellow/red
+warnings and note any obvious mismatch.
 
-Splatoon draws only the nearby portion
-of a returned route.
+Use Diagnostics > Copy hazard timing report
+to share cast anchors and forecast counts.
 
-Paths may cross active Fall Guys hazards.
-A calculated route is not a safe route.
+## Research reference
 
-No movement commands are sent.
+vFallguy's public Map3 and MainWindow source
+provided the initial mechanical model:
 
-## Existing features retained
+https://github.com/awgil/ffxiv_vfallguy
 
-- Automatic Map ID detection
-- Waiting room detection
-- Optional saved route profiles
-- Recorded checkpoint guide
-- DEV6.1 objective observer
-- Cast diagnostics
-- Experimental manual hazard marker
+This is an independent BlunderNav implementation.
+It uses read-only Dalamud cast observation and
+BlunderNav's Splatoon visual lines, not vFallguy's
+hooking, navigation, or drawing code.
 
-## Test priorities
+## Known limitations
 
-1. Gentlebean's Fever:
-   Does vnavmesh return a valid path?
-   Does the green route follow the course?
+Only the 34812 Mountain square sequence is
+modeled in this build.
 
-2. Manderville-can Parade:
-   Same tests, especially near obstacles.
+34803 has been observed, but its geometry
+has not yet been verified.
 
-3. Saucery Siege:
-   Verify central pickup, then manually
-   select Blue, Red or Yellow and test
-   whether the target is reachable.
+Some 34812 timings are sourced from
+action-effect events in vFallguy, whereas
+BlunderNav currently observes cast starts.
 
-Do not assume pathfinding understands
-moving obstacles or qualification triggers.
-## DEV6.2 FIX1
+The two are not assumed to be equivalent.
 
-The previous long-range path validator rejected
-all segments longer than 140 yalms.
-
-A plausible long navmesh segment is now accepted,
-subject to endpoint, total length, finite-coordinate
-and extreme-jump checks.
-
-Visual guidance now joins the nearest 3D path
-segment rather than redrawing from an old origin.
-
-Only approximately 55 yalms ahead are displayed.
-
-Short navmesh segments: solid green.
-Sparse segments over 40 yalms: amber dashes.
-
-An amber dashed section is NOT proof of a safe
-corridor. Moving obstacle detection remains
-future work.
-
-Movement is always manual.
+Revised timing and fuller collision models
+are planned only after in-game confirmation.
