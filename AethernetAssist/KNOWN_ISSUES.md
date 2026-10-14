@@ -75,3 +75,11 @@ DEV4 FIX5:
 - Obsolete DataId/String8 references replaced.
 - Automatic gate movement pending in-game validation.
 - Flame Private NPC detection not yet implemented.
+DEV4 FIX6:
+- Manual movement now cancels the entire active gate-travel operation.
+- Both vnavmesh movement and Housing state machine are stopped.
+- Cancellation works while walking and while awaiting the native gate menu.
+- Manual fallback remains available when vnavmesh did not start.
+- Existing Cancel button and /anet cancel remain unchanged.
+- Existing ward travel, NPC interactions, and Aethernet callbacks unchanged.
+- Mist and Goblet auto-walk and Gridania NPC routes were user-tested in FIX5.

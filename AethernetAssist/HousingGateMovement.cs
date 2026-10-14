@@ -14,6 +14,7 @@ public sealed unsafe partial class Plugin
 
     private bool housingGateWalkAttempted;
     private bool housingGateWalkOwnsPath;
+    private bool housingGateWalkWasStarted;
     private DateTime housingGateWalkStarted;
     private DateTime housingGateLastProgress;
     private Vector3 housingGateLastPosition;
@@ -79,6 +80,7 @@ public sealed unsafe partial class Plugin
     {
         StopHousingGateWalk();
         housingGateWalkAttempted = false;
+        housingGateWalkWasStarted = false;
         housingGateWalkDiagnostic = "Waiting for gate action.";
     }
 
@@ -160,6 +162,7 @@ public sealed unsafe partial class Plugin
             ).InvokeAction(points, false);
 
             housingGateWalkOwnsPath = true;
+            housingGateWalkWasStarted = true;
             housingGateWalkStarted = DateTime.UtcNow;
             housingGateLastProgress = DateTime.UtcNow;
             housingGateLastPosition =
@@ -214,12 +217,29 @@ public sealed unsafe partial class Plugin
             return;
         }
 
+        // A manual override must cancel the entire Housing
+        // request, not just the vnavmesh movement.
+        //
+        // Keep this check active after the path ends, until
+        // the native gate menu actually appears.
+        //
+        // Do not cancel the manual fallback when auto-walk
+        // was disabled, unavailable, or never started.
+        if (housingGateWalkWasStarted &&
+            HousingMovementKeysPressed())
+        {
+            housingGateWalkDiagnostic =
+                "Full travel cancelled by manual movement.";
+
+            StopHousing("Cancelled by manual movement.");
+            return;
+        }
+
         if (!housingGateWalkOwnsPath)
             return;
 
         if (!config.AutoWalkHousingGates ||
-            IsBusy() ||
-            HousingMovementKeysPressed())
+            IsBusy())
         {
             housingGateWalkDiagnostic =
                 "Movement interrupted or disabled.";

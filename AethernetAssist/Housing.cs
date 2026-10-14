@@ -355,6 +355,11 @@ public sealed unsafe partial class Plugin
 
         TickHousingGateWalk();
 
+        // Movement interruption may have cancelled Housing.
+        // Never process the old travel phase afterward.
+        if (housingPhase == HousingPhase.Idle)
+            return;
+
         if (housingPhase == HousingPhase.WaitForArrival)
         {
 
