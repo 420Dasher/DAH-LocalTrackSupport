@@ -1,4 +1,4 @@
-# AethernetAssist v0.0.27 DEV4.2 RESEARCH3
+# AethernetAssist v0.0.28 DEV4.2 TEST1
 
 Dalamud API 15 / .NET 10
 Development branch: testing
@@ -49,3 +49,24 @@ No Cosmic Exploration travel command is active yet.
 
 Drivingway reference: Mare Lamentorum map X21.9 Y13.2 Z-1.4.
 The raw world XYZ position must be obtained from the object table.
+## Cosmic Travel TEST1
+
+Commands:
+- /anet sinus
+- /anet phaenna
+- /anet oizys
+- /anet auxesia
+
+TEST1 requires standing near Drivingway in Mare Lamentorum.
+
+The plugin attempts to:
+- Interact with verified Drivingway NPC 1052581
+- Advance Talk
+- Select native row 0 by exact text
+- Verify WKSPlanetSelect names and current node 17 text
+- Switch planets with a bounded native event sequence
+- Request Blast Off only when the correct planet is selected
+- Verify the destination territory after travel
+
+Automatic teleport to Bestways Burrow and vnavmesh movement
+are planned for a later test build.

@@ -59,6 +59,9 @@ public sealed unsafe partial class Plugin : IDalamudPlugin
     [PluginService]
     private static IAddonLifecycle AddonLifecycle { get; set; } = null!;
 
+    [PluginService]
+    private static IChatGui Chat { get; set; } = null!;
+
     private sealed record Shard(
         uint Id,
         uint Territory,
@@ -165,13 +168,14 @@ public sealed unsafe partial class Plugin : IDalamudPlugin
         Pi.UiBuilder.OpenMainUi += Open;
         Pi.UiBuilder.OpenConfigUi += OpenConfig;
 
-        Log.Information("AethernetAssist v0.0.27 DEV4.2 RESEARCH3 initialized.");
+        Log.Information("AethernetAssist v0.0.28 DEV4.2 TEST1 initialized.");
     }
 
     public void Dispose()
     {
         StopHousingGateWalk();
         StopCosmicUiCapture();
+        cosmicPhase = CosmicPhase.Idle;
         Framework.Update -= Update;
 
         Pi.UiBuilder.Draw -= Draw;
@@ -415,8 +419,26 @@ public sealed unsafe partial class Plugin : IDalamudPlugin
                 OpenWindowManually();
                 break;
 
+            case "sinus":
+                StartCosmicTravel(0);
+                break;
+
+            case "phaenna":
+                StartCosmicTravel(1);
+                break;
+
+            case "oizys":
+                StartCosmicTravel(2);
+                break;
+
+            case "auxesia":
+                StartCosmicTravel(3);
+                break;
+
             case "cancel":
-                if (residentialPhase != ResidentialPhase.Idle)
+                if (cosmicPhase != CosmicPhase.Idle)
+                    StopCosmicTravel("Cancelled by user.");
+                else if (residentialPhase != ResidentialPhase.Idle)
                     StopResidential("Cancelled by user.");
                 else if (housingPhase != HousingPhase.Idle)
                     StopHousing("Cancelled by user.");
@@ -434,6 +456,12 @@ public sealed unsafe partial class Plugin : IDalamudPlugin
     {
         try
         {
+            if (cosmicPhase != CosmicPhase.Idle)
+            {
+                TickCosmicTravel();
+                return;
+            }
+
             if (residentialPhase != ResidentialPhase.Idle)
             {
                 TickResidentialTravel();
@@ -462,7 +490,9 @@ public sealed unsafe partial class Plugin : IDalamudPlugin
         catch (Exception ex)
         {
             Log.Error($"AethernetAssist: {ex}");
-            if (residentialPhase != ResidentialPhase.Idle)
+            if (cosmicPhase != CosmicPhase.Idle)
+                StopCosmicTravel("Stopped after an internal error.");
+            else if (residentialPhase != ResidentialPhase.Idle)
                 StopResidential("Stopped after an internal error.");
             else if (housingPhase != HousingPhase.Idle)
                 StopHousing("Stopped after an internal error.");
@@ -1350,7 +1380,7 @@ public sealed unsafe partial class Plugin : IDalamudPlugin
 
         ImGui.TextColored(NavAccent, "SETTINGS");
         ImGui.SameLine();
-        ImGui.TextDisabled("0.0.27");
+        ImGui.TextDisabled("0.0.28");
         ImGui.Separator();
 
         bool autoOpen = config.AutoOpen;
@@ -1624,7 +1654,7 @@ public sealed unsafe partial class Plugin : IDalamudPlugin
                 return;
             }
 
-            ImGui.TextDisabled("v0.0.27");
+            ImGui.TextDisabled("v0.0.28");
 
             ImGui.SameLine(ImGui.GetWindowWidth() - 87f);
 

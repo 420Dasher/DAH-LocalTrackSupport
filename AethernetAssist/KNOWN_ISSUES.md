@@ -92,3 +92,13 @@ Historical development notes remain available in Git history.
 - Added native UI node ID, type and text inspection.
 - No selection callbacks or planet switching automated yet.
 - Purpose: identify current destination and confirmation controls.
+## DEV4.2 TEST1 (v0.0.28)
+
+- Four new /anet Cosmic destination commands.
+- TEST1 starts only within interaction range of Drivingway.
+- Native selection validates the current planet text node.
+- Arrow event params 1/2 and Blast Off param 7 are experimental
+  on this client and require in-game testing.
+- Maximum five navigation clicks, with transition validation.
+- No automatic vnavmesh movement or initial teleport yet.
+- No changes to city, Housing, or residential travel.

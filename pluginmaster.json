@@ -145,9 +145,9 @@
 {
     "Author":  "Dash + AI",
     "InternalName":  "AethernetAssist",
-    "Name":  "AethernetAssist [DEV4.2 RESEARCH3]",
-    "AssemblyVersion":  "0.0.27.0",
-    "TestingAssemblyVersion":  "0.0.27.0",
+    "Name":  "AethernetAssist [DEV4.2 TEST1]",
+    "AssemblyVersion":  "0.0.28.0",
+    "TestingAssemblyVersion":  "0.0.28.0",
     "DalamudApiLevel":  15,
     "TestingDalamudApiLevel":  15,
     "ApplicableVersion":  "any",
@@ -160,7 +160,7 @@
     "IsTestingExclusive":  false,
     "Punchline":  "Aethernet travel without the clutter.",
     "Description":  "Contextual Aethernet window with real attunement checks and one-click travel.",
-    "Changelog":  "DEV4.2 RESEARCH3: Confirmed WKSPlanetSelect as the Cosmic Exploration destination selector. Added read-only native AtkValue and UI node inspection to identify selected planets and controls. Existing travel remains unchanged.",
+    "Changelog":  "DEV4.2 TEST1: Adds /anet sinus, phaenna, oizys and auxesia for guarded Cosmic travel near Drivingway. Validates the native destination before travel. Automatic teleport and vnavmesh movement will follow after selector testing.",
     "Tags":  [
                  "aethernet",
                  "aetheryte",

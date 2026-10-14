@@ -941,6 +941,7 @@ public sealed unsafe partial class Plugin
             residentialMenuReadout +
             "\n\n" + BuildCosmicResearchReport() +
             BuildCosmicAddonCaptureReport() +
-            BuildCosmicPlanetResearchReport();
+            BuildCosmicPlanetResearchReport() +
+            BuildCosmicTravelReport();
     }
 }
