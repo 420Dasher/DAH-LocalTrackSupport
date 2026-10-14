@@ -145,9 +145,9 @@
 {
     "Author":  "Dash + AI",
     "InternalName":  "AethernetAssist",
-    "Name":  "AethernetAssist [DEV4.2 TEST1]",
-    "AssemblyVersion":  "0.0.28.0",
-    "TestingAssemblyVersion":  "0.0.28.0",
+    "Name":  "AethernetAssist [DEV4.2 TEST2]",
+    "AssemblyVersion":  "0.0.29.0",
+    "TestingAssemblyVersion":  "0.0.29.0",
     "DalamudApiLevel":  15,
     "TestingDalamudApiLevel":  15,
     "ApplicableVersion":  "any",
@@ -160,7 +160,7 @@
     "IsTestingExclusive":  false,
     "Punchline":  "Aethernet travel without the clutter.",
     "Description":  "Contextual Aethernet window with real attunement checks and one-click travel.",
-    "Changelog":  "DEV4.2 TEST1: Adds /anet sinus, phaenna, oizys and auxesia for guarded Cosmic travel near Drivingway. Validates the native destination before travel. Automatic teleport and vnavmesh movement will follow after selector testing.",
+    "Changelog":  "DEV4.2 TEST2: Cosmic travel automatically accepts the verified native destination confirmation after rechecking the exact prompt, Yes label, and selected planet. Single guarded callback with arrival verification. Existing travel unchanged.",
     "Tags":  [
                  "aethernet",
                  "aetheryte",

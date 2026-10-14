@@ -1,4 +1,4 @@
-# AethernetAssist v0.0.28 DEV4.2 TEST1
+# AethernetAssist v0.0.29 DEV4.2 TEST2
 
 Dalamud API 15 / .NET 10
 Development branch: testing

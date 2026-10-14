@@ -56,6 +56,9 @@ public sealed unsafe partial class Plugin
         "No Cosmic selector interaction attempted.";
 
     private bool cosmicMenuChosen;
+    private bool cosmicConfirmationSent;
+    private DateTime cosmicConfirmationAt;
+
     private string cosmicPreviousTitle = "";
     private int cosmicExpectedNextIndex = -1;
     private int cosmicSelectionAttempts;
@@ -72,6 +75,8 @@ public sealed unsafe partial class Plugin
         cosmicPhase = CosmicPhase.Idle;
         cosmicTargetIndex = -1;
         cosmicMenuChosen = false;
+        cosmicConfirmationSent = false;
+        cosmicConfirmationAt = DateTime.MinValue;
         cosmicPreviousTitle = "";
         cosmicExpectedNextIndex = -1;
         cosmicSelectionAttempts = 0;
@@ -161,6 +166,8 @@ public sealed unsafe partial class Plugin
         cosmicLastAction = DateTime.MinValue;
         cosmicMenuChosenAt = DateTime.MinValue;
         cosmicMenuChosen = false;
+        cosmicConfirmationSent = false;
+        cosmicConfirmationAt = DateTime.MinValue;
         cosmicPreviousTitle = "";
         cosmicExpectedNextIndex = -1;
         cosmicSelectionAttempts = 0;
@@ -289,24 +296,123 @@ public sealed unsafe partial class Plugin
                 return;
             }
 
-            if (GetAddon("SelectYesno") != null)
+            var confirmation = (AddonSelectYesno*)
+                GetAddon("SelectYesno");
+
+            if (confirmation != null)
             {
-                StopCosmicTravel(
-                    "A native confirmation appeared. " +
-                    "Please handle it manually.");
+                // Do not submit the same Yes callback twice,
+                // even if the addon remains visible briefly.
+                if (cosmicConfirmationSent)
+                {
+                    if ((now - cosmicConfirmationAt)
+                        .TotalSeconds > 9)
+                    {
+                        StopCosmicTravel(
+                            "Cosmic confirmation remained open " +
+                            "after submitting Yes.");
+                    }
+
+                    return;
+                }
+
+                if (confirmation->PromptText == null ||
+                    confirmation->AtkValues == null ||
+                    confirmation->AtkValuesCount < 2 ||
+                    confirmation->YesButton == null)
+                {
+                    StopCosmicTravel(
+                        "Native confirmation data unavailable.");
+                    return;
+                }
+
+                string prompt = Clean(
+                    confirmation->PromptText
+                        ->NodeText.ToString());
+
+                string firstButton = Clean(
+                    confirmation->AtkValues[1]
+                        .GetValueAsString());
+
+                cosmicNativeDetails =
+                    "Confirmation prompt: " + prompt +
+                    " | First button: " + firstButton;
+
+                // Never accept a generic or unrelated
+                // confirmation just because Yes/No is open.
+                if (!string.Equals(
+                    prompt,
+                    "Travel to the selected destination?",
+                    StringComparison.OrdinalIgnoreCase) ||
+                    !string.Equals(
+                    firstButton,
+                    "Yes",
+                    StringComparison.OrdinalIgnoreCase))
+                {
+                    StopCosmicTravel(
+                        "Unexpected confirmation. " +
+                        "No automatic response submitted.");
+                    return;
+                }
+
+                // Revalidate the requested planet immediately
+                // before confirming the actual transfer.
+                var planet = GetAddon("WKSPlanetSelect");
+
+                if (planet == null ||
+                    !TryReadCosmicTitle(
+                        planet,
+                        out string selectedName) ||
+                    !string.Equals(
+                        selectedName,
+                        targetName,
+                        StringComparison.OrdinalIgnoreCase))
+                {
+                    StopCosmicTravel(
+                        "Planet validation failed at confirmation.");
+                    return;
+                }
+
+                // Native SelectYesno:
+                // callback 0 = first (Yes) button.
+                confirmation->AtkUnitBase.FireCallbackInt(0);
+
+                cosmicConfirmationSent = true;
+                cosmicConfirmationAt = now;
+                cosmicLastAction = now;
+
+                cosmicNativeDetails =
+                    "Confirmed " + targetName +
+                    " | Prompt validated | Yes callback=0";
+
+                CosmicMessage(
+                    "Confirmed travel to " +
+                    targetName + ". Waiting for arrival.");
+
                 return;
             }
 
-            if ((now - cosmicLastAction).TotalSeconds > 9 &&
+            if (!cosmicConfirmationSent &&
+                (now - cosmicLastAction).TotalSeconds > 12 &&
+                !IsBusy())
+            {
+                StopCosmicTravel(
+                    "Blast Off confirmation did not appear.");
+                return;
+            }
+
+            if (cosmicConfirmationSent &&
+                (now - cosmicConfirmationAt).TotalSeconds > 25 &&
                 GetAddon("WKSPlanetSelect") != null &&
                 !IsBusy())
             {
                 StopCosmicTravel(
-                    "Blast Off was not accepted by the native UI.");
+                    "Cosmic transfer was not accepted " +
+                    "after confirmation.");
                 return;
             }
 
-            if ((now - cosmicLastAction).TotalSeconds > 45)
+            if ((now - cosmicLastAction).TotalSeconds > 60)
                 StopCosmicTravel(
                     "Cosmic arrival could not be confirmed.");
 
@@ -569,6 +675,8 @@ public sealed unsafe partial class Plugin
                 ? CosmicNames[cosmicTargetIndex]
                 : "None") + "\n" +
             "Status: " + cosmicStatus + "\n" +
+            "Confirmation submitted: " +
+            cosmicConfirmationSent + "\n" +
             "Selection attempts: " +
             cosmicSelectionAttempts + "\n" +
             "Native details: " + cosmicNativeDetails + "\n";

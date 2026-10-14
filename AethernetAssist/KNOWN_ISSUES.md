@@ -102,3 +102,18 @@ Historical development notes remain available in Git history.
 - Maximum five navigation clicks, with transition validation.
 - No automatic vnavmesh movement or initial teleport yet.
 - No changes to city, Housing, or residential travel.
+## DEV4.2 TEST2 (v0.0.29)
+
+- Confirmed /anet phaenna can select the correct planet
+  and activate the native Blast Off control.
+- Native Yes/No confirmation observed in TEST1.
+- Added automatic Yes response only for the exact
+  "Travel to the selected destination?" prompt.
+- Verifies the first native button is Yes.
+- Revalidates WKSPlanetSelect Node 17 against the target.
+- Submits at most one Yes callback.
+- Unknown confirmation prompts are not accepted.
+- Tracks confirmation status and arrival separately.
+- Bestways Burrow teleport and vnavmesh travel are
+  not implemented yet.
+- Housing and residential implementations unchanged.
