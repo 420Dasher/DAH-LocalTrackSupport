@@ -109,6 +109,7 @@ public sealed unsafe class Plugin : IDalamudPlugin
     private Shard? destination;
     private nint originAddress;
     private uint originTerritory;
+    private Vector3 originPosition;
 
     private DateTime phaseStarted;
     private DateTime lastInteraction = DateTime.MinValue;
@@ -157,7 +158,7 @@ public sealed unsafe class Plugin : IDalamudPlugin
         Pi.UiBuilder.OpenMainUi += Open;
         Pi.UiBuilder.OpenConfigUi += Open;
 
-        Log.Information("AethernetAssist v0.0.6 DEV2 initialized.");
+        Log.Information("AethernetAssist v0.0.7 DEV2 FIX1 initialized.");
     }
 
     public void Dispose()
@@ -508,6 +509,7 @@ public sealed unsafe class Plugin : IDalamudPlugin
         destination = chosen;
         originAddress = nearby.Address;
         originTerritory = Client.TerritoryType;
+        originPosition = Objects.LocalPlayer.Position;
 
         callbackAttempts = 0;
         sawLoading = false;
@@ -538,26 +540,55 @@ public sealed unsafe class Plugin : IDalamudPlugin
 
         if (phase == TravelPhase.WaitForArrival)
         {
-            if (IsBusy() ||
-                Client.TerritoryType != originTerritory)
-            {
-                sawLoading = true;
-            }
+            var player = Objects.LocalPlayer;
+            bool busy = IsBusy();
+            bool menuOpen = GetAddon("TelepotTown") != null;
+            bool territoryChanged =
+                Client.TerritoryType != originTerritory;
 
-            if (sawLoading &&
-                !IsBusy() &&
-                Objects.LocalPlayer != null)
+            float moved = player == null
+                ? 0f
+                : Vector3.Distance(player.Position, originPosition);
+
+            if (busy || territoryChanged)
+                sawLoading = true;
+
+            // Confirm that the game has actually accepted the
+            // teleport instead of assuming the callback succeeded.
+            if (player != null && !busy && !menuOpen &&
+                (sawLoading || territoryChanged || moved > 12f))
             {
                 status = $"Arrived: {destination.Name}";
-
                 phase = TravelPhase.Idle;
                 destination = null;
-
                 ClearNearby();
                 return;
             }
 
-            if ((DateTime.UtcNow - phaseStarted).TotalSeconds > 35)
+            double elapsed =
+                (DateTime.UtcNow - phaseStarted).TotalSeconds;
+
+            // A visible native menu after two callbacks means
+            // that destination selection was not acknowledged.
+            if (menuOpen && !busy && !territoryChanged &&
+                elapsed > 5)
+            {
+                lastMenuReadout +=
+                    $" | Unacknowledged: menu open, callbacks={callbackAttempts}," +
+                    $" territory={Client.TerritoryType}, moved={moved:0.0}y";
+
+                Cancel("Destination not accepted: native Aethernet menu stayed open.");
+                return;
+            }
+
+            if (!menuOpen && !sawLoading && moved <= 12f &&
+                elapsed > 9)
+            {
+                Cancel("Native menu closed, but no teleport or movement was detected.");
+                return;
+            }
+
+            if (elapsed > 35)
                 Cancel("Teleport arrival could not be confirmed.");
 
             return;
@@ -791,13 +822,19 @@ public sealed unsafe class Plugin : IDalamudPlugin
 
                 uint callbackData = callbackValue.UInt;
 
+                int dataStart = 6 + i * 4;
+                var nativeType = values[dataStart];
+                var nativeState = values[dataStart + 1];
+
                 lastMenuReadout =
                     $"Matched row {i}: {name}; callback={callbackData}; " +
+                    $"Type={nativeType.UInt} ({nativeType.Type}); " +
+                    $"State={nativeState.UInt} ({nativeState.Type}); " +
                     $"AtkValuesCount={valueCount}.";
 
                 if (callbackAttempts == 0 ||
                     (callbackAttempts == 1 &&
-                     (DateTime.UtcNow - lastInteraction).TotalMilliseconds > 500))
+                     (DateTime.UtcNow - lastInteraction).TotalMilliseconds > 120))
                 {
                     AtkValue* args = stackalloc AtkValue[2];
 
@@ -912,7 +949,7 @@ public sealed unsafe class Plugin : IDalamudPlugin
 
         ImGui.TextColored(accent, "AETHERNET ASSIST");
         ImGui.SameLine();
-        ImGui.TextDisabled("v0.0.6 DEV2");
+        ImGui.TextDisabled("v0.0.7 DEV2 FIX1");
 
         ImGui.Separator();
 
@@ -1033,6 +1070,15 @@ public sealed unsafe class Plugin : IDalamudPlugin
 
             ImGui.TextUnformatted(
                 $"Travel phase: {phase}");
+
+            ImGui.TextUnformatted(
+                $"Callbacks sent: {callbackAttempts}/2");
+
+            ImGui.TextUnformatted(
+                $"Native menu open: {GetAddon("TelepotTown") != null}");
+
+            ImGui.TextUnformatted(
+                $"Origin territory: {originTerritory}");
 
             ImGui.Separator();
             ImGui.TextWrapped(lastMenuReadout);
