@@ -353,10 +353,32 @@ public sealed unsafe partial class Plugin
             double elapsed =
                 (now - cosmicLocalPhaseStarted).TotalSeconds;
 
+            // TelepotTown may require a second selection
+            // to commit the chosen destination.
+            // Never send it while loading or after the
+            // native menu has closed.
+            if (menuOpen && !busy &&
+                cosmicLocalCallbackAttempts == 1 &&
+                (now - cosmicLocalLastAction)
+                    .TotalMilliseconds >= 250)
+            {
+                cosmicLocalDetails +=
+                    " | First selection acknowledged; " +
+                    "revalidating before confirmation";
+
+                // This phase validates the planet,
+                // all destination names, callback IDs,
+                // and selected target again.
+                SetCosmicLocalPhase(CosmicLocalPhase.Select);
+                return;
+            }
+
             if (menuOpen && !busy && elapsed > 8)
             {
                 StopCosmicLocal(
-                    "Native Aethernet menu did not accept travel.");
+                    "Native Aethernet rejected travel after " +
+                    cosmicLocalCallbackAttempts +
+                    " callback(s).");
                 return;
             }
 
@@ -555,12 +577,19 @@ public sealed unsafe partial class Plugin
         uint callback = values[targetData + 3].UInt;
 
         if (callback != (uint)target.Index ||
-            cosmicLocalCallbackAttempts != 0)
+            cosmicLocalCallbackAttempts >= 2)
         {
             StopCosmicLocal(
                 "Callback guard rejected selection.");
             return;
         }
+
+        // Bound the interval between the first
+        // selection and the confirming callback.
+        if (cosmicLocalCallbackAttempts == 1 &&
+            (now - cosmicLocalLastAction)
+                .TotalMilliseconds < 250)
+            return;
 
         AtkValue* args = stackalloc AtkValue[2];
 
@@ -583,13 +612,24 @@ public sealed unsafe partial class Plugin
             " | Native callback=" + callback +
             " | Native state=" + nativeState.UInt;
 
-        // Exactly one callback for TEST1.
+        // At most two sends:
+        // 1. Select/highlight the destination.
+        // 2. Confirm only if TelepotTown remains open.
+        //
+        // Every send passes the same native validation.
         addon->FireCallback(2, args, true);
 
-        cosmicLocalCallbackAttempts = 1;
+        cosmicLocalCallbackAttempts++;
         cosmicLocalLastAction = now;
+
+        cosmicLocalDetails +=
+            " | Submitted callback " +
+            cosmicLocalCallbackAttempts + "/2";
+
         cosmicLocalStatus =
-            "Teleporting to " + target.Name + "...";
+            cosmicLocalCallbackAttempts == 1
+                ? "Selecting " + target.Name + "..."
+                : "Teleporting to " + target.Name + "...";
 
         SetCosmicLocalPhase(
             CosmicLocalPhase.WaitForArrival);

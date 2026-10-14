@@ -1,4 +1,4 @@
-# AethernetAssist v0.0.33 DEV4.2 LOCAL TEST1
+# AethernetAssist v0.0.34 DEV4.2 LOCAL TEST2
 
 Dalamud API 15 / .NET 10
 Development branch: testing
@@ -160,3 +160,22 @@ The native selection callback is experimental in TEST1.
 No Cosmoliners are included.
 
 Previous Cosmic journey automation is unchanged.
+## DEV4.2 LOCAL TEST2
+
+Fixes Cosmic TelepotTown destination selection.
+
+TEST1 confirmed:
+- Proximity detection and auto-window opening/closing
+- Correct current-shard identification
+- Correct destination and callback ID
+- Detection at the destination after manual teleport
+
+TEST2 adds:
+- Two-stage native TelepotTown selection when necessary
+- 250 ms delay before the second callback
+- Complete menu and destination revalidation
+- Maximum two callback attempts
+- Arrival verification and explicit failure diagnostics
+
+The Cosmic journey and all other Aethernet systems
+remain unchanged.

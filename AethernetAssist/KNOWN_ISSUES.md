@@ -162,3 +162,14 @@ Historical development notes remain available in Git history.
 - Test Sinus Ardorum first before other planets.
 - Existing city, Housing, residential and
   Cosmic journey implementations remain unchanged.
+## DEV4.2 LOCAL TEST2 (v0.0.34)
+
+- v0.0.33 submitted one correct callback for
+  Calabash Cove, but TelepotTown stayed open.
+- Added guarded second callback after 250 ms.
+- Native destination data is rechecked before retry.
+- At most two callbacks; no indefinite retry.
+- Arrival at all four Cosmic subnet networks
+  still requires live testing.
+- No changes to the four Cosmic journey commands,
+  residential or city Aethernet.
