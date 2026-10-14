@@ -141,3 +141,11 @@ Historical development notes remain available in Git history.
 - Destination callbacks remain unmodified and untested.
 - No Cosmoliner automation planned.
 - Working Cosmic journey and residential code preserved.
+## DEV4.2 LOCAL RESEARCH2 (v0.0.32)
+
+- Confirmed native Cosmic Aethernet addon is TelepotTown.
+- Confirmed standard Aetheryte sheet contains no
+  destinations in Sinus Ardorum.
+- WKS sheets provide the 20 shard records.
+- Inspecting native callback values before automation.
+- All working journey and residential code preserved.

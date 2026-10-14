@@ -943,6 +943,7 @@ public sealed unsafe partial class Plugin
             BuildCosmicAddonCaptureReport() +
             BuildCosmicPlanetResearchReport() +
             BuildCosmicTravelReport() +
-            BuildCosmicLocalResearchReport();
+            BuildCosmicLocalResearchReport() +
+            BuildCosmicLocalNativeReport();
     }
 }

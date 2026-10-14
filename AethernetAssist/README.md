@@ -1,4 +1,4 @@
-# AethernetAssist v0.0.31 DEV4.2 LOCAL RESEARCH1
+# AethernetAssist v0.0.32 DEV4.2 LOCAL RESEARCH2
 
 Dalamud API 15 / .NET 10
 Development branch: testing
@@ -126,3 +126,18 @@ Cosmic Aethernet Shard manually, and copy diagnostics
 while its destination menu is open.
 
 No native callbacks are submitted by research code.
+## DEV4.2 LOCAL RESEARCH2
+
+The Cosmic local Aethernet uses TelepotTown.
+
+Read-only diagnostics now expose:
+- WKSAethernet and WKSAetheryteList group mapping
+- Resolved native WKS destination names
+- TelepotTown name slots
+- Native slot type, state and callback values
+
+Open a Cosmic shard and copy diagnostics while
+TelepotTown remains visible.
+
+Existing Cosmic journey and city/residential travel
+are unchanged. No Cosmoliner automation.
