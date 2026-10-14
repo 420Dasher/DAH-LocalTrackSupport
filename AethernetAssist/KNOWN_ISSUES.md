@@ -253,3 +253,24 @@ queue behavior, and verified arrival.
 
 No changes to cross-DC travel support.
 Testing branch only.
+## DEV4.4 POLISH1 (v0.0.42)
+
+Core Same-DC World Visit validated across all
+three supported main city Aetherytes.
+
+Removed the original World Visit research module,
+obsolete UI messaging, and unused journey timestamp.
+
+World Visit queue behavior:
+- A confirmed request is not retried.
+- Arrival requires current-world verification.
+- No cancellation is offered once submitted.
+- The plugin cannot cancel a server-side queue.
+- No arbitrary 90-second arrival timeout.
+
+Pending regression checks:
+- Aethernet, residential and Housing
+- Cosmic local and planet travel
+- Extended World Visit queue behavior
+
+Testing only.

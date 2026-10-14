@@ -896,7 +896,7 @@ public sealed unsafe partial class Plugin
     }
 
     // Centralized diagnostics for Settings.
-    // DC Travel can be added here when implemented.
+    // Includes active World Visit diagnostics.
     private string BuildDiagnosticsReport()
     {
         bool found = TryFindHousingAetheryte(
@@ -946,7 +946,7 @@ public sealed unsafe partial class Plugin
 
 
             BuildCosmicLocalTravelReport() +
-            BuildWorldVisitResearchReport() +
+            BuildWorldVisitSelectionReport() +
             BuildWorldVisitJourneyReport();
     }
 }

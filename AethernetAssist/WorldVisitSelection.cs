@@ -20,7 +20,7 @@ public sealed unsafe partial class Plugin
     );
 
     private string worldVisitSelectionStatus =
-        "Open Visit Another World at the main Aetheryte.";
+        "No native destination selected this session.";
 
     private string worldVisitSelectionDetails =
         "No native world selection submitted.";
@@ -236,7 +236,7 @@ public sealed unsafe partial class Plugin
             worldVisitCachedAddon = nint.Zero;
             worldVisitPending = false;
             worldVisitCachedError =
-                "Open Visit Another World manually.";
+                "Native World Visit menu is closed.";
             return;
         }
 
@@ -328,8 +328,8 @@ public sealed unsafe partial class Plugin
             " | Native list index=" + selected.Index +
             " | Callback=0," + callbackIndex;
 
-        // Native world selection only.
-        // The game's final Yes/No prompt is not automated.
+        // Native selection; the journey controller
+        // handles the separately verified confirmation.
         addon->FireCallback(2, values, true);
 
         worldVisitPending = true;
@@ -346,7 +346,7 @@ public sealed unsafe partial class Plugin
             NavAccent, "SAME-DC WORLD VISIT");
 
         ImGui.TextDisabled(
-            "DEV4.3 TEST2 - One-click World Visit");
+            "Choose a world on your current data center.");
 
         ImGui.Spacing();
 
@@ -355,8 +355,7 @@ public sealed unsafe partial class Plugin
         if (worldVisitCachedDestinations.Count == 0)
         {
             ImGui.TextWrapped(
-                "Open the main Aetheryte and choose " +
-                "'Visit Another World' to load destinations.");
+                "No World Visit destinations available.");
 
             ImGui.Spacing();
 
@@ -448,10 +447,20 @@ public sealed unsafe partial class Plugin
         {
             ImGui.Spacing();
 
-            if (ImGui.SmallButton("Cancel World Visit"))
-                StopWorldVisit(
-                    "Monitoring cancelled. An active game queue " +
-                    "must be cancelled in FFXIV.");
+            if (WorldVisitCanStop())
+            {
+                if (ImGui.SmallButton("Stop automation"))
+                    TryStopWorldVisitFromUser();
+
+                ImGui.TextDisabled(
+                    "This does not close native game menus.");
+            }
+            else
+            {
+                ImGui.TextWrapped(
+                    "FFXIV controls the transfer after submission. " +
+                    "Queued World Visits cannot be cancelled.");
+            }
         }
 
         ImGui.Spacing();
@@ -459,7 +468,7 @@ public sealed unsafe partial class Plugin
         if (ImGui.SmallButton("Copy diagnostics"))
         {
             ImGui.SetClipboardText(
-                BuildWorldVisitResearchReport() +
+
                 BuildWorldVisitSelectionReport() +
                 BuildWorldVisitJourneyReport());
         }
@@ -474,7 +483,7 @@ public sealed unsafe partial class Plugin
 
         output.AppendLine();
         output.AppendLine(
-            "=== WORLD VISIT TEST1 SELECTION ===");
+            "=== WORLD VISIT DESTINATIONS ===");
 
         output.AppendLine(
             "Status: " + worldVisitSelectionStatus);

@@ -13,6 +13,17 @@ namespace AethernetAssist;
 
 public sealed unsafe partial class Plugin
 {
+    private bool WorldVisitPageAvailable()
+    {
+        if (Client.TerritoryType is not (129 or 130 or 132))
+            return false;
+
+        // Only eligible main-city Aetherytes.
+        return TryFindHousingAetheryte(
+            out _, out var crystal) &&
+            crystal != null;
+    }
+
     private enum WorldVisitPhase
     {
         Idle,
@@ -33,7 +44,7 @@ public sealed unsafe partial class Plugin
     private nint worldVisitSourceAddress;
 
     private DateTime worldVisitStageStarted;
-    private DateTime worldVisitStarted;
+
     private DateTime worldVisitLastAction;
 
     private bool worldVisitConfirmationSent;
@@ -58,6 +69,32 @@ public sealed unsafe partial class Plugin
                residentialPhase != ResidentialPhase.Idle ||
                cosmicPhase != CosmicPhase.Idle ||
                cosmicLocalPhase != CosmicLocalPhase.Idle;
+    }
+
+    private bool WorldVisitCanStop()
+    {
+        return worldVisitPhase != WorldVisitPhase.Idle &&
+               worldVisitPhase != WorldVisitPhase.WaitForArrival &&
+               !worldVisitSawQueue &&
+               !IsBusy();
+    }
+
+    private void TryStopWorldVisitFromUser()
+    {
+        if (worldVisitPhase == WorldVisitPhase.Idle)
+            return;
+
+        if (!WorldVisitCanStop())
+        {
+            worldVisitJourneyStatus =
+                "Transfer is controlled by FFXIV. " +
+                "Queued World Visits cannot be cancelled.";
+            return;
+        }
+
+        StopWorldVisit(
+            "Automation stopped. Close any remaining " +
+            "native game menu manually.");
     }
 
     private void SetWorldVisitPhase(WorldVisitPhase next)
@@ -244,7 +281,7 @@ public sealed unsafe partial class Plugin
         worldVisitOriginTerritory = Client.TerritoryType;
         worldVisitSourceAddress = source.Address;
 
-        worldVisitStarted = DateTime.UtcNow;
+
         worldVisitLastAction = DateTime.MinValue;
 
         worldVisitInteractions = 0;
@@ -365,14 +402,19 @@ public sealed unsafe partial class Plugin
                 Conditions[ConditionFlag.WaitingToVisitOtherWorld] ||
                 Conditions[ConditionFlag.ReadyingVisitOtherWorld];
 
-            if (queue || busy)
+            if (queue)
             {
                 worldVisitSawQueue = true;
-
                 worldVisitJourneyStatus =
-                    "World Visit in progress: " +
-                    target.Name;
+                    "Queued for " + target.Name +
+                    ". Waiting for FFXIV.";
+                return;
+            }
 
+            if (busy)
+            {
+                worldVisitJourneyStatus =
+                    "Transferring to " + target.Name + "...";
                 return;
             }
         }
@@ -382,14 +424,9 @@ public sealed unsafe partial class Plugin
 
         if (worldVisitPhase == WorldVisitPhase.WaitForArrival)
         {
-            if (!worldVisitSawQueue && stageSeconds > 90)
-            {
-                StopWorldVisit(
-                    "World Visit arrival not confirmed.");
-            }
-
-            // A queue can legitimately take a long time.
-            // Never retry the request automatically.
+            // FFXIV owns the accepted transfer.
+            // Never timeout or repeat the travel callback.
+            // Only verified arrival ends monitoring.
             return;
         }
 
@@ -644,7 +681,7 @@ public sealed unsafe partial class Plugin
     private string BuildWorldVisitJourneyReport()
     {
         return
-            "\n=== WORLD VISIT TEST3 JOURNEY ===\n" +
+            "\n=== SAME-DC WORLD VISIT ===\n" +
             "Phase: " + worldVisitPhase + "\n" +
             "Target: " +
                 (worldVisitTarget?.Name ?? "None") + "\n" +

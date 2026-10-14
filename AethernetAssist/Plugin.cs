@@ -169,7 +169,7 @@ public sealed unsafe partial class Plugin : IDalamudPlugin
         Pi.UiBuilder.OpenMainUi += Open;
         Pi.UiBuilder.OpenConfigUi += OpenConfig;
 
-        Log.Information("AethernetAssist v0.0.41 DEV4.3 WORLD VISIT TEST3 initialized.");
+        Log.Information("AethernetAssist v0.0.42 DEV4.4 POLISH1 initialized.");
     }
 
     public void Dispose()
@@ -444,9 +444,7 @@ public sealed unsafe partial class Plugin : IDalamudPlugin
 
             case "cancel":
                 if (worldVisitPhase != WorldVisitPhase.Idle)
-                    StopWorldVisit(
-                        "Monitoring cancelled. Cancel an active " +
-                        "World Visit queue in the game.");
+                    TryStopWorldVisitFromUser();
                 else if (cosmicLocalPhase != CosmicLocalPhase.Idle)
                     StopCosmicLocal("Cancelled by user.");
                 else if (cosmicPhase != CosmicPhase.Idle)
@@ -1416,7 +1414,7 @@ public sealed unsafe partial class Plugin : IDalamudPlugin
 
         ImGui.TextColored(NavAccent, "SETTINGS");
         ImGui.SameLine();
-        ImGui.TextDisabled("0.0.41");
+        ImGui.TextDisabled("0.0.42");
         ImGui.Separator();
 
         bool autoOpen = config.AutoOpen;
@@ -1680,7 +1678,7 @@ public sealed unsafe partial class Plugin : IDalamudPlugin
                 return;
             }
 
-            ImGui.TextDisabled("v0.0.41");
+            ImGui.TextDisabled("v0.0.42");
 
             ImGui.SameLine(ImGui.GetWindowWidth() - 87f);
 

@@ -1,4 +1,4 @@
-# AethernetAssist v0.0.41 DEV4.3 WORLD VISIT TEST3
+# AethernetAssist v0.0.42 DEV4.4 POLISH1
 
 Dalamud API 15 / .NET 10
 Development branch: testing
@@ -337,3 +337,34 @@ Existing Aethernet, Housing, residential and
 Cosmic travel remain unchanged.
 
 Testing branch only. No main release.
+## DEV4.4 POLISH1 (v0.0.42)
+
+World Visit cleanup and UI polish.
+
+Verified in-game:
+- New Gridania, Limsa Lominsa, Ul'dah
+- Automatic main Aetheryte interaction
+- Native World Visit menu navigation
+- Correct destination selection
+- Exact destination confirmation
+- Current-world recognition after arrival
+
+Cleanup:
+- Removed obsolete WorldVisitResearch.cs
+- Preserved supported-city proximity checks
+- Removed old research UI and raw menu dumps
+- Updated DC Travel labels and empty-state text
+- Removed unused journey start timestamp
+- Removed the post-confirmation cancellation control
+- Removed the post-confirmation 90-second timeout
+- Retained concise operational diagnostics
+- No automatic retries after transfer submission
+
+Queued World Visits are controlled by FFXIV and
+cannot be cancelled through the plugin.
+
+Native selection and confirmation callbacks unchanged.
+Other Aethernet, Housing, residential, and Cosmic
+travel implementations are unchanged.
+
+testing branch only. Not a stable release.
