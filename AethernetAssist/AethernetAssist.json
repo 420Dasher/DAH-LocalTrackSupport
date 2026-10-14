@@ -1,21 +1,20 @@
 {
-  "Author": "Dash + AI",
-  "Name": "AethernetAssist [DEV4.4 POLISH1]",
-  "InternalName": "AethernetAssist",
-  "AssemblyVersion": "0.0.42.0",
-  "DalamudApiLevel": 15,
-  "ApplicableVersion": "any",
-  "LoadRequiredState": 0,
-  "LoadSync": false,
-  "CanUnloadAsync": false,
-  "LoadPriority": 0,
-  "Punchline": "Aethernet travel without the clutter.",
-  "Description": "Contextual Aethernet window with real attunement detection and one-click travel.",
-  "Tags": [
-    "aethernet",
-    "aetheryte",
-    "teleport",
-    "utility",
-    "testing"
-  ]
+    "Author":  "Dash + AI",
+    "Name":  "AethernetAssist",
+    "InternalName":  "AethernetAssist",
+    "AssemblyVersion":  "0.1.0.0",
+    "DalamudApiLevel":  15,
+    "ApplicableVersion":  "any",
+    "LoadRequiredState":  0,
+    "LoadSync":  false,
+    "CanUnloadAsync":  false,
+    "LoadPriority":  0,
+    "Punchline":  "Aethernet travel without the clutter.",
+    "Description":  "Contextual Aethernet window with real attunement detection and one-click travel.",
+    "Tags":  [
+                 "aethernet",
+                 "aetheryte",
+                 "teleport",
+                 "utility"
+             ]
 }

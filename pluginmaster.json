@@ -145,9 +145,9 @@
 {
     "Author":  "Dash + AI",
     "InternalName":  "AethernetAssist",
-    "Name":  "AethernetAssist [DEV4.4 POLISH1]",
-    "AssemblyVersion":  "0.0.42.0",
-    "TestingAssemblyVersion":  "0.0.42.0",
+    "Name":  "AethernetAssist",
+    "AssemblyVersion":  "0.1.0.0",
+    "TestingAssemblyVersion":  "0.1.0.0",
     "DalamudApiLevel":  15,
     "TestingDalamudApiLevel":  15,
     "ApplicableVersion":  "any",
@@ -160,15 +160,14 @@
     "IsTestingExclusive":  false,
     "Punchline":  "Aethernet travel without the clutter.",
     "Description":  "Contextual Aethernet window with real attunement checks and one-click travel.",
-    "Changelog":  "DEV4.4 POLISH1: Removed obsolete World Visit research code and diagnostics. Cleaned DC Travel UI and status text. Improved transfer queue monitoring, removed misleading cancellation and arrival timeout. Native travel callbacks unchanged. Same-DC only. Testing branch.",
+    "Changelog":  "v0.1.0 initial stable release. Includes city Aethernet, housing, residential and Cosmic travel, plus automated same-DC World Visit. All core features regression-tested.",
     "Tags":  [
                  "aethernet",
                  "aetheryte",
-                 "teleport",
-                 "testing"
+                 "teleport"
              ],
-    "DownloadLinkInstall":  "https://raw.githubusercontent.com/420Dasher/DAH-LocalTrackSupport/testing/plugins/AethernetAssist/latest.zip",
-    "DownloadLinkUpdate":  "https://raw.githubusercontent.com/420Dasher/DAH-LocalTrackSupport/testing/plugins/AethernetAssist/latest.zip",
+    "DownloadLinkInstall":  "https://raw.githubusercontent.com/420Dasher/DAH-LocalTrackSupport/main/plugins/AethernetAssist/latest.zip",
+    "DownloadLinkUpdate":  "https://raw.githubusercontent.com/420Dasher/DAH-LocalTrackSupport/main/plugins/AethernetAssist/latest.zip",
     "DownloadLinkTesting":  "https://raw.githubusercontent.com/420Dasher/DAH-LocalTrackSupport/testing/plugins/AethernetAssist/latest.zip"
 }
 ]
