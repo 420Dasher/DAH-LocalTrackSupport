@@ -112,7 +112,7 @@
         "DownloadLinkInstall":  "https://raw.githubusercontent.com/420Dasher/DAH-LocalTrackSupport/main/plugins/QuickSynthSpam/latest.zip",
         "DownloadLinkUpdate":  "https://raw.githubusercontent.com/420Dasher/DAH-LocalTrackSupport/main/plugins/QuickSynthSpam/latest.zip",
         "DownloadLinkTesting":  "https://raw.githubusercontent.com/420Dasher/DAH-LocalTrackSupport/main/plugins/QuickSynthSpam/latest.zip"
-    },
+    ,"IconUrl":"https://raw.githubusercontent.com/420Dasher/DAH-LocalTrackSupport/main/plugins/QuickSynthSpam/icon.png"},
 {
     "Author":  "Dash + AI",
     "InternalName":  "AethernetAssist",
