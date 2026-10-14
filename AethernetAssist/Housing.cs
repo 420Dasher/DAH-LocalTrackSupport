@@ -38,7 +38,9 @@ public sealed unsafe partial class Plugin
         SelectWard,
         ConfirmWard,
         ConfirmTravel,
-        WaitForArrival
+        WaitForArrival,
+        SelectExit,
+        WaitForExit
     }
 
     private HousingPhase housingPhase = HousingPhase.Idle;
@@ -114,10 +116,8 @@ public sealed unsafe partial class Plugin
         return housingPhase == HousingPhase.Idle &&
                phase == TravelPhase.Idle &&
                !IsBusy() &&
-               TryFindHousingAetheryte(
-                   out _,
-                   out _
-               );
+               (TryFindHousingAetheryte(out _, out _) ||
+                TryFindWardEntrance(out _, out _, out _));
     }
 
     private void SetHousingPhase(HousingPhase next)
@@ -128,45 +128,70 @@ public sealed unsafe partial class Plugin
 
     private void StartHousingTravel(int ward)
     {
-        if (ward < 1 || ward > 30 ||
-            !CanStartHousing() ||
-            !TryFindHousingAetheryte(
-                out var district,
-                out var crystal))
+        if (ward < 1 || ward > 30 || !CanStartHousing())
+            return;
+
+        bool fromCity = TryFindHousingAetheryte(
+            out var cityDistrict,
+            out var cityCrystal);
+
+        HousingDistrict district;
+        IGameObject? source;
+        bool gate = false;
+
+        if (fromCity)
         {
-            housingStatus =
-                "Approach a supported main city Aetheryte.";
+            district = cityDistrict;
+            source = cityCrystal;
+        }
+        else if (TryFindWardEntrance(
+            out var wardDistrict,
+            out var wardNpc,
+            out gate))
+        {
+            district = wardDistrict;
+            source = wardNpc;
+        }
+        else
+        {
             return;
         }
 
-        // Never take over a manually opened menu.
-        if (GetAddon("SelectString") != null ||
-            GetAddon("HousingSelectBlock") != null ||
-            GetAddon("SelectYesno") != null)
+        // Allow an already-open gate menu, but don't take
+        // control of unrelated confirmation windows.
+        if (GetAddon("HousingSelectBlock") != null ||
+            GetAddon("SelectYesno") != null ||
+            (fromCity && GetAddon("SelectString") != null))
         {
-            housingStatus =
-                "Close existing game menus before starting.";
+            housingStatus = "Close existing game menus first.";
             return;
         }
 
         housingTarget = district;
         housingTargetWard = ward;
-        housingOriginAddress = crystal!.Address;
+        housingOriginAddress = source?.Address ?? nint.Zero;
+
+        housingFromWard = !fromCity;
+        housingLeavingDistrict = false;
+        housingGateSource = gate;
+        housingSawLoading = false;
+        housingLastAction = DateTime.MinValue;
 
         config.HousingWard = ward;
         Save();
 
-        housingLastAction = DateTime.MinValue;
-
         housingDiagnostic =
-            "Requested: " + district.Name +
-            ", Ward " + ward + ".";
+            "Requested " + district.Name +
+            ", Ward " + ward +
+            (fromCity ? " from city." : " from ward entrance.");
 
-        housingStatus =
-            "Traveling to " + district.Name +
-            ", Ward " + ward + "...";
+        housingStatus = gate
+            ? "Walk through the exit to open ward selection."
+            : "Opening Ward " + ward + " travel...";
 
-        SetHousingPhase(HousingPhase.Interact);
+        SetHousingPhase(gate
+            ? HousingPhase.SelectGoToWard
+            : HousingPhase.Interact);
     }
 
     private void StopHousing(string message)
@@ -300,10 +325,14 @@ public sealed unsafe partial class Plugin
         {
 
 
+            if (IsBusy())
+                housingSawLoading = true;
+
             if (player != null &&
                 !IsBusy() &&
                 Client.TerritoryType ==
-                    housingTarget.ResidentialTerritory)
+                    housingTarget.ResidentialTerritory &&
+                (!housingFromWard || housingSawLoading))
             {
                 CompleteHousing();
                 return;
@@ -319,6 +348,61 @@ public sealed unsafe partial class Plugin
             return;
         }
 
+        if (housingPhase == HousingPhase.WaitForExit)
+        {
+            if (IsBusy())
+                housingSawLoading = true;
+
+            if (player != null &&
+                !IsBusy() &&
+                Client.TerritoryType !=
+                    housingTarget.ResidentialTerritory)
+            {
+                CompleteHousingExit();
+                return;
+            }
+
+            // Some exits request a native Yes/No confirmation.
+            var yesno = GetAddon("SelectYesno");
+
+            if (yesno != null &&
+                (DateTime.UtcNow - housingLastAction)
+                    .TotalMilliseconds > 500)
+            {
+                string prompt = GetHousingYesNoPrompt(yesno);
+
+                bool recognized =
+                    prompt.Contains(
+                        "leave residential",
+                        StringComparison.OrdinalIgnoreCase) ||
+                    prompt.Contains(
+                        "travel to",
+                        StringComparison.OrdinalIgnoreCase);
+
+                if (recognized)
+                {
+                    yesno->FireCallbackInt(0);
+                    housingLastAction = DateTime.UtcNow;
+                    housingDiagnostic +=
+                        " | Confirmed: " + prompt;
+                }
+                else
+                {
+                    housingStatus =
+                        "Please confirm the native exit dialog manually.";
+                }
+            }
+
+            if ((DateTime.UtcNow - housingPhaseStarted)
+                .TotalSeconds > 45)
+            {
+                StopHousing(
+                    "Exit could not be confirmed. " +
+                    housingDiagnostic);
+            }
+
+            return;
+        }
         if ((DateTime.UtcNow - housingPhaseStarted)
             .TotalSeconds > 14)
         {
@@ -343,7 +427,21 @@ public sealed unsafe partial class Plugin
             {
                 if (GetAddon("SelectString") != null)
                 {
-                    SetHousingPhase(HousingPhase.SelectResidential);
+                    SetHousingPhase(
+                        housingFromWard
+                            ? housingLeavingDistrict
+                                ? HousingPhase.SelectExit
+                                : HousingPhase.SelectGoToWard
+                            : HousingPhase.SelectResidential);
+                    return;
+                }
+
+                // NPC transitions can have a Talk dialogue
+                // before their native selection menu.
+                if (GetAddon("Talk") != null)
+                {
+                    housingStatus =
+                        "Advance the NPC dialogue to continue.";
                     return;
                 }
 
@@ -419,6 +517,17 @@ public sealed unsafe partial class Plugin
                 return;
             }
 
+            case HousingPhase.SelectExit:
+            {
+                if (TrySelectLeaveDistrict())
+                {
+                    housingStatus =
+                        "Leaving residential district...";
+                    SetHousingPhase(HousingPhase.WaitForExit);
+                }
+
+                return;
+            }
             case HousingPhase.SelectWard:
             {
                 var addon = GetAddon("HousingSelectBlock");
@@ -561,36 +670,53 @@ public sealed unsafe partial class Plugin
     {
         ImGui.Spacing();
 
-        bool detected = TryFindHousingAetheryte(
-            out var district,
-            out var crystal
-        );
+        bool atCity = TryFindHousingAetheryte(
+            out var cityDistrict,
+            out _);
 
+        bool atEntrance = TryFindWardEntrance(
+            out var wardDistrict,
+            out _,
+            out bool gate);
+
+        bool detected = atCity || atEntrance;
         bool canTravel = CanStartHousing();
 
         if (detected)
         {
+            var district = atCity
+                ? cityDistrict
+                : wardDistrict;
+
             ImGui.TextColored(
                 NavAccent,
-                district.Name.ToUpperInvariant()
-            );
+                district.Name.ToUpperInvariant());
 
             ImGui.SameLine();
             ImGui.TextColored(
                 NavMuted,
-                district.CityName
-            );
+                atCity ? district.CityName : "Ward entrance");
+        }
+        else if (TryGetResidentialDistrict(out var localDistrict))
+        {
+            ImGui.TextColored(
+                NavAccent,
+                localDistrict.Name.ToUpperInvariant());
+
+            ImGui.TextDisabled(
+                "Approach the ward entrance to travel.");
         }
         else
         {
             ImGui.TextColored(NavAccent, "HOUSING");
             ImGui.TextDisabled(
-                "No main city Aetheryte in range."
-            );
+                "No supported Aetheryte or ward entrance nearby.");
         }
 
         ImGui.Spacing();
         ImGui.TextColored(NavMuted, "WARD 1 - 30");
+
+
         ImGui.Spacing();
 
         const int columns = 6;
@@ -668,6 +794,14 @@ public sealed unsafe partial class Plugin
 
         ImGui.Spacing();
 
+        if (housingPhase == HousingPhase.Idle &&
+            atEntrance)
+        {
+            if (ImGui.SmallButton("Leave district"))
+                StartHousingExit();
+
+            ImGui.Spacing();
+        }
         if (housingPhase != HousingPhase.Idle)
         {
             ImGui.TextColored(
@@ -683,7 +817,7 @@ public sealed unsafe partial class Plugin
         else if (!detected)
         {
             ImGui.TextDisabled(
-                "Approach the main Aetheryte to travel."
+                "Approach an Aetheryte or ward entrance."
             );
         }
 
@@ -720,6 +854,7 @@ public sealed unsafe partial class Plugin
             lastMenuReadout + "\n\n" +
             "=== HOUSING ===\n" +
             "Detected: " + detected + "\n" +
+            "Entrance: " + DescribeWardEntrance() + "\n" +
             "Aetheryte DataId: " +
             (crystal == null ? "none" : crystal.DataId.ToString()) +
             "\n" +

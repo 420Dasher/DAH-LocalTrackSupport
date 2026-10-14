@@ -45,3 +45,13 @@ Housing diagnostics are shown exclusively in Settings >
 Diagnostics alongside Aethernet diagnostics. Future DC Travel
 diagnostics should use the same section without additional
 main-window buttons.
+
+DEV4 FIX3 ward entrance coverage:
+- Native NPC exits: Lavender Beds, Shirogane, Empyreum.
+- Native walk-through gates: Mist, Goblet.
+- Leaving the residential district uses the native exit menu.
+- Gate menus require manual movement to trigger.
+- NPC Talk dialogue may require manual advancement.
+- Same-territory ward transfers require observed loading.
+- In-game validation of each native exit remains pending.
+- Subdivision navigation remains manual.

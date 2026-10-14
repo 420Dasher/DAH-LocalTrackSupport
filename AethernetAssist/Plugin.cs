@@ -158,7 +158,7 @@ public sealed unsafe partial class Plugin : IDalamudPlugin
         Pi.UiBuilder.OpenMainUi += Open;
         Pi.UiBuilder.OpenConfigUi += OpenConfig;
 
-        Log.Information("AethernetAssist v0.0.13 DEV4 FIX2 initialized.");
+        Log.Information("AethernetAssist v0.0.14 DEV4 FIX3 initialized.");
     }
 
     public void Dispose()
@@ -439,6 +439,7 @@ public sealed unsafe partial class Plugin : IDalamudPlugin
                 return;
 
             lastScan = DateTime.UtcNow;
+            UpdateHousingEntranceProximity();
             ScanNearby();
         }
         catch (Exception ex)
@@ -1329,7 +1330,7 @@ public sealed unsafe partial class Plugin : IDalamudPlugin
 
         ImGui.TextColored(NavAccent, "SETTINGS");
         ImGui.SameLine();
-        ImGui.TextDisabled("0.0.13");
+        ImGui.TextDisabled("0.0.14");
         ImGui.Separator();
 
         bool autoOpen = config.AutoOpen;
@@ -1451,7 +1452,7 @@ public sealed unsafe partial class Plugin : IDalamudPlugin
 
             string foundText = found
                 ? district.Name + " (" + district.CityName + ")"
-                : "No main Aetheryte nearby";
+                : DescribeWardEntrance();
 
             ImGui.TextUnformatted(
                 "Detected: " + foundText
@@ -1466,6 +1467,13 @@ public sealed unsafe partial class Plugin : IDalamudPlugin
 
             ImGui.TextUnformatted(
                 "Travel phase: " + housingPhase
+            );
+
+            ImGui.TextUnformatted(
+                "Entrance source: " +
+                (housingFromWard
+                    ? housingGateSource ? "Gate" : "NPC"
+                    : "City")
             );
 
             ImGui.TextUnformatted(
@@ -1539,7 +1547,7 @@ public sealed unsafe partial class Plugin : IDalamudPlugin
                 return;
             }
 
-            ImGui.TextDisabled("v0.0.13");
+            ImGui.TextDisabled("v0.0.14");
 
             ImGui.SameLine(ImGui.GetWindowWidth() - 87f);
 
