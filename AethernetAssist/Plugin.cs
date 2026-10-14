@@ -120,6 +120,7 @@ public sealed unsafe class Plugin : IDalamudPlugin
 
     private bool windowOpen;
     private string status = "Approach an Aethernet shard.";
+    private string lastMenuReadout = "No destination inspected yet.";
 
     public Plugin()
     {
@@ -152,7 +153,7 @@ public sealed unsafe class Plugin : IDalamudPlugin
         Pi.UiBuilder.OpenMainUi += Open;
         Pi.UiBuilder.OpenConfigUi += Open;
 
-        Log.Information("AethernetAssist v0.0.4 DEV1 FIX3 initialized.");
+        Log.Information("AethernetAssist v0.0.5 DEV1 FIX4 initialized.");
     }
 
     public void Dispose()
@@ -439,6 +440,7 @@ public sealed unsafe class Plugin : IDalamudPlugin
 
         lastInteraction = DateTime.MinValue;
 
+        lastMenuReadout = $"Requested destination: {chosen.Name}";
         status = $"Opening Aethernet for {chosen.Name}...";
 
         GoTo(TravelPhase.Interact);
@@ -616,34 +618,59 @@ public sealed unsafe class Plugin : IDalamudPlugin
         {
             var addon = GetAddon("TelepotTown");
 
-            if (addon == null || addon->AtkValues == null)
+            if (addon == null)
+            {
+                lastMenuReadout = "Waiting for TelepotTown addon.";
                 return;
+            }
+
+            if (addon->AtkValues == null)
+            {
+                lastMenuReadout = "TelepotTown has no AtkValues.";
+                return;
+            }
 
             var values = addon->AtkValues;
+            int valueCount = addon->AtkValuesCount;
 
-            if (addon->AtkValuesCount < 263)
+            if (valueCount <= 262)
+            {
+                lastMenuReadout =
+                    $"TelepotTown AtkValuesCount={valueCount}; expected at least 263.";
                 return;
+            }
 
-            var count = Math.Clamp(
-                (int)values[0].UInt,
-                0,
-                20
-            );
-
-            if (count == 0 ||
-                262 + count > addon->AtkValuesCount)
-                return;
-
+            // Read populated native slots directly. Do not trust
+            // AtkValue[0] as the number of destination-name rows.
+            int slots = Math.Min(20, valueCount - 262);
             var observed = new List<string>();
 
-            for (int i = 0; i < count; i++)
+            for (int i = 0; i < slots; i++)
             {
-                var namePtr = values[262 + i].String.Value;
+                var nameValue = values[262 + i];
+
+                if ((int)nameValue.Type == 0)
+                    break;
+
+                if (nameValue.Type != AtkValueType.String &&
+                    nameValue.Type != AtkValueType.String8 &&
+                    nameValue.Type != AtkValueType.WideString &&
+                    nameValue.Type != AtkValueType.ManagedString)
+                {
+                    observed.Add($"{i}: invalid name type {nameValue.Type}");
+                    continue;
+                }
+
+                var namePtr = nameValue.String.Value;
 
                 if (namePtr == null)
+                {
+                    observed.Add($"{i}: null name pointer");
                     continue;
+                }
 
                 string name;
+
                 try
                 {
                     name = MemoryHelper.ReadSeStringNullTerminated(
@@ -651,14 +678,15 @@ public sealed unsafe class Plugin : IDalamudPlugin
                 }
                 catch (Exception ex)
                 {
-                    Log.Warning($"Aethernet entry {i}: {ex.Message}");
+                    observed.Add($"{i}: decode error {ex.Message}");
                     continue;
                 }
 
-                observed.Add(Clean(name));
+                name = Clean(name);
+                observed.Add($"{i}: {name}");
 
                 if (!string.Equals(
-                    Clean(name),
+                    name,
                     Clean(destination.Name),
                     StringComparison.OrdinalIgnoreCase))
                     continue;
@@ -669,32 +697,33 @@ public sealed unsafe class Plugin : IDalamudPlugin
                     return;
                 }
 
-                var callbackIndex = 6 + i * 4 + 3;
+                int callbackIndex = 6 + i * 4 + 3;
 
-                if (callbackIndex >= addon->AtkValuesCount)
+                if (callbackIndex >= valueCount)
                 {
-                    Cancel("Destination data unavailable.");
+                    Cancel($"Callback data missing for row {i}.");
                     return;
                 }
 
-                if (values[callbackIndex].Type != AtkValueType.UInt)
+                var callbackValue = values[callbackIndex];
+
+                if (callbackValue.Type != AtkValueType.UInt)
                 {
+                    lastMenuReadout =
+                        $"Matched {name}, but callback type is {callbackValue.Type}.";
                     Cancel("Unexpected Aethernet callback data.");
                     return;
                 }
 
-                var callbackData = values[callbackIndex].UInt;
+                uint callbackData = callbackValue.UInt;
 
-                if (config.ShowDebug)
-                {
-                    Log.Information(
-                        $"Matched {destination.Name}: row {i}, callback {callbackData}");
-                }
+                lastMenuReadout =
+                    $"Matched row {i}: {name}; callback={callbackData}; " +
+                    $"AtkValuesCount={valueCount}.";
 
                 if (callbackAttempts == 0 ||
                     (callbackAttempts == 1 &&
-                     (DateTime.UtcNow - lastInteraction)
-                         .TotalMilliseconds > 450))
+                     (DateTime.UtcNow - lastInteraction).TotalMilliseconds > 500))
                 {
                     AtkValue* args = stackalloc AtkValue[2];
 
@@ -717,6 +746,9 @@ public sealed unsafe class Plugin : IDalamudPlugin
 
                     status = $"Teleporting to {destination.Name}...";
 
+                    if (config.ShowDebug)
+                        Log.Information(lastMenuReadout);
+
                     if (callbackAttempts >= 2)
                         GoTo(TravelPhase.WaitForArrival);
                 }
@@ -724,12 +756,20 @@ public sealed unsafe class Plugin : IDalamudPlugin
                 return;
             }
 
-            if ((DateTime.UtcNow - phaseStarted).TotalSeconds > 4)
+            lastMenuReadout =
+                $"AtkValuesCount={valueCount}; " +
+                $"entry hint={values[0].UInt}; " +
+                $"scanned slots={slots}; " +
+                $"names=[{string.Join(" | ", observed)}]";
+
+            if ((DateTime.UtcNow - phaseStarted).TotalSeconds > 5)
             {
                 Log.Warning(
-                    $"Destination {destination.Name} not found. " +
-                    $"Native menu: {string.Join(" | ", observed)}");
-                Cancel("Destination not found in the live Aethernet menu.");
+                    $"Could not match destination {destination.Name}. " +
+                    lastMenuReadout);
+
+                Cancel(
+                    $"Could not find {destination.Name} in native menu.");
             }
         }
     }
@@ -798,7 +838,7 @@ public sealed unsafe class Plugin : IDalamudPlugin
 
         ImGui.TextColored(accent, "AETHERNET ASSIST");
         ImGui.SameLine();
-        ImGui.TextDisabled("v0.0.4 DEV1 FIX3");
+        ImGui.TextDisabled("v0.0.5 DEV1 FIX4");
 
         ImGui.Separator();
 
@@ -906,6 +946,14 @@ public sealed unsafe class Plugin : IDalamudPlugin
 
             ImGui.TextUnformatted(
                 $"Travel phase: {phase}");
+
+            ImGui.Separator();
+            ImGui.TextWrapped(lastMenuReadout);
+
+            if (ImGui.Button("Copy menu diagnostics"))
+            {
+                ImGui.SetClipboardText(lastMenuReadout);
+            }
         }
 
         ImGui.End();
