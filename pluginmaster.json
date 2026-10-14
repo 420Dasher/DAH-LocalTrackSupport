@@ -168,6 +168,7 @@
              ],
     "DownloadLinkInstall":  "https://raw.githubusercontent.com/420Dasher/DAH-LocalTrackSupport/main/plugins/AethernetAssist/latest.zip",
     "DownloadLinkUpdate":  "https://raw.githubusercontent.com/420Dasher/DAH-LocalTrackSupport/main/plugins/AethernetAssist/latest.zip",
-    "DownloadLinkTesting":  "https://raw.githubusercontent.com/420Dasher/DAH-LocalTrackSupport/testing/plugins/AethernetAssist/latest.zip"
+    "DownloadLinkTesting":  "https://raw.githubusercontent.com/420Dasher/DAH-LocalTrackSupport/testing/plugins/AethernetAssist/latest.zip",
+    "IconUrl": "https://raw.githubusercontent.com/420Dasher/DAH-LocalTrackSupport/main/plugins/AethernetAssist/icon.png"
 }
 ]
