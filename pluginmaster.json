@@ -141,5 +141,34 @@
         "DownloadLinkInstall":  "https://raw.githubusercontent.com/420Dasher/DAH-LocalTrackSupport/testing/plugins/BlunderNav/latest.zip",
         "DownloadLinkUpdate":  "https://raw.githubusercontent.com/420Dasher/DAH-LocalTrackSupport/testing/plugins/BlunderNav/latest.zip",
         "DownloadLinkTesting":  "https://raw.githubusercontent.com/420Dasher/DAH-LocalTrackSupport/testing/plugins/BlunderNav/latest.zip"
-    }
+    },
+{
+    "Author":  "Dash + AI",
+    "InternalName":  "AethernetAssist",
+    "Name":  "AethernetAssist [DEV1]",
+    "AssemblyVersion":  "0.0.1.0",
+    "TestingAssemblyVersion":  "0.0.1.0",
+    "DalamudApiLevel":  15,
+    "TestingDalamudApiLevel":  15,
+    "ApplicableVersion":  "any",
+    "LoadRequiredState":  0,
+    "LoadSync":  false,
+    "CanUnloadAsync":  false,
+    "LoadPriority":  0,
+    "AcceptsFeedback":  false,
+    "IsHide":  false,
+    "IsTestingExclusive":  false,
+    "Punchline":  "Aethernet travel without the clutter.",
+    "Description":  "Contextual Aethernet window with real attunement checks and one-click travel.",
+    "Changelog":  "DEV1: Proximity Aethernet window, learned and locked shards, destination ordering and native travel automation.",
+    "Tags":  [
+                 "aethernet",
+                 "aetheryte",
+                 "teleport",
+                 "testing"
+             ],
+    "DownloadLinkInstall":  "https://raw.githubusercontent.com/420Dasher/DAH-LocalTrackSupport/testing/plugins/AethernetAssist/latest.zip",
+    "DownloadLinkUpdate":  "https://raw.githubusercontent.com/420Dasher/DAH-LocalTrackSupport/testing/plugins/AethernetAssist/latest.zip",
+    "DownloadLinkTesting":  "https://raw.githubusercontent.com/420Dasher/DAH-LocalTrackSupport/testing/plugins/AethernetAssist/latest.zip"
+}
 ]

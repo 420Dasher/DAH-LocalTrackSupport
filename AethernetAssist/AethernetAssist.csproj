@@ -1,0 +1,19 @@
+<Project Sdk="Dalamud.NET.Sdk/15.0.0">
+  <PropertyGroup>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <Version>0.0.1.0</Version>
+    <AssemblyVersion>0.0.1.0</AssemblyVersion>
+    <FileVersion>0.0.1.0</FileVersion>
+    <AssemblyName>AethernetAssist</AssemblyName>
+    <RootNamespace>AethernetAssist</RootNamespace>
+    <Name>AethernetAssist</Name>
+    <Author>Dash + AI</Author>
+    <Description>Contextual Aethernet travel assistance.</Description>
+    <Punchline>Aethernet travel without the clutter.</Punchline>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <IsPackable>false</IsPackable>
+    <DalamudApiLevel>15</DalamudApiLevel>
+  </PropertyGroup>
+</Project>
