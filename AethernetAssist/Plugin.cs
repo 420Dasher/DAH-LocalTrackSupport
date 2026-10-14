@@ -162,7 +162,7 @@ public sealed unsafe partial class Plugin : IDalamudPlugin
         Pi.UiBuilder.OpenMainUi += Open;
         Pi.UiBuilder.OpenConfigUi += OpenConfig;
 
-        Log.Information("AethernetAssist v0.0.23 DEV4.1 TEST3 initialized.");
+        Log.Information("AethernetAssist v0.0.24 DEV4.1 CLEANUP initialized.");
     }
 
     public void Dispose()
@@ -452,7 +452,6 @@ public sealed unsafe partial class Plugin : IDalamudPlugin
                 return;
 
             lastScan = DateTime.UtcNow;
-            TickResidentialObjectResearch();
             ScanNearby();
             UpdateProximityWindow();
         }
@@ -1347,7 +1346,7 @@ public sealed unsafe partial class Plugin : IDalamudPlugin
 
         ImGui.TextColored(NavAccent, "SETTINGS");
         ImGui.SameLine();
-        ImGui.TextDisabled("0.0.23");
+        ImGui.TextDisabled("0.0.24");
         ImGui.Separator();
 
         bool autoOpen = config.AutoOpen;
@@ -1534,8 +1533,6 @@ public sealed unsafe partial class Plugin : IDalamudPlugin
             ImGui.TextColored(
                 NavMuted, "RESIDENTIAL AETHERNET");
 
-            ImGui.TextWrapped(
-                ResidentialResearchSummary());
 
             ImGui.TextWrapped(
                 "Residential travel: " + residentialPhase +
@@ -1543,9 +1540,6 @@ public sealed unsafe partial class Plugin : IDalamudPlugin
 
             ImGui.TextWrapped(residentialMenuReadout);
 
-            ImGui.TextDisabled(
-                "Research 2: includes pre-menu objects " +
-                "and native callback metadata.");
 
             ImGui.Spacing();
 
@@ -1608,7 +1602,7 @@ public sealed unsafe partial class Plugin : IDalamudPlugin
                 return;
             }
 
-            ImGui.TextDisabled("v0.0.23");
+            ImGui.TextDisabled("v0.0.24");
 
             ImGui.SameLine(ImGui.GetWindowWidth() - 87f);
 

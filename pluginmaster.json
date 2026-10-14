@@ -145,9 +145,9 @@
 {
     "Author":  "Dash + AI",
     "InternalName":  "AethernetAssist",
-    "Name":  "AethernetAssist [DEV4.1 TEST3]",
-    "AssemblyVersion":  "0.0.23.0",
-    "TestingAssemblyVersion":  "0.0.23.0",
+    "Name":  "AethernetAssist [DEV4.1 CLEANUP]",
+    "AssemblyVersion":  "0.0.24.0",
+    "TestingAssemblyVersion":  "0.0.24.0",
     "DalamudApiLevel":  15,
     "TestingDalamudApiLevel":  15,
     "ApplicableVersion":  "any",
@@ -160,7 +160,7 @@
     "IsTestingExclusive":  false,
     "Punchline":  "Aethernet travel without the clutter.",
     "Description":  "Contextual Aethernet window with real attunement checks and one-click travel.",
-    "Changelog":  "DEV4.1 TEST3: Residential Aethernet UI polish. Main Division is fully visible initially while Subdivision appears below the fold with a scroll gap matching the city Other section. Corrected idle Ready status. Confirmed residential travel logic and existing features remain unchanged.",
+    "Changelog":  "DEV4.1 CLEANUP: Removed obsolete residential research modules, per-frame object snapshots, and large native-menu diagnostics. Retained compact operational diagnostics. Cleaned documentation and build metadata. Residential, Housing, gate, and city travel implementations unchanged.",
     "Tags":  [
                  "aethernet",
                  "aetheryte",

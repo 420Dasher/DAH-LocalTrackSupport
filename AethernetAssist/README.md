@@ -1,33 +1,38 @@
-# AethernetAssist v0.0.23 DEV4.1 TEST3
+# AethernetAssist v0.0.24 DEV4.1 CLEANUP
 
 Dalamud API 15 / .NET 10
+Development branch: testing
 
-Development build for the testing repository.
+## Features
 
-Features:
-- Contextual Aethernet window
-- Automatic proximity opening
-- Learned and unlearned destinations
-- Unlearned destinations disabled
-- Vanilla-style ordering for major city networks
-- One-click native Aethernet interaction
-- Configurable range and visibility
-- Diagnostic mode
+- Contextual Aethernet travel interface
+- Native city Aethernet destinations and attunement checks
+- Main and subdivision residential Aethernet destinations
+- Residential support in all five housing districts
+- Ward selection (1-30) from city and residential entrances
+- Automatic Mist and Goblet gate navigation via vnavmesh
+- Native NPC travel for Lavender Beds, Shirogane and Empyreum
+- Configurable proximity auto-open and auto-close
+- Manually opened windows retain their visibility
+- City-style destination rows and scrolling
+- Manual movement interruption and travel cancellation
+- Operational diagnostics in Settings
 
-Commands:
-- /anet
-- /anet debug
-- /anet cancel
+## Commands
 
-DEV1 is intended for in-game testing before additional
-housing, world visiting, and map-click features are added.
+- /anet - Open navigation window
+- /anet housing - Open Housing page
+- /anet settings - Open settings
+- /anet debug - Toggle diagnostics
+- /anet cancel - Cancel active navigation
 
-The first automation implementation targets the English
-game client and validates the selected destination against
-the live Aethernet menu before sending its callback.
-DEV2 additions:
-- All physical Aethernet destinations from the game sheet.
-- Invisible Aethernet destinations, including gates and airship landings.
-- Territory-based city grouping and an Other section.
-- Disabled destinations when attunement or quest requirements are unmet.
-- Existing native teleport callback and diagnostics preserved.
+## Development status
+
+DEV4.1 residential networks were tested in:
+Mist, Lavender Beds, Goblet, Shirogane and Empyreum.
+
+Residential research modules were removed in v0.0.24.
+Operational transport diagnostics remain available.
+
+Cosmic Exploration is planned for DEV4.2.
+World Travel is not yet implemented.

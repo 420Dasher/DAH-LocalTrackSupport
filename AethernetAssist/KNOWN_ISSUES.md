@@ -31,117 +31,38 @@ Future investigation:
 
 Status: OPEN - low frequency, investigation deferred.
 
-## Housing
+## Housing and residential Aethernet
 
-DEV4 FIX2 scope:
-- Automatically detected residential district from the nearby main city Aetheryte.
-- Clickable ward grid (1-30) through native city Aetheryte menus.
-- Current-city main Aetheryte required.
-- English native menu matching initially.
-- Subdivision navigation is intentionally manual.
-- Ward travel pending in-game validation.
+Status: Validated through DEV4.1 TEST3.
 
-Housing diagnostics are shown exclusively in Settings >
-Diagnostics alongside Aethernet diagnostics. Future DC Travel
-diagnostics should use the same section without additional
-main-window buttons.
+- Ward selection 1-30 uses native game menus.
+- City-to-ward and same-district ward changes tested.
+- Mist and Goblet walk-through gates support vnavmesh movement.
+- Manual movement cancels automatic gate travel and pending state.
+- Lavender Beds, Shirogane and Empyreum use native entrance NPCs.
+- Main Division and Subdivision are detected through HousingManager.
+- Residential destinations are loaded from HousingAethernet.
+- Residential teleportation is validated in all five districts.
+- Same-division and cross-division travel were tested.
+- Proximity auto-open/close is configurable (8-11.1 yalms).
+- Manually opened windows remain open.
+- Residential teleport callbacks use native name, state and ID
+  validation, with no more than two guarded attempts.
 
-DEV4 FIX3 ward entrance coverage:
-- Native NPC exits: Lavender Beds, Shirogane, Empyreum.
-- Native walk-through gates: Mist, Goblet.
-- Leaving the residential district uses the native exit menu.
-- Gate menus require manual movement to trigger.
-- NPC Talk dialogue may require manual advancement.
-- Same-territory ward transfers require observed loading.
-- In-game validation of each native exit remains pending.
-- Subdivision navigation remains manual.
+### Remaining follow-ups
 
-DEV4 FIX4 reliability changes:
-- ConfirmTravel no longer accepts matching territory alone as success.
-- Native HousingManager current ward must match the requested ward.
-- Existing Yes/No and ward-selection menus must close before arrival.
-- Entrance NPC Talk dialogs advance automatically during plugin travel.
-- Already occupied ward is marked and cannot be reselected.
-- Verify both city-to-ward and same-territory ward-to-ward travel.
-DEV4 FIX5:
-- Gate detection now uses the configured 8-11.1-yalm range.
-- Proximity-opened Housing closes after leaving that range.
-- Manually opened windows are preserved.
-- Active Housing operations prevent premature auto-close.
-- Optional vnavmesh gate walk, started only by user action.
-- Stop movement on menu appearance, keyboard input, or timeout.
-- Manual gate travel remains available without vnavmesh.
-- Housing dialogue delays reduced conservatively.
-- Obsolete DataId/String8 references replaced.
-- Automatic gate movement pending in-game validation.
-- Flame Private NPC detection not yet implemented.
-DEV4 FIX6:
-- Manual movement now cancels the entire active gate-travel operation.
-- Both vnavmesh movement and Housing state machine are stopped.
-- Cancellation works while walking and while awaiting the native gate menu.
-- Manual fallback remains available when vnavmesh did not start.
-- Existing Cancel button and /anet cancel remain unchanged.
-- Existing ward travel, NPC interactions, and Aethernet callbacks unchanged.
-- Mist and Goblet auto-walk and Gridania NPC routes were user-tested in FIX5.
-DEV4 FIX7 - Unified proximity window:
-- Aethernet shards, main Aetherytes, Housing NPCs, and
-  housing gates share the configured proximity range.
-- Auto-close applies to every proximity-opened window.
-- Manual /anet and Open Main UI windows are preserved.
-- Active Aethernet and Housing travel is not interrupted.
-- Re-evaluates the auto-window after territory changes.
-- Removed duplicate Housing and Aethernet close handlers.
-- Native travel callbacks and gate movement are unchanged.
-- Lavender Beds NPC proximity close requires validation.
-DEV4.1 RESEARCH 1 (v0.0.19):
-- Read-only residential Aethernet diagnostics added.
-- HousingAethernet sheet inspected by territory and order.
-- HousingManager division and ward state captured.
-- Nearby shard object identities, distances, and XYZ captured.
-- Native SelectString and TelepotTown names captured if visible.
-- Main/subdivision row split is provisional, not validated.
-- No residential travel callbacks are implemented yet.
-- All previously tested ward and gate automation preserved.
-- Next: verify row names/order against native housing menus,
-  then implement residential shard teleportation.
-DEV4.1 RESEARCH 2 (v0.0.20):
-- Main and subdivision menus independently confirmed to
-  contain the same 18 native entries in Lavender Beds.
-- Added nearby unfiltered non-player object inspection.
-- Added pre-menu object snapshot caching.
-- Added native TelepotTown row type/state/callback inspection.
-- Residential transport callback remains disabled.
-- Known-working city and Housing navigation unchanged.
-DEV4.1 TEST1 (v0.0.21):
-- Identified residential shard BaseID 2004983, EventObj.
-- Added HousingAethernet destination list in Aethernet page.
-- Main Division and Subdivision grouped separately.
-- Added proximity auto-open/close for residential shards.
-- Residential travel uses a separate native state machine.
-- Live native destination names and callback IDs validated.
-- Nonzero native destination states blocked during TEST1.
-- Submitted callback only for state=0 and type=0.
-- Residential travel acceptance is pending live validation.
-- Main city, ward transfer, NPC, and gate logic unchanged.
-- Excluded ObjectKind.Pc from research object snapshots.
-DEV4.1 TEST2 (v0.0.22):
-- Residential destinations now use the city-style custom rows:
-  diamond icon, hover highlight, destination text, and arrow.
-- Residential list uses a compact 310px scrolling viewport.
-- Residential menu callbacks now allow a second attempt.
-- Retry occurs only if the native menu remains open.
-- Native name/type/state/callback validations run again.
-- Callback count limited to two; no unlimited retries.
-- Native callback rejection retains diagnostics.
-- Successful residential arrival resets proximity detection.
-- Previously working city, Housing, and gate code unchanged.
-- Residential callback retry requires in-game validation.
-DEV4.1 TEST3 (v0.0.23):
-- Confirmed residential travel works in both divisions
-  and between main division and subdivision.
-- Initial viewport now fits Main Division destinations.
-- Subdivision moved below the fold with the same 38px
-  separation used by the city Aethernet OTHER section.
-- Residential startup status displays Ready at a shard.
-- Residential teleport callbacks remain unchanged.
-- Existing city and ward-transfer code remain unchanged.
+- Flame Private NPC detection was previously noted as missing.
+- Residential Ready-indicator color may need cosmetic polish.
+- Cosmic Exploration navigation is planned for DEV4.2.
+- World Visit functionality is not yet implemented.
+
+### Cleanup v0.0.24
+
+- Removed ResidentialResearch.cs.
+- Removed ResidentialObjectResearch.cs.
+- Removed per-frame residential object snapshots.
+- Removed large native research reports.
+- Retained lightweight operational travel diagnostics.
+- Kept live residential and Housing travel implementation intact.
+
+Historical development notes remain available in Git history.

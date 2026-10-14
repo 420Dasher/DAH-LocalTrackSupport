@@ -935,6 +935,9 @@ public sealed unsafe partial class Plugin
             ", Ward " + housingTargetWard + "\n" +
             "Status: " + housingStatus + "\n" +
             housingDiagnostic +
-            "\n\n" + BuildResidentialResearchReport();
+            "\n\n=== RESIDENTIAL AETHERNET ===\n" +
+            "Phase: " + residentialPhase + "\n" +
+            "Status: " + residentialStatus + "\n" +
+            residentialMenuReadout;
     }
 }
