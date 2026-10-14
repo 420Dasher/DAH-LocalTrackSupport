@@ -145,9 +145,9 @@
 {
     "Author":  "Dash + AI",
     "InternalName":  "AethernetAssist",
-    "Name":  "AethernetAssist [DEV1 FIX1]",
-    "AssemblyVersion":  "0.0.2.0",
-    "TestingAssemblyVersion":  "0.0.2.0",
+    "Name":  "AethernetAssist [DEV1 FIX2]",
+    "AssemblyVersion":  "0.0.3.0",
+    "TestingAssemblyVersion":  "0.0.3.0",
     "DalamudApiLevel":  15,
     "TestingDalamudApiLevel":  15,
     "ApplicableVersion":  "any",
@@ -160,7 +160,7 @@
     "IsTestingExclusive":  false,
     "Punchline":  "Aethernet travel without the clutter.",
     "Description":  "Contextual Aethernet window with real attunement checks and one-click travel.",
-    "Changelog":  "DEV1 FIX1: Correct Dalamud API 15 compatibility, build and package the first AethernetAssist testing release.",
+    "Changelog":  "DEV1 FIX2: Native Aethernet destination decoding, 8.0-11.1 yalm proximity range and 11.1 default.",
     "Tags":  [
                  "aethernet",
                  "aetheryte",

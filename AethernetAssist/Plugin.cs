@@ -9,6 +9,7 @@ using Dalamud.Game.ClientState.Objects.Enums;
 using Dalamud.Game.ClientState.Objects.Types;
 using Dalamud.Game.Command;
 using Dalamud.IoC;
+using Dalamud.Memory;
 using Dalamud.Plugin;
 using Dalamud.Plugin.Services;
 using FFXIVClientStructs.FFXIV.Client.Game.Control;
@@ -125,8 +126,16 @@ public sealed unsafe class Plugin : IDalamudPlugin
         config = Pi.GetPluginConfig() as Configuration
             ?? new Configuration();
 
+        // Migrate older settings to the new proximity default.
+        if (config.Version < 2)
+        {
+            config.Version = 2;
+            config.OpenRange = 11.1f;
+            Save();
+        }
+
         config.OpenRange = Math.Clamp(
-            config.OpenRange, 5f, 13f);
+            config.OpenRange, 8f, 11.1f);
 
         LoadNetworks();
 
@@ -143,7 +152,7 @@ public sealed unsafe class Plugin : IDalamudPlugin
         Pi.UiBuilder.OpenMainUi += Open;
         Pi.UiBuilder.OpenConfigUi += Open;
 
-        Log.Information("AethernetAssist v0.0.2 DEV1 FIX1 initialized.");
+        Log.Information("AethernetAssist v0.0.3 DEV1 FIX2 initialized.");
     }
 
     public void Dispose()
@@ -625,6 +634,8 @@ public sealed unsafe class Plugin : IDalamudPlugin
                 262 + count > addon->AtkValuesCount)
                 return;
 
+            var observed = new List<string>();
+
             for (int i = 0; i < count; i++)
             {
                 var namePtr = values[262 + i].String.Value;
@@ -632,8 +643,19 @@ public sealed unsafe class Plugin : IDalamudPlugin
                 if (namePtr == null)
                     continue;
 
-                var name = Marshal.PtrToStringUTF8(
-                    (nint)namePtr) ?? "";
+                string name;
+                try
+                {
+                    name = MemoryHelper.ReadSeStringNullTerminated(
+                        (nint)namePtr).TextValue;
+                }
+                catch (Exception ex)
+                {
+                    Log.Warning($"Aethernet entry {i}: {ex.Message}");
+                    continue;
+                }
+
+                observed.Add(Clean(name));
 
                 if (!string.Equals(
                     Clean(name),
@@ -652,6 +674,12 @@ public sealed unsafe class Plugin : IDalamudPlugin
                 if (callbackIndex >= addon->AtkValuesCount)
                 {
                     Cancel("Destination data unavailable.");
+                    return;
+                }
+
+                if (values[callbackIndex].Type != AtkValueType.UInt)
+                {
+                    Cancel("Unexpected Aethernet callback data.");
                     return;
                 }
 
@@ -691,6 +719,9 @@ public sealed unsafe class Plugin : IDalamudPlugin
             }
 
             if ((DateTime.UtcNow - phaseStarted).TotalSeconds > 4)
+                Log.Warning(
+                    $"Destination {destination.Name} not found. " +
+                    $"Native menu: {string.Join(" | ", observed)}");
                 Cancel("Destination not found in the live Aethernet menu.");
         }
     }
@@ -758,7 +789,7 @@ public sealed unsafe class Plugin : IDalamudPlugin
 
         ImGui.TextColored(accent, "AETHERNET ASSIST");
         ImGui.SameLine();
-        ImGui.TextDisabled("v0.0.2 DEV1 FIX1");
+        ImGui.TextDisabled("v0.0.3 DEV1 FIX2");
 
         ImGui.Separator();
 
@@ -841,11 +872,11 @@ public sealed unsafe class Plugin : IDalamudPlugin
             if (ImGui.SliderFloat(
                     "Proximity range",
                     ref range,
-                    5f,
-                    13f,
+                    8f,
+                    11.1f,
                     "%.1f yalms"))
             {
-                config.OpenRange = range;
+                config.OpenRange = Math.Clamp(MathF.Round(range, 1), 8f, 11.1f);
                 Save();
             }
         }
