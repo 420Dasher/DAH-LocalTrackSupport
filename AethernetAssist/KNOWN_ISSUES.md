@@ -93,3 +93,14 @@ DEV4 FIX7 - Unified proximity window:
 - Removed duplicate Housing and Aethernet close handlers.
 - Native travel callbacks and gate movement are unchanged.
 - Lavender Beds NPC proximity close requires validation.
+DEV4.1 RESEARCH 1 (v0.0.19):
+- Read-only residential Aethernet diagnostics added.
+- HousingAethernet sheet inspected by territory and order.
+- HousingManager division and ward state captured.
+- Nearby shard object identities, distances, and XYZ captured.
+- Native SelectString and TelepotTown names captured if visible.
+- Main/subdivision row split is provisional, not validated.
+- No residential travel callbacks are implemented yet.
+- All previously tested ward and gate automation preserved.
+- Next: verify row names/order against native housing menus,
+  then implement residential shard teleportation.

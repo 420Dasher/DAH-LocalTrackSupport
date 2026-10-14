@@ -161,7 +161,7 @@ public sealed unsafe partial class Plugin : IDalamudPlugin
         Pi.UiBuilder.OpenMainUi += Open;
         Pi.UiBuilder.OpenConfigUi += OpenConfig;
 
-        Log.Information("AethernetAssist v0.0.18 DEV4 FIX7 initialized.");
+        Log.Information("AethernetAssist v0.0.19 DEV4.1 RESEARCH 1 initialized.");
     }
 
     public void Dispose()
@@ -1329,7 +1329,7 @@ public sealed unsafe partial class Plugin : IDalamudPlugin
 
         ImGui.TextColored(NavAccent, "SETTINGS");
         ImGui.SameLine();
-        ImGui.TextDisabled("0.0.18");
+        ImGui.TextDisabled("0.0.19");
         ImGui.Separator();
 
         bool autoOpen = config.AutoOpen;
@@ -1512,6 +1512,18 @@ public sealed unsafe partial class Plugin : IDalamudPlugin
             ImGui.TextWrapped(housingDiagnostic);
 
             ImGui.Spacing();
+            ImGui.Separator();
+            ImGui.TextColored(
+                NavMuted, "RESIDENTIAL AETHERNET");
+
+            ImGui.TextWrapped(
+                ResidentialResearchSummary());
+
+            ImGui.TextDisabled(
+                "Read-only research: open a shard's " +
+                "native menu before copying diagnostics.");
+
+            ImGui.Spacing();
 
             if (ImGui.Button("Copy diagnostics"))
                 ImGui.SetClipboardText(
@@ -1572,7 +1584,7 @@ public sealed unsafe partial class Plugin : IDalamudPlugin
                 return;
             }
 
-            ImGui.TextDisabled("v0.0.18");
+            ImGui.TextDisabled("v0.0.19");
 
             ImGui.SameLine(ImGui.GetWindowWidth() - 87f);
 

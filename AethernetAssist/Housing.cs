@@ -934,6 +934,7 @@ public sealed unsafe partial class Plugin
             "Target: " + housingTarget.Name +
             ", Ward " + housingTargetWard + "\n" +
             "Status: " + housingStatus + "\n" +
-            housingDiagnostic;
+            housingDiagnostic +
+            "\n\n" + BuildResidentialResearchReport();
     }
 }
