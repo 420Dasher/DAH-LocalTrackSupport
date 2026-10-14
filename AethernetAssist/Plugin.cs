@@ -169,7 +169,7 @@ public sealed unsafe partial class Plugin : IDalamudPlugin
         Pi.UiBuilder.OpenMainUi += Open;
         Pi.UiBuilder.OpenConfigUi += OpenConfig;
 
-        Log.Information("AethernetAssist v0.0.36 DEV4.2 UI POLISH initialized.");
+        Log.Information("AethernetAssist v0.0.37 DEV4.3 WORLD VISIT RESEARCH1 initialized.");
     }
 
     public void Dispose()
@@ -1404,7 +1404,7 @@ public sealed unsafe partial class Plugin : IDalamudPlugin
 
         ImGui.TextColored(NavAccent, "SETTINGS");
         ImGui.SameLine();
-        ImGui.TextDisabled("0.0.36");
+        ImGui.TextDisabled("0.0.37");
         ImGui.Separator();
 
         bool autoOpen = config.AutoOpen;
@@ -1668,7 +1668,7 @@ public sealed unsafe partial class Plugin : IDalamudPlugin
                 return;
             }
 
-            ImGui.TextDisabled("v0.0.36");
+            ImGui.TextDisabled("v0.0.37");
 
             ImGui.SameLine(ImGui.GetWindowWidth() - 87f);
 
@@ -1687,10 +1687,10 @@ public sealed unsafe partial class Plugin : IDalamudPlugin
             ImGui.PopStyleColor(3);
             ImGui.Spacing();
 
-            // Housing is contextual, while DC Travel has
-            // no implemented backend yet.
+            // Same-DC World Visit is only accessible at
+            // the three eligible main city Aetherytes.
             bool housingAvailable = HousingPageAvailable();
-            const bool dcTravelAvailable = false;
+            bool dcTravelAvailable = WorldVisitPageAvailable();
 
             // A previously selected tab must never leave
             // the UI displaying an unavailable feature.
@@ -1755,11 +1755,7 @@ public sealed unsafe partial class Plugin : IDalamudPlugin
                     break;
 
                 case NavigationPage.DcTravel:
-                    ImGui.Spacing();
-                    ImGui.TextColored(NavAccent, "DC TRAVEL");
-                    ImGui.TextDisabled(
-                        "Same-DC world visiting is planned.");
-                    ImGui.Spacing();
+                    DrawWorldVisitResearchPage();
                     break;
             }
 

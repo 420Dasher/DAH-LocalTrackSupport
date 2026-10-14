@@ -193,3 +193,14 @@ Historical development notes remain available in Git history.
   dedicated validation; native travel safeguards retained.
 - Further testing required before any stable release.
 - testing branch only. Do not push to main.
+## DEV4.3 WORLD VISIT RESEARCH1 (v0.0.37)
+
+- Same-DC World Visit research started.
+- DC Travel tab restricted to three original
+  city main Aetherytes.
+- Native WorldTravelSelect menu research added.
+- Read-only: no travel callbacks yet.
+- World availability and eligibility filtering
+  still require native menu verification.
+- Cross-DC travel will not be implemented.
+- Keep this version on testing.

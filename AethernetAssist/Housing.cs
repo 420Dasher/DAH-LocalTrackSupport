@@ -945,6 +945,7 @@ public sealed unsafe partial class Plugin
             BuildCosmicTravelReport() +
 
 
-            BuildCosmicLocalTravelReport();
+            BuildCosmicLocalTravelReport() +
+            BuildWorldVisitResearchReport();
     }
 }

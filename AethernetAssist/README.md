@@ -1,4 +1,4 @@
-# AethernetAssist v0.0.36 DEV4.2 UI POLISH
+# AethernetAssist v0.0.37 DEV4.3 WORLD VISIT RESEARCH1
 
 Dalamud API 15 / .NET 10
 Development branch: testing
@@ -225,3 +225,30 @@ Cosmic cleanup:
 Cosmic subnet testing completed across all four planets.
 
 DC Travel is still unfinished. Do not release to main.
+## DEV4.3 WORLD VISIT RESEARCH1 (v0.0.37)
+
+Scope: Same-data-center World Visit only.
+
+The DC Travel tab is visible only at the main
+Aetherytes in:
+- Limsa Lominsa (territory 129)
+- New Gridania (territory 132)
+- Ul'dah (territory 130)
+
+The actual main Aetheryte must be targetable and
+within the configured plugin proximity range.
+
+The tab is hidden near regular Aethernet shards,
+residential shards, housing entrances, Cosmic shards
+and all other territories.
+
+This version adds read-only inspection of:
+- SelectString World Visit options
+- WorldTravelSelect native addon and AtkValues
+- Native visible destination labels
+
+World Visit selection and travel confirmation
+are not automated yet.
+
+Cross-data-center travel is explicitly out of scope.
+Do not push to main.
