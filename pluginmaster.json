@@ -145,9 +145,9 @@
 {
     "Author":  "Dash + AI",
     "InternalName":  "AethernetAssist",
-    "Name":  "AethernetAssist [DEV4.3 WORLD VISIT TEST1]",
-    "AssemblyVersion":  "0.0.38.0",
-    "TestingAssemblyVersion":  "0.0.38.0",
+    "Name":  "AethernetAssist [DEV4.3 WORLD VISIT TEST2]",
+    "AssemblyVersion":  "0.0.39.0",
+    "TestingAssemblyVersion":  "0.0.39.0",
     "DalamudApiLevel":  15,
     "TestingDalamudApiLevel":  15,
     "ApplicableVersion":  "any",
@@ -160,7 +160,7 @@
     "IsTestingExclusive":  false,
     "Punchline":  "Aethernet travel without the clutter.",
     "Description":  "Contextual Aethernet window with real attunement checks and one-click travel.",
-    "Changelog":  "DEV4.3 WORLD VISIT TEST1: Native same-DC world list, world and data-center validation, current-world detection and guarded native WorldTravelSelect destination selection. Fixes API 15 LocalPlayer lookup. Final confirmation remains manual.",
+    "Changelog":  "DEV4.3 WORLD VISIT TEST2: One-click same-DC World Visit from supported main city Aetherytes. Includes automatic interaction, native world selection, destination-guarded confirmation, queue monitoring and arrival verification. Testing only. No cross-DC travel.",
     "Tags":  [
                  "aethernet",
                  "aetheryte",

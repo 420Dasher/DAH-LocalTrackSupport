@@ -1,4 +1,4 @@
-# AethernetAssist v0.0.38 DEV4.3 WORLD VISIT TEST1
+# AethernetAssist v0.0.39 DEV4.3 WORLD VISIT TEST2
 
 Dalamud API 15 / .NET 10
 Development branch: testing
@@ -274,3 +274,23 @@ Same-data-center World Visit selection testing.
 Retains the complete read-only research diagnostics.
 
 Stay on testing. Never release to main automatically.
+## DEV4.3 WORLD VISIT TEST2 (v0.0.39)
+
+Same-DC one-click World Visit development.
+
+- Show available same-DC worlds before opening
+  the game's native World Visit menu.
+- Interact with the supported city Aetheryte.
+- Select Visit Another World automatically.
+- Revalidate the exact target world against the
+  native WorldTravelSelect destination list.
+- Use the previously tested native world callback.
+- Confirm automatically only when the prompt
+  explicitly identifies the destination.
+- Otherwise leave confirmation to the player.
+- Monitor World Visit queues without auto-retrying.
+- Verify arrival using the actual current world.
+- /anet cancel stops plugin-side monitoring.
+- No cross-DC travel or character-selection automation.
+
+Testing branch only. Do not release to main.

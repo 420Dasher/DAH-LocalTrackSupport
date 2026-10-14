@@ -169,7 +169,7 @@ public sealed unsafe partial class Plugin : IDalamudPlugin
         Pi.UiBuilder.OpenMainUi += Open;
         Pi.UiBuilder.OpenConfigUi += OpenConfig;
 
-        Log.Information("AethernetAssist v0.0.38 DEV4.3 WORLD VISIT TEST1 initialized.");
+        Log.Information("AethernetAssist v0.0.39 DEV4.3 WORLD VISIT TEST2 initialized.");
     }
 
     public void Dispose()
@@ -443,7 +443,11 @@ public sealed unsafe partial class Plugin : IDalamudPlugin
                 break;
 
             case "cancel":
-                if (cosmicLocalPhase != CosmicLocalPhase.Idle)
+                if (worldVisitPhase != WorldVisitPhase.Idle)
+                    StopWorldVisit(
+                        "Monitoring cancelled. Cancel an active " +
+                        "World Visit queue in the game.");
+                else if (cosmicLocalPhase != CosmicLocalPhase.Idle)
                     StopCosmicLocal("Cancelled by user.");
                 else if (cosmicPhase != CosmicPhase.Idle)
                     StopCosmicTravel("Cancelled by user.");
@@ -465,6 +469,12 @@ public sealed unsafe partial class Plugin : IDalamudPlugin
     {
         try
         {
+            if (worldVisitPhase != WorldVisitPhase.Idle)
+            {
+                TickWorldVisit();
+                return;
+            }
+
             if (cosmicLocalPhase != CosmicLocalPhase.Idle)
             {
                 TickCosmicLocal();
@@ -506,7 +516,9 @@ public sealed unsafe partial class Plugin : IDalamudPlugin
         catch (Exception ex)
         {
             Log.Error($"AethernetAssist: {ex}");
-            if (cosmicLocalPhase != CosmicLocalPhase.Idle)
+            if (worldVisitPhase != WorldVisitPhase.Idle)
+                StopWorldVisit("Stopped after an internal error.");
+            else if (cosmicLocalPhase != CosmicLocalPhase.Idle)
                 StopCosmicLocal("Stopped after an internal error.");
             else if (cosmicPhase != CosmicPhase.Idle)
                 StopCosmicTravel("Stopped after an internal error.");
@@ -1404,7 +1416,7 @@ public sealed unsafe partial class Plugin : IDalamudPlugin
 
         ImGui.TextColored(NavAccent, "SETTINGS");
         ImGui.SameLine();
-        ImGui.TextDisabled("0.0.38");
+        ImGui.TextDisabled("0.0.39");
         ImGui.Separator();
 
         bool autoOpen = config.AutoOpen;
@@ -1668,7 +1680,7 @@ public sealed unsafe partial class Plugin : IDalamudPlugin
                 return;
             }
 
-            ImGui.TextDisabled("v0.0.38");
+            ImGui.TextDisabled("v0.0.39");
 
             ImGui.SameLine(ImGui.GetWindowWidth() - 87f);
 
@@ -1690,7 +1702,9 @@ public sealed unsafe partial class Plugin : IDalamudPlugin
             // Same-DC World Visit is only accessible at
             // the three eligible main city Aetherytes.
             bool housingAvailable = HousingPageAvailable();
-            bool dcTravelAvailable = WorldVisitPageAvailable();
+            bool dcTravelAvailable =
+                WorldVisitPageAvailable() ||
+                worldVisitPhase != WorldVisitPhase.Idle;
 
             // A previously selected tab must never leave
             // the UI displaying an unavailable feature.

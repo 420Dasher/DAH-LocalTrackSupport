@@ -346,11 +346,11 @@ public sealed unsafe partial class Plugin
             NavAccent, "SAME-DC WORLD VISIT");
 
         ImGui.TextDisabled(
-            "DEV4.3 TEST1 - Manual final confirmation");
+            "DEV4.3 TEST2 - One-click World Visit");
 
         ImGui.Spacing();
 
-        RefreshWorldVisitDestinations();
+        RefreshWorldVisitChoices();
 
         if (worldVisitCachedDestinations.Count == 0)
         {
@@ -387,6 +387,7 @@ public sealed unsafe partial class Plugin
                     bool enabled =
                         !world.Current &&
                         !worldVisitPending &&
+                        worldVisitPhase == WorldVisitPhase.Idle &&
                         !IsBusy();
 
                     Vector2 pos = ImGui.GetCursorScreenPos();
@@ -431,7 +432,7 @@ public sealed unsafe partial class Plugin
                         label);
 
                     if (clicked && enabled)
-                        SelectWorldVisitDestination(world);
+                        StartWorldVisit(world);
                 }
             }
 
@@ -441,7 +442,17 @@ public sealed unsafe partial class Plugin
         ImGui.Spacing();
         ImGui.Separator();
 
-        ImGui.TextWrapped(worldVisitSelectionStatus);
+        ImGui.TextWrapped(worldVisitJourneyStatus);
+
+        if (worldVisitPhase != WorldVisitPhase.Idle)
+        {
+            ImGui.Spacing();
+
+            if (ImGui.SmallButton("Cancel World Visit"))
+                StopWorldVisit(
+                    "Monitoring cancelled. An active game queue " +
+                    "must be cancelled in FFXIV.");
+        }
 
         ImGui.Spacing();
 
@@ -449,11 +460,12 @@ public sealed unsafe partial class Plugin
         {
             ImGui.SetClipboardText(
                 BuildWorldVisitResearchReport() +
-                BuildWorldVisitSelectionReport());
+                BuildWorldVisitSelectionReport() +
+                BuildWorldVisitJourneyReport());
         }
 
         ImGui.TextDisabled(
-            "Same-DC only. No automatic confirmation.");
+            "Same-DC only. Native confirmation is verified.");
     }
 
     private string BuildWorldVisitSelectionReport()

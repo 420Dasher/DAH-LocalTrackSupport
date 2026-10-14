@@ -1,0 +1,664 @@
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Runtime.InteropServices;
+using Dalamud.Game.ClientState.Conditions;
+using FFXIVClientStructs.FFXIV.Client.Game.Control;
+using FFXIVClientStructs.FFXIV.Client.Game.Object;
+using FFXIVClientStructs.FFXIV.Client.UI;
+using FFXIVClientStructs.FFXIV.Component.GUI;
+using Lumina.Excel.Sheets;
+
+namespace AethernetAssist;
+
+public sealed unsafe partial class Plugin
+{
+    private enum WorldVisitPhase
+    {
+        Idle,
+        Interact,
+        SelectVisitMenu,
+        SelectWorld,
+        Confirm,
+        ManualConfirmation,
+        WaitForArrival
+    }
+
+    private WorldVisitPhase worldVisitPhase =
+        WorldVisitPhase.Idle;
+
+    private WorldVisitDestination? worldVisitTarget;
+    private uint worldVisitOriginWorld;
+    private uint worldVisitOriginTerritory;
+    private nint worldVisitSourceAddress;
+
+    private DateTime worldVisitStageStarted;
+    private DateTime worldVisitStarted;
+    private DateTime worldVisitLastAction;
+
+    private bool worldVisitConfirmationSent;
+    private bool worldVisitSawQueue;
+
+    private int worldVisitInteractions;
+    private int worldVisitMenuCallbacks;
+
+    private string worldVisitJourneyStatus =
+        "Select a destination to begin World Visit.";
+
+    private string worldVisitJourneyDetails =
+        "No one-click World Visit attempted yet.";
+
+    private DateTime worldVisitPrelistUpdated;
+    private uint worldVisitPrelistWorld;
+
+    private bool WorldVisitOtherTravelActive()
+    {
+        return phase != TravelPhase.Idle ||
+               housingPhase != HousingPhase.Idle ||
+               residentialPhase != ResidentialPhase.Idle ||
+               cosmicPhase != CosmicPhase.Idle ||
+               cosmicLocalPhase != CosmicLocalPhase.Idle;
+    }
+
+    private void SetWorldVisitPhase(WorldVisitPhase next)
+    {
+        worldVisitPhase = next;
+        worldVisitStageStarted = DateTime.UtcNow;
+    }
+
+    private void StopWorldVisit(
+        string message,
+        bool arrived = false)
+    {
+        worldVisitJourneyDetails +=
+            " | Final: " + message;
+
+        worldVisitJourneyStatus = message;
+        worldVisitPhase = WorldVisitPhase.Idle;
+        worldVisitTarget = null;
+        worldVisitSourceAddress = nint.Zero;
+        worldVisitPending = false;
+
+        worldVisitCachedDestinations.Clear();
+        worldVisitCachedAddon = nint.Zero;
+        worldVisitPrelistUpdated = DateTime.MinValue;
+
+        if (arrived)
+        {
+            // Close on successful travel, matching
+            // other AethernetAssist travel features.
+            windowOpen = false;
+            autoWindowOwnsVisibility = false;
+            autoWindowWasInRange = false;
+            resetDestinationScroll = true;
+        }
+        else
+        {
+            windowOpen = true;
+        }
+    }
+
+    // Display worlds before the native menu opens.
+    // This is only a candidate list: the actual target
+    // is revalidated against WorldTravelSelect later.
+    private void RefreshWorldVisitChoices()
+    {
+        if (worldVisitPhase != WorldVisitPhase.Idle)
+            return;
+
+        if (GetAddon("WorldTravelSelect") != null)
+        {
+            RefreshWorldVisitDestinations();
+            return;
+        }
+
+        worldVisitPending = false;
+        worldVisitCachedAddon = nint.Zero;
+
+        var player = Objects.LocalPlayer;
+
+        if (!WorldVisitPageAvailable() || player == null)
+        {
+            worldVisitCachedDestinations.Clear();
+            worldVisitCachedError =
+                "Approach a supported main city Aetheryte.";
+            return;
+        }
+
+        uint currentId = player.CurrentWorld.RowId;
+        DateTime now = DateTime.UtcNow;
+
+        if (worldVisitPrelistWorld == currentId &&
+            (now - worldVisitPrelistUpdated)
+                .TotalMilliseconds < 1500 &&
+            worldVisitCachedDestinations.Count > 0)
+            return;
+
+        worldVisitPrelistWorld = currentId;
+        worldVisitPrelistUpdated = now;
+
+        worldVisitCachedDestinations.Clear();
+
+        var sheet = Data.GetExcelSheet<World>();
+        var current = sheet.GetRow(currentId);
+
+        uint dc = current.DataCenter.RowId;
+
+        if (currentId == 0 || dc == 0)
+        {
+            worldVisitCachedError =
+                "Could not verify your current data center.";
+            return;
+        }
+
+        var worlds = sheet
+            .Where(x =>
+                x.RowId != 0 &&
+                x.DataCenter.RowId == dc &&
+                !string.IsNullOrWhiteSpace(
+                    x.Name.ToString()))
+            .OrderBy(
+                x => x.Name.ToString(),
+                StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+
+        // Public data centers normally have at most
+        // eight World Visit destinations. Refuse
+        // ambiguous World-sheet results.
+        if (worlds.Length < 2 || worlds.Length > 8 ||
+            worlds.Count(x => x.RowId == currentId) != 1 ||
+            worlds.Select(x => x.Name.ToString())
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .Count() != worlds.Length)
+        {
+            worldVisitCachedError =
+                "World sheet returned an ambiguous list (" +
+                worlds.Length + " worlds).";
+
+            return;
+        }
+
+        for (int i = 0; i < worlds.Length; i++)
+        {
+            var world = worlds[i];
+
+            worldVisitCachedDestinations.Add(
+                new WorldVisitDestination(
+                    -1,
+                    world.RowId,
+                    world.Name.ToString(),
+                    world.RowId == currentId));
+        }
+
+        worldVisitCachedError = "";
+    }
+
+    private void StartWorldVisit(
+        WorldVisitDestination choice)
+    {
+        if (worldVisitPhase != WorldVisitPhase.Idle ||
+            WorldVisitOtherTravelActive() ||
+            IsBusy() ||
+            GetAddon("SelectYesno") != null ||
+            !WorldVisitPageAvailable())
+            return;
+
+        var player = Objects.LocalPlayer;
+
+        if (player == null || choice.Current)
+            return;
+
+        var sheet = Data.GetExcelSheet<World>();
+
+        var from = sheet.GetRow(
+            player.CurrentWorld.RowId);
+
+        var to = sheet.GetRow(choice.WorldId);
+
+        if (from.RowId == 0 ||
+            from.DataCenter.RowId == 0 ||
+            to.RowId == 0 ||
+            from.DataCenter.RowId != to.DataCenter.RowId ||
+            to.RowId == from.RowId ||
+            !string.Equals(
+                to.Name.ToString(),
+                choice.Name,
+                StringComparison.OrdinalIgnoreCase))
+        {
+            worldVisitJourneyStatus =
+                "Destination verification failed.";
+            return;
+        }
+
+        if (!TryFindHousingAetheryte(
+            out _, out var source) ||
+            source == null)
+        {
+            worldVisitJourneyStatus =
+                "Main city Aetheryte unavailable.";
+            return;
+        }
+
+        worldVisitTarget = choice;
+        worldVisitOriginWorld = from.RowId;
+        worldVisitOriginTerritory = Client.TerritoryType;
+        worldVisitSourceAddress = source.Address;
+
+        worldVisitStarted = DateTime.UtcNow;
+        worldVisitLastAction = DateTime.MinValue;
+
+        worldVisitInteractions = 0;
+        worldVisitMenuCallbacks = 0;
+        worldVisitConfirmationSent = false;
+        worldVisitSawQueue = false;
+        worldVisitPending = false;
+
+        worldVisitJourneyDetails =
+            "From=" + from.Name.ToString() +
+            " | To=" + to.Name.ToString() +
+            " | DC=" + from.DataCenter.RowId.ToString();
+
+        worldVisitJourneyStatus =
+            "Preparing World Visit to " + choice.Name + "...";
+
+        if (GetAddon("WorldTravelSelect") != null)
+            SetWorldVisitPhase(WorldVisitPhase.SelectWorld);
+        else if (GetAddon("SelectString") != null)
+            SetWorldVisitPhase(WorldVisitPhase.SelectVisitMenu);
+        else
+            SetWorldVisitPhase(WorldVisitPhase.Interact);
+    }
+
+    private bool TryChooseWorldVisitMenu()
+    {
+        var selector =
+            (AddonSelectString*)GetAddon("SelectString");
+
+        if (selector == null)
+            return false;
+
+        var menu = selector->PopupMenu.PopupMenu;
+
+        if (menu.EntryNames == null)
+            return false;
+
+        int count = Math.Clamp(menu.EntryCount, 0, 32);
+        int index = -1;
+
+        for (int i = 0; i < count; i++)
+        {
+            var pointer = menu.EntryNames[i].Value;
+
+            if (pointer == null)
+                continue;
+
+            string label = Clean(
+                Marshal.PtrToStringUTF8(
+                    (nint)pointer) ?? "");
+
+            // Match the actual World Visit action,
+            // never a fixed SelectString menu index.
+            if (!label.StartsWith(
+                "Visit Another World",
+                StringComparison.OrdinalIgnoreCase))
+                continue;
+
+            if (index >= 0)
+                return false;
+
+            index = i;
+        }
+
+        if (index < 0)
+            return false;
+
+        AtkValue value = new()
+        {
+            Type = AtkValueType.Int,
+            Int = index
+        };
+
+        selector->AtkUnitBase.FireCallback(
+            1, &value, true);
+
+        worldVisitMenuCallbacks++;
+        worldVisitJourneyDetails +=
+            " | SelectString index=" + index;
+
+        return true;
+    }
+
+    private void TickWorldVisit()
+    {
+        if (worldVisitPhase == WorldVisitPhase.Idle)
+            return;
+
+        var target = worldVisitTarget;
+
+        if (target == null)
+        {
+            StopWorldVisit("No target world selected.");
+            return;
+        }
+
+        var now = DateTime.UtcNow;
+        var player = Objects.LocalPlayer;
+        bool busy = IsBusy();
+
+        if (player != null &&
+            player.CurrentWorld.RowId == target.WorldId &&
+            !busy)
+        {
+            StopWorldVisit(
+                "Arrived: " + target.Name, true);
+            return;
+        }
+
+        if (worldVisitPhase is
+            WorldVisitPhase.WaitForArrival or
+            WorldVisitPhase.ManualConfirmation)
+        {
+            bool queue =
+                Conditions[ConditionFlag.WaitingToVisitOtherWorld] ||
+                Conditions[ConditionFlag.ReadyingVisitOtherWorld];
+
+            if (queue || busy)
+            {
+                worldVisitSawQueue = true;
+
+                worldVisitJourneyStatus =
+                    "World Visit in progress: " +
+                    target.Name;
+
+                return;
+            }
+        }
+
+        double stageSeconds =
+            (now - worldVisitStageStarted).TotalSeconds;
+
+        if (worldVisitPhase == WorldVisitPhase.WaitForArrival)
+        {
+            if (!worldVisitSawQueue && stageSeconds > 90)
+            {
+                StopWorldVisit(
+                    "World Visit arrival not confirmed.");
+            }
+
+            // A queue can legitimately take a long time.
+            // Never retry the request automatically.
+            return;
+        }
+
+        if (worldVisitPhase == WorldVisitPhase.ManualConfirmation)
+        {
+            if (GetAddon("SelectYesno") != null)
+            {
+                worldVisitJourneyStatus =
+                    "Confirm " + target.Name +
+                    " manually in the game's dialogue.";
+
+                return;
+            }
+
+            // The player may have accepted or declined.
+            // Monitor only; never send another callback.
+            SetWorldVisitPhase(
+                WorldVisitPhase.WaitForArrival);
+
+            worldVisitJourneyStatus =
+                "Waiting for World Visit result...";
+            return;
+        }
+
+        if (player == null || busy ||
+            Client.TerritoryType != worldVisitOriginTerritory ||
+            player.CurrentWorld.RowId != worldVisitOriginWorld)
+        {
+            StopWorldVisit(
+                "World Visit interrupted.");
+            return;
+        }
+
+        if (WorldVisitOtherTravelActive())
+        {
+            StopWorldVisit(
+                "Another travel operation became active.");
+            return;
+        }
+
+        if (stageSeconds > 18)
+        {
+            StopWorldVisit(
+                "World Visit native step timed out.");
+            return;
+        }
+
+        if (worldVisitPhase == WorldVisitPhase.Interact)
+        {
+            if (GetAddon("WorldTravelSelect") != null)
+            {
+                SetWorldVisitPhase(
+                    WorldVisitPhase.SelectWorld);
+                return;
+            }
+
+            if (GetAddon("SelectString") != null)
+            {
+                SetWorldVisitPhase(
+                    WorldVisitPhase.SelectVisitMenu);
+                return;
+            }
+
+            if (GetAddon("SelectYesno") != null ||
+                GetAddon("TelepotTown") != null)
+            {
+                StopWorldVisit(
+                    "Another game menu is open.");
+                return;
+            }
+
+            if (worldVisitInteractions >= 3)
+                return;
+
+            if ((now - worldVisitLastAction)
+                .TotalMilliseconds < 1100)
+                return;
+
+            if (!TryFindHousingAetheryte(
+                out _, out var source) ||
+                source == null ||
+                source.Address != worldVisitSourceAddress)
+            {
+                StopWorldVisit(
+                    "Moved away from the main Aetheryte.");
+                return;
+            }
+
+            var system = TargetSystem.Instance();
+
+            if (system == null)
+            {
+                StopWorldVisit(
+                    "Native interaction unavailable.");
+                return;
+            }
+
+            system->InteractWithObject(
+                (GameObject*)source.Address, false);
+
+            worldVisitInteractions++;
+            worldVisitLastAction = now;
+
+            worldVisitJourneyStatus =
+                "Opening World Visit menu...";
+            return;
+        }
+
+        if (worldVisitPhase == WorldVisitPhase.SelectVisitMenu)
+        {
+            if (GetAddon("WorldTravelSelect") != null)
+            {
+                SetWorldVisitPhase(
+                    WorldVisitPhase.SelectWorld);
+                return;
+            }
+
+            if (GetAddon("SelectString") == null)
+                return;
+
+            if (worldVisitMenuCallbacks != 0)
+                return;
+
+            if (!TryChooseWorldVisitMenu())
+            {
+                StopWorldVisit(
+                    "Could not verify Visit Another World.");
+                return;
+            }
+
+            worldVisitJourneyStatus =
+                "Opening destination list...";
+            return;
+        }
+
+        if (worldVisitPhase == WorldVisitPhase.SelectWorld)
+        {
+            if (GetAddon("WorldTravelSelect") == null)
+                return;
+
+            // Recheck all native destination names and
+            // current-world identity before selection.
+            if (!TryReadWorldVisitDestinations(
+                out var nativeWorlds, out var error))
+            {
+                worldVisitJourneyStatus = error;
+                return;
+            }
+
+            var matching = nativeWorlds
+                .Where(x =>
+                    x.WorldId == target.WorldId &&
+                    x.Name == target.Name &&
+                    !x.Current)
+                .ToArray();
+
+            if (matching.Length != 1)
+            {
+                StopWorldVisit(
+                    "Requested world not available " +
+                    "in the native list.");
+                return;
+            }
+
+            // Reuse the TEST1 selector already confirmed
+            // to work in game.
+            SelectWorldVisitDestination(matching[0]);
+
+            if (!worldVisitPending)
+            {
+                StopWorldVisit(
+                    "Native world selection rejected.");
+                return;
+            }
+
+            worldVisitJourneyDetails +=
+                " | Selected native index=" +
+                matching[0].Index;
+
+            SetWorldVisitPhase(WorldVisitPhase.Confirm);
+
+            worldVisitJourneyStatus =
+                "Verifying confirmation for " +
+                target.Name + "...";
+            return;
+        }
+
+        if (worldVisitPhase == WorldVisitPhase.Confirm)
+        {
+            var yesno =
+                (AddonSelectYesno*)GetAddon("SelectYesno");
+
+            if (yesno == null)
+                return;
+
+            string prompt = yesno->PromptText == null
+                ? ""
+                : Clean(
+                    yesno->PromptText->NodeText.ToString());
+
+            worldVisitJourneyDetails +=
+                " | Confirmation=" + prompt;
+
+            // Do not accept an unrelated or generic
+            // confirmation automatically.
+            bool exactWorld =
+                prompt.Contains(
+                    target.Name,
+                    StringComparison.OrdinalIgnoreCase);
+
+            bool worldVisitContext =
+                prompt.Contains(
+                    "world",
+                    StringComparison.OrdinalIgnoreCase) ||
+                prompt.Contains(
+                    "visit",
+                    StringComparison.OrdinalIgnoreCase);
+
+            if (!exactWorld || !worldVisitContext ||
+                yesno->YesButton == null ||
+                !yesno->YesButton->IsEnabled)
+            {
+                SetWorldVisitPhase(
+                    WorldVisitPhase.ManualConfirmation);
+
+                worldVisitJourneyStatus =
+                    "Verify and confirm " + target.Name +
+                    " manually.";
+                return;
+            }
+
+            AtkValue answer = new()
+            {
+                Type = AtkValueType.Int,
+                Int = 0
+            };
+
+            yesno->AtkUnitBase.FireCallback(
+                1, &answer, true);
+
+            worldVisitConfirmationSent = true;
+
+            SetWorldVisitPhase(
+                WorldVisitPhase.WaitForArrival);
+
+            worldVisitJourneyStatus =
+                "World Visit requested: " + target.Name;
+
+            return;
+        }
+    }
+
+    private string BuildWorldVisitJourneyReport()
+    {
+        return
+            "\n=== WORLD VISIT TEST2 JOURNEY ===\n" +
+            "Phase: " + worldVisitPhase + "\n" +
+            "Target: " +
+                (worldVisitTarget?.Name ?? "None") + "\n" +
+            "Origin world: " + worldVisitOriginWorld + "\n" +
+            "Current world: " +
+                (Objects.LocalPlayer?.CurrentWorld.RowId ?? 0) +
+                "\n" +
+            "Status: " + worldVisitJourneyStatus + "\n" +
+            "Interactions: " + worldVisitInteractions + "\n" +
+            "Menu callbacks: " + worldVisitMenuCallbacks + "\n" +
+            "Native selection submitted: " +
+                worldVisitPending + "\n" +
+            "Confirmation submitted: " +
+                worldVisitConfirmationSent + "\n" +
+            "Saw queue/loading: " + worldVisitSawQueue +
+                "\n" +
+            "Details: " + worldVisitJourneyDetails + "\n";
+    }
+}

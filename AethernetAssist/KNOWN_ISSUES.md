@@ -213,3 +213,15 @@ Historical development notes remain available in Git history.
 - Final confirmation remains manual.
 - Full end-to-end world travel remains unverified.
 - Testing branch only.
+## DEV4.3 WORLD VISIT TEST2 (v0.0.39)
+
+- First one-click Same-DC World Visit live test.
+- Preselection comes from the local World sheet.
+- Native WorldTravelSelect remains authoritative.
+- Automatic confirmation requires a destination
+  name match; otherwise player confirmation.
+- Queues are monitored, never automatically retried.
+- Cancelling plugin monitoring does not cancel
+  an active World Visit queue in the game.
+- Full in-game testing remains required.
+- Testing branch only.

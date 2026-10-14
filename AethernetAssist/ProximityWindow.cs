@@ -25,7 +25,8 @@ public sealed unsafe partial class Plugin
         {
             if (autoWindowOwnsVisibility &&
                 housingPhase == HousingPhase.Idle &&
-                phase == TravelPhase.Idle)
+                phase == TravelPhase.Idle &&
+                worldVisitPhase == WorldVisitPhase.Idle)
             {
                 windowOpen = false;
             }
@@ -79,7 +80,8 @@ public sealed unsafe partial class Plugin
             // Never interrupt an active navigation operation.
             if (autoWindowOwnsVisibility &&
                 housingPhase == HousingPhase.Idle &&
-                phase == TravelPhase.Idle)
+                phase == TravelPhase.Idle &&
+                worldVisitPhase == WorldVisitPhase.Idle)
             {
                 windowOpen = false;
                 autoWindowOwnsVisibility = false;
