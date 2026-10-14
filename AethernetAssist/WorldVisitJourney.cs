@@ -298,7 +298,10 @@ public sealed unsafe partial class Plugin
 
             // Match the actual World Visit action,
             // never a fixed SelectString menu index.
-            if (!label.StartsWith(
+            // Native labels may contain icon prefixes,
+            // e.g. "F Visit Another World Server."
+            // Require a unique matching menu entry.
+            if (!label.Contains(
                 "Visit Another World",
                 StringComparison.OrdinalIgnoreCase))
                 continue;

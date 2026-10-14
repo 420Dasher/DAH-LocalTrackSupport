@@ -1,4 +1,4 @@
-# AethernetAssist v0.0.39 DEV4.3 WORLD VISIT TEST2
+# AethernetAssist v0.0.40 DEV4.3 WORLD VISIT TEST2 FIX1
 
 Dalamud API 15 / .NET 10
 Development branch: testing
@@ -294,3 +294,25 @@ Same-DC one-click World Visit development.
 - No cross-DC travel or character-selection automation.
 
 Testing branch only. Do not release to main.
+## DEV4.3 WORLD VISIT TEST2 FIX1 (v0.0.40)
+
+Fixed World Visit menu recognition.
+
+Native SelectString options can contain formatting
+prefixes. The observed Gridania entry was:
+
+F Visit Another World Server.
+
+The selector now recognizes the distinctive
+"Visit Another World" phrase anywhere in the
+cleaned text, while requiring exactly one match.
+
+Unchanged:
+- Automatic main Aetheryte interaction
+- Live World Visit destination verification
+- Same-DC restrictions
+- Destination-specific confirmation safeguards
+- World Visit queue and arrival monitoring
+- Existing Aethernet, Housing and Cosmic travel
+
+Testing only. Do not publish to main.

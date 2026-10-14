@@ -225,3 +225,15 @@ Historical development notes remain available in Git history.
   an active World Visit queue in the game.
 - Full in-game testing remains required.
 - Testing branch only.
+## DEV4.3 WORLD VISIT TEST2 FIX1 (v0.0.40)
+
+v0.0.39 stopped after opening SelectString because
+the native menu label contained a formatting prefix.
+
+Observed:
+"F Visit Another World Server."
+
+Fix: unique case-insensitive substring matching.
+
+Pending: live validation of the complete journey.
+Testing branch only.
