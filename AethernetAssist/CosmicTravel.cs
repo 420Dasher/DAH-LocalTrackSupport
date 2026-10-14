@@ -37,6 +37,9 @@ public sealed unsafe partial class Plugin
     private enum CosmicPhase
     {
         Idle,
+        TeleportingToBurrow,
+        WaitingForBurrow,
+        MovingToDrivingway,
         OpeningDrivingway,
         SelectingPlanet,
         WaitingForArrival
@@ -72,6 +75,7 @@ public sealed unsafe partial class Plugin
 
     private void StopCosmicTravel(string reason)
     {
+        StopCosmicPath();
         cosmicPhase = CosmicPhase.Idle;
         cosmicTargetIndex = -1;
         cosmicMenuChosen = false;
@@ -129,13 +133,6 @@ public sealed unsafe partial class Plugin
             return;
         }
 
-        if (Client.TerritoryType != 959)
-        {
-            CosmicMessage(
-                "TEST1 requires standing near Drivingway " +
-                "in Mare Lamentorum.");
-            return;
-        }
 
         if (IsBusy())
         {
@@ -145,13 +142,29 @@ public sealed unsafe partial class Plugin
         }
 
         var player = Objects.LocalPlayer;
-        var npc = FindDrivingway();
 
-        if (player == null || npc == null ||
-            Vector3.Distance(player.Position, npc.Position) > 5f)
+        if (player == null)
         {
-            CosmicMessage(
-                "Approach Drivingway before starting TEST1.");
+            CosmicMessage("Player unavailable.");
+            return;
+        }
+
+        // Verify navigation availability before starting
+        // a journey that needs teleport or pathfinding.
+        var npc = Client.TerritoryType == 959
+            ? FindDrivingway()
+            : null;
+
+        bool alreadyNearDrivingway =
+            npc != null &&
+            Vector3.Distance(
+                player.Position, npc.Position) <= 4.25f;
+
+        if (!alreadyNearDrivingway &&
+            !CheckCosmicNavigationAvailable(
+                out string navProblem))
+        {
+            CosmicMessage(navProblem);
             return;
         }
 
@@ -175,7 +188,11 @@ public sealed unsafe partial class Plugin
         cosmicNativeDetails =
             "Requested " + CosmicNames[requestedIndex];
 
-        cosmicPhase = CosmicPhase.OpeningDrivingway;
+        PrepareCosmicApproach();
+
+        cosmicPhase = Client.TerritoryType == 959
+            ? CosmicPhase.MovingToDrivingway
+            : CosmicPhase.TeleportingToBurrow;
 
         CosmicMessage(
             "Starting travel to " +
@@ -278,6 +295,25 @@ public sealed unsafe partial class Plugin
             cosmicTargetIndex >= CosmicNames.Length)
         {
             StopCosmicTravel("Invalid Cosmic destination.");
+            return;
+        }
+
+        if (cosmicPhase == CosmicPhase.TeleportingToBurrow ||
+            cosmicPhase == CosmicPhase.WaitingForBurrow ||
+            cosmicPhase == CosmicPhase.MovingToDrivingway)
+        {
+            TickCosmicApproach(now);
+            return;
+        }
+
+        // A manual override also cancels the remaining
+        // interaction after automatic movement finishes.
+        if (cosmicMovementStarted &&
+            cosmicPhase == CosmicPhase.OpeningDrivingway &&
+            HousingMovementKeysPressed())
+        {
+            StopCosmicTravel(
+                "Cancelled by manual movement.");
             return;
         }
 
@@ -679,6 +715,7 @@ public sealed unsafe partial class Plugin
             cosmicConfirmationSent + "\n" +
             "Selection attempts: " +
             cosmicSelectionAttempts + "\n" +
-            "Native details: " + cosmicNativeDetails + "\n";
+            "Native details: " + cosmicNativeDetails + "\n" +
+            BuildCosmicApproachReport();
     }
 }

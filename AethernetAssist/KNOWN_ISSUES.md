@@ -117,3 +117,15 @@ Historical development notes remain available in Git history.
 - Bestways Burrow teleport and vnavmesh travel are
   not implemented yet.
 - Housing and residential implementations unchanged.
+## DEV4.2 TEST3 (v0.0.30)
+
+- Native Drivingway travel tested successfully to
+  Sinus Ardorum, Phaenna, Oizys and Auxesia in v0.0.29.
+- Added full journey from other ordinary territories.
+- Bestways Burrow Aetheryte ID: 175.
+- Drivingway world XYZ: (25.681,-137.417,-411.307).
+- Added vnavmesh pathfinding, ownership tracking,
+  manual movement cancellation and navigation timeouts.
+- Missing unlocks and unavailable IPC stop safely.
+- Arrival from distant starting zones pending live test.
+- Cosmic local Cosmoliner networks remain future work.

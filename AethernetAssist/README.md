@@ -1,4 +1,4 @@
-# AethernetAssist v0.0.29 DEV4.2 TEST2
+# AethernetAssist v0.0.30 DEV4.2 TEST3
 
 Dalamud API 15 / .NET 10
 Development branch: testing
@@ -70,3 +70,36 @@ The plugin attempts to:
 
 Automatic teleport to Bestways Burrow and vnavmesh movement
 are planned for a later test build.
+## DEV4.2 TEST3 - Automatic Cosmic Travel
+
+Supported commands:
+- /anet sinus
+- /anet phaenna
+- /anet oizys
+- /anet auxesia
+- /anet cancel
+
+From outside Mare Lamentorum:
+1. Teleport to Bestways Burrow (Aetheryte ID 175).
+2. Wait for territory 959 and loaded player.
+3. Use vnavmesh to approach Drivingway.
+4. Interact with targetable NPC 1052581.
+5. Select the requested planet using the validated
+   native WKSPlanetSelect travel sequence.
+6. Automatically confirm the exact travel prompt.
+7. Verify arrival in the requested Cosmic territory.
+
+Inside Mare Lamentorum:
+- Skip teleport and pathfind directly to Drivingway.
+- Skip pathfinding when already in interaction range.
+
+Safety:
+- Won't take over an existing vnavmesh route.
+- Requires Bestways Burrow to be unlocked.
+- Stops only the vnavmesh path it started.
+- Manual movement cancels navigation.
+- /anet cancel cancels active travel.
+- Timeouts guard teleport, pathfinding and arrival.
+- Existing residential and city travel remains unchanged.
+
+vnavmesh is required when pathfinding is needed.
