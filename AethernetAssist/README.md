@@ -1,4 +1,4 @@
-# AethernetAssist v0.0.40 DEV4.3 WORLD VISIT TEST2 FIX1
+# AethernetAssist v0.0.41 DEV4.3 WORLD VISIT TEST3
 
 Dalamud API 15 / .NET 10
 Development branch: testing
@@ -316,3 +316,24 @@ Unchanged:
 - Existing Aethernet, Housing and Cosmic travel
 
 Testing only. Do not publish to main.
+## DEV4.3 WORLD VISIT TEST3 (v0.0.41)
+
+Live v0.0.40 testing confirmed:
+- Automatic main Aetheryte interaction
+- Automatic Visit Another World menu selection
+- Correct native destination selection
+- Native confirmation prompt: "Travel to Shiva?"
+
+v0.0.41 changes:
+- Confirm automatically only if the game's prompt
+  exactly equals "Travel to {selected world}?"
+- Require the native Yes button to be enabled
+- Preserve manual fallback for any other wording
+- Never approve an unrelated Yes/No confirmation
+- No automatic World Visit retries
+- Same-DC World Visit only
+
+Existing Aethernet, Housing, residential and
+Cosmic travel remain unchanged.
+
+Testing branch only. No main release.

@@ -335,7 +335,7 @@ public sealed unsafe partial class Plugin
         worldVisitPending = true;
         worldVisitSelectionStatus =
             "Selected " + selected.Name +
-            ". Confirm travel in the game.";
+            ". Awaiting verified confirmation.";
     }
 
     private void DrawWorldVisitSelectionPage()
@@ -504,7 +504,7 @@ public sealed unsafe partial class Plugin
         output.AppendLine(worldVisitSelectionDetails);
 
         output.AppendLine(
-            "Native confirmation not automated.");
+            "Confirmation handled by World Visit controller.");
 
         return output.ToString();
     }

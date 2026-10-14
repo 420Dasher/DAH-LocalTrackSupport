@@ -593,22 +593,21 @@ public sealed unsafe partial class Plugin
             worldVisitJourneyDetails +=
                 " | Confirmation=" + prompt;
 
-            // Do not accept an unrelated or generic
-            // confirmation automatically.
-            bool exactWorld =
-                prompt.Contains(
-                    target.Name,
-                    StringComparison.OrdinalIgnoreCase);
+            // Live World Visit diagnostic confirmed the
+            // native prompt format: "Travel to Shiva?"
+            //
+            // Only approve an exact destination match.
+            // Localized or unrecognized prompts fall
+            // back to manual confirmation.
+            string expectedPrompt =
+                "Travel to " + target.Name + "?";
 
-            bool worldVisitContext =
-                prompt.Contains(
-                    "world",
-                    StringComparison.OrdinalIgnoreCase) ||
-                prompt.Contains(
-                    "visit",
-                    StringComparison.OrdinalIgnoreCase);
+            bool verifiedPrompt = string.Equals(
+                prompt,
+                expectedPrompt,
+                StringComparison.OrdinalIgnoreCase);
 
-            if (!exactWorld || !worldVisitContext ||
+            if (!verifiedPrompt ||
                 yesno->YesButton == null ||
                 !yesno->YesButton->IsEnabled)
             {
@@ -645,7 +644,7 @@ public sealed unsafe partial class Plugin
     private string BuildWorldVisitJourneyReport()
     {
         return
-            "\n=== WORLD VISIT TEST2 JOURNEY ===\n" +
+            "\n=== WORLD VISIT TEST3 JOURNEY ===\n" +
             "Phase: " + worldVisitPhase + "\n" +
             "Target: " +
                 (worldVisitTarget?.Name ?? "None") + "\n" +

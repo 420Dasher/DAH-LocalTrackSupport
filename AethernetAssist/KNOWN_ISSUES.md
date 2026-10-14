@@ -237,3 +237,19 @@ Fix: unique case-insensitive substring matching.
 
 Pending: live validation of the complete journey.
 Testing branch only.
+## DEV4.3 WORLD VISIT TEST3 (v0.0.41)
+
+v0.0.40 confirmed the native prompt:
+"Travel to Shiva?"
+
+The old confirmation condition also required the
+words "world" or "visit", causing manual fallback.
+
+Fixed by requiring an exact prompt match against
+"Travel to {selected world}?"
+
+Pending live testing of automatic confirmation,
+queue behavior, and verified arrival.
+
+No changes to cross-DC travel support.
+Testing branch only.
