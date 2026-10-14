@@ -5,6 +5,7 @@ using System.Runtime.InteropServices;
 using Dalamud.Bindings.ImGui;
 using Dalamud.Game.ClientState.Objects.Enums;
 using Dalamud.Game.ClientState.Objects.Types;
+using FFXIVClientStructs.FFXIV.Client.Game;
 using FFXIVClientStructs.FFXIV.Client.Game.Control;
 using FFXIVClientStructs.FFXIV.Client.Game.Object;
 using FFXIVClientStructs.FFXIV.Component.GUI;
@@ -47,6 +48,7 @@ public sealed unsafe partial class Plugin
 
     private HousingDistrict housingTarget;
     private int housingTargetWard;
+    private int housingInitialWard;
     private nint housingOriginAddress;
 
 
@@ -126,6 +128,20 @@ public sealed unsafe partial class Plugin
         housingPhaseStarted = DateTime.UtcNow;
     }
 
+    private static int GetCurrentHousingWard()
+    {
+        var housing = HousingManager.Instance();
+
+        if (housing == null)
+            return 0;
+
+        int index = housing->GetCurrentWard();
+
+        return index >= 0 && index < 30
+            ? index + 1
+            : 0;
+    }
+
     private void StartHousingTravel(int ward)
     {
         if (ward < 1 || ward > 30 || !CanStartHousing())
@@ -157,6 +173,16 @@ public sealed unsafe partial class Plugin
             return;
         }
 
+        if (!fromCity && GetCurrentHousingWard() == ward)
+        {
+            housingStatus =
+                "Already in Ward " + ward + ".";
+
+            housingDiagnostic =
+                "Travel skipped: already in Ward " + ward + ".";
+
+            return;
+        }
         // Allow an already-open gate menu, but don't take
         // control of unrelated confirmation windows.
         if (GetAddon("HousingSelectBlock") != null ||
@@ -169,6 +195,9 @@ public sealed unsafe partial class Plugin
 
         housingTarget = district;
         housingTargetWard = ward;
+        housingInitialWard = fromCity
+            ? 0
+            : GetCurrentHousingWard();
         housingOriginAddress = source?.Address ?? nint.Zero;
 
         housingFromWard = !fromCity;
@@ -328,11 +357,25 @@ public sealed unsafe partial class Plugin
             if (IsBusy())
                 housingSawLoading = true;
 
+            int currentWard =
+                Client.TerritoryType ==
+                    housingTarget.ResidentialTerritory
+                    ? GetCurrentHousingWard()
+                    : 0;
+
+            bool travelDialogsClosed =
+                GetAddon("SelectYesno") == null &&
+                GetAddon("HousingSelectBlock") == null;
+
             if (player != null &&
                 !IsBusy() &&
+                travelDialogsClosed &&
                 Client.TerritoryType ==
                     housingTarget.ResidentialTerritory &&
-                (!housingFromWard || housingSawLoading))
+                currentWard == housingTargetWard &&
+                (!housingFromWard ||
+                    housingSawLoading ||
+                    currentWard != housingInitialWard))
             {
                 CompleteHousing();
                 return;
@@ -436,12 +479,24 @@ public sealed unsafe partial class Plugin
                     return;
                 }
 
-                // NPC transitions can have a Talk dialogue
-                // before their native selection menu.
-                if (GetAddon("Talk") != null)
+                // Advance only the NPC conversation started
+                // by our own Housing travel operation.
+                var talk = GetAddon("Talk");
+
+                if (talk != null)
                 {
-                    housingStatus =
-                        "Advance the NPC dialogue to continue.";
+                    if (housingFromWard &&
+                        !housingGateSource &&
+                        (DateTime.UtcNow - housingLastAction)
+                            .TotalMilliseconds >= 700)
+                    {
+                        talk->FireCallbackInt(0);
+                        housingLastAction = DateTime.UtcNow;
+
+                        housingStatus =
+                            "Advancing entrance NPC dialogue...";
+                    }
+
                     return;
                 }
 
@@ -609,13 +664,6 @@ public sealed unsafe partial class Plugin
 
             case HousingPhase.ConfirmTravel:
             {
-                if (Client.TerritoryType ==
-                    housingTarget.ResidentialTerritory)
-                {
-                    CompleteHousing();
-                    return;
-                }
-
                 var addon = GetAddon("SelectYesno");
 
                 if (addon == null)
@@ -732,14 +780,21 @@ public sealed unsafe partial class Plugin
             )
         );
 
+        int occupiedWard =
+            TryGetResidentialDistrict(out _)
+                ? GetCurrentHousingWard()
+                : 0;
+
         for (int ward = 1; ward <= 30; ward++)
         {
             int column = (ward - 1) % columns;
+            bool isCurrent = ward == occupiedWard;
+            bool enabled = canTravel && !isCurrent;
 
             Vector2 pos = ImGui.GetCursorScreenPos();
             Vector2 size = new(width, height);
 
-            if (!canTravel)
+            if (!enabled)
                 ImGui.BeginDisabled();
 
             bool clicked = ImGui.InvisibleButton(
@@ -747,14 +802,15 @@ public sealed unsafe partial class Plugin
                 size
             );
 
-            bool hovered = canTravel &&
+            bool hovered = enabled &&
                            ImGui.IsItemHovered();
 
             var draw = ImGui.GetWindowDrawList();
 
-            Vector4 background = hovered
-                ? ThemeColor(6)
-                : ThemeColor(10);
+            Vector4 background =
+                isCurrent || hovered
+                    ? ThemeColor(6)
+                    : ThemeColor(10);
 
             draw.AddRectFilled(
                 pos,
@@ -767,9 +823,9 @@ public sealed unsafe partial class Plugin
 
             float labelWidth = ImGui.CalcTextSize(label).X;
 
-            Vector4 foreground = hovered
+            Vector4 foreground = isCurrent || hovered
                 ? NavAccent
-                : canTravel
+                : enabled
                     ? ThemeColor(2)
                     : NavMuted;
 
@@ -782,10 +838,10 @@ public sealed unsafe partial class Plugin
                 label
             );
 
-            if (!canTravel)
+            if (!enabled)
                 ImGui.EndDisabled();
 
-            if (clicked && canTravel)
+            if (clicked && enabled)
                 StartHousingTravel(ward);
 
             if (column < columns - 1)
@@ -859,6 +915,8 @@ public sealed unsafe partial class Plugin
             (crystal == null ? "none" : crystal.DataId.ToString()) +
             "\n" +
             "Phase: " + housingPhase + "\n" +
+            "Current ward: " + GetCurrentHousingWard() + "\n" +
+            "Initial ward: " + housingInitialWard + "\n" +
             "Target: " + housingTarget.Name +
             ", Ward " + housingTargetWard + "\n" +
             "Status: " + housingStatus + "\n" +

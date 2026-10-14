@@ -145,9 +145,9 @@
 {
     "Author":  "Dash + AI",
     "InternalName":  "AethernetAssist",
-    "Name":  "AethernetAssist [DEV4 FIX3]",
-    "AssemblyVersion":  "0.0.14.0",
-    "TestingAssemblyVersion":  "0.0.14.0",
+    "Name":  "AethernetAssist [DEV4 FIX4]",
+    "AssemblyVersion":  "0.0.15.0",
+    "TestingAssemblyVersion":  "0.0.15.0",
     "DalamudApiLevel":  15,
     "TestingDalamudApiLevel":  15,
     "ApplicableVersion":  "any",
@@ -160,7 +160,7 @@
     "IsTestingExclusive":  false,
     "Punchline":  "Aethernet travel without the clutter.",
     "Description":  "Contextual Aethernet window with real attunement checks and one-click travel.",
-    "Changelog":  "DEV4 FIX3: Residential ward entrance detection for all five housing areas, ward-switching via native NPC or gate menus, Leave district action, and housing transition diagnostics. Gate movement and subdivision navigation remain manual. Existing city ward travel and Aethernet logic preserved.",
+    "Changelog":  "DEV4 FIX4: Fixes premature same-territory housing arrival detection using actual HousingManager ward state; automatically advances entrance NPC dialogue; marks current ward and prevents redundant selection; adds ward diagnostics. Existing Aethernet logic unchanged.",
     "Tags":  [
                  "aethernet",
                  "aetheryte",

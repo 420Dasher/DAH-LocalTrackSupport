@@ -55,3 +55,11 @@ DEV4 FIX3 ward entrance coverage:
 - Same-territory ward transfers require observed loading.
 - In-game validation of each native exit remains pending.
 - Subdivision navigation remains manual.
+
+DEV4 FIX4 reliability changes:
+- ConfirmTravel no longer accepts matching territory alone as success.
+- Native HousingManager current ward must match the requested ward.
+- Existing Yes/No and ward-selection menus must close before arrival.
+- Entrance NPC Talk dialogs advance automatically during plugin travel.
+- Already occupied ward is marked and cannot be reselected.
+- Verify both city-to-ward and same-territory ward-to-ward travel.
