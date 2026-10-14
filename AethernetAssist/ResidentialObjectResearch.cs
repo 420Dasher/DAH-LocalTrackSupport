@@ -2,6 +2,7 @@ using System;
 using System.Linq;
 using System.Numerics;
 using System.Text;
+using Dalamud.Game.ClientState.Objects.Enums;
 using FFXIVClientStructs.FFXIV.Component.GUI;
 
 namespace AethernetAssist;
@@ -57,8 +58,7 @@ public sealed unsafe partial class Plugin
         var nearbyObjects = Objects
             .Where(obj =>
                 obj != null &&
-                !obj.ObjectKind.ToString().Contains(
-                    "Player", StringComparison.OrdinalIgnoreCase) &&
+                obj.ObjectKind != ObjectKind.Pc &&
                 Vector3.Distance(
                     player.Position, obj.Position) <= 35f)
             .OrderBy(obj =>

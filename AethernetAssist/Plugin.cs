@@ -147,6 +147,7 @@ public sealed unsafe partial class Plugin : IDalamudPlugin
             config.OpenRange, 8f, 11.1f);
 
         LoadNetworks();
+        LoadResidentialNetworks();
 
         Commands.AddHandler("/anet", new CommandInfo(OnCommand)
         {
@@ -161,7 +162,7 @@ public sealed unsafe partial class Plugin : IDalamudPlugin
         Pi.UiBuilder.OpenMainUi += Open;
         Pi.UiBuilder.OpenConfigUi += OpenConfig;
 
-        Log.Information("AethernetAssist v0.0.20 DEV4.1 RESEARCH 2 initialized.");
+        Log.Information("AethernetAssist v0.0.21 DEV4.1 TEST1 initialized.");
     }
 
     public void Dispose()
@@ -411,7 +412,9 @@ public sealed unsafe partial class Plugin : IDalamudPlugin
                 break;
 
             case "cancel":
-                if (housingPhase != HousingPhase.Idle)
+                if (residentialPhase != ResidentialPhase.Idle)
+                    StopResidential("Cancelled by user.");
+                else if (housingPhase != HousingPhase.Idle)
                     StopHousing("Cancelled by user.");
                 else
                     Cancel("Cancelled by user.");
@@ -427,6 +430,12 @@ public sealed unsafe partial class Plugin : IDalamudPlugin
     {
         try
         {
+            if (residentialPhase != ResidentialPhase.Idle)
+            {
+                TickResidentialTravel();
+                return;
+            }
+
             if (housingPhase != HousingPhase.Idle)
             {
                 TickHousing();
@@ -450,7 +459,9 @@ public sealed unsafe partial class Plugin : IDalamudPlugin
         catch (Exception ex)
         {
             Log.Error($"AethernetAssist: {ex}");
-            if (housingPhase != HousingPhase.Idle)
+            if (residentialPhase != ResidentialPhase.Idle)
+                StopResidential("Stopped after an internal error.");
+            else if (housingPhase != HousingPhase.Idle)
                 StopHousing("Stopped after an internal error.");
             else
                 Cancel("Stopped after an internal error.");
@@ -1193,6 +1204,12 @@ public sealed unsafe partial class Plugin : IDalamudPlugin
 
     private void DrawAethernetPage()
     {
+        if (TryFindResidentialShard(out _))
+        {
+            DrawResidentialAethernetPage();
+            return;
+        }
+
         if (nearby == null ||
             !networks.TryGetValue(activeGroup, out var entries))
         {
@@ -1330,7 +1347,7 @@ public sealed unsafe partial class Plugin : IDalamudPlugin
 
         ImGui.TextColored(NavAccent, "SETTINGS");
         ImGui.SameLine();
-        ImGui.TextDisabled("0.0.20");
+        ImGui.TextDisabled("0.0.21");
         ImGui.Separator();
 
         bool autoOpen = config.AutoOpen;
@@ -1520,6 +1537,12 @@ public sealed unsafe partial class Plugin : IDalamudPlugin
             ImGui.TextWrapped(
                 ResidentialResearchSummary());
 
+            ImGui.TextWrapped(
+                "Residential travel: " + residentialPhase +
+                " | " + residentialStatus);
+
+            ImGui.TextWrapped(residentialMenuReadout);
+
             ImGui.TextDisabled(
                 "Research 2: includes pre-menu objects " +
                 "and native callback metadata.");
@@ -1585,7 +1608,7 @@ public sealed unsafe partial class Plugin : IDalamudPlugin
                 return;
             }
 
-            ImGui.TextDisabled("v0.0.20");
+            ImGui.TextDisabled("v0.0.21");
 
             ImGui.SameLine(ImGui.GetWindowWidth() - 87f);
 

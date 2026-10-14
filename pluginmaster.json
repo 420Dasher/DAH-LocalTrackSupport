@@ -145,9 +145,9 @@
 {
     "Author":  "Dash + AI",
     "InternalName":  "AethernetAssist",
-    "Name":  "AethernetAssist [DEV4.1 RESEARCH 2]",
-    "AssemblyVersion":  "0.0.20.0",
-    "TestingAssemblyVersion":  "0.0.20.0",
+    "Name":  "AethernetAssist [DEV4.1 TEST1]",
+    "AssemblyVersion":  "0.0.21.0",
+    "TestingAssemblyVersion":  "0.0.21.0",
     "DalamudApiLevel":  15,
     "TestingDalamudApiLevel":  15,
     "ApplicableVersion":  "any",
@@ -160,7 +160,7 @@
     "IsTestingExclusive":  false,
     "Punchline":  "Aethernet travel without the clutter.",
     "Description":  "Contextual Aethernet window with real attunement checks and one-click travel.",
-    "Changelog":  "DEV4.1 RESEARCH 2: Residential object discovery without shard-ID filtering, cached pre-menu object snapshots, and native TelepotTown row callback metadata diagnostics. No new travel callbacks; existing Housing and Aethernet behavior preserved.",
+    "Changelog":  "DEV4.1 TEST1: Residential Aethernet shard detection, proximity auto-open/close, Main/Subdivision destinations, and guarded native residential teleportation. Existing Housing and city Aethernet preserved.",
     "Tags":  [
                  "aethernet",
                  "aetheryte",

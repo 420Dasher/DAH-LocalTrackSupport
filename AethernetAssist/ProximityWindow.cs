@@ -35,7 +35,11 @@ public sealed unsafe partial class Plugin
             autoWindowTerritory = Client.TerritoryType;
         }
 
-        bool nearAethernet = nearby != null;
+        bool nearResidentialShard =
+            TryFindResidentialShard(out _);
+
+        bool nearAethernet =
+            nearby != null || nearResidentialShard;
 
         bool nearHousingEntrance = TryFindWardEntrance(
             out _,
@@ -57,6 +61,8 @@ public sealed unsafe partial class Plugin
             ? isGate
                 ? "Housing walk-through gate"
                 : "Housing entrance NPC"
+            : nearResidentialShard
+                ? "Residential Aethernet shard"
             : nearAethernet
                 ? "Aethernet shard / Aetheryte"
                 : nearCityAetheryte

@@ -112,3 +112,15 @@ DEV4.1 RESEARCH 2 (v0.0.20):
 - Added native TelepotTown row type/state/callback inspection.
 - Residential transport callback remains disabled.
 - Known-working city and Housing navigation unchanged.
+DEV4.1 TEST1 (v0.0.21):
+- Identified residential shard BaseID 2004983, EventObj.
+- Added HousingAethernet destination list in Aethernet page.
+- Main Division and Subdivision grouped separately.
+- Added proximity auto-open/close for residential shards.
+- Residential travel uses a separate native state machine.
+- Live native destination names and callback IDs validated.
+- Nonzero native destination states blocked during TEST1.
+- Submitted callback only for state=0 and type=0.
+- Residential travel acceptance is pending live validation.
+- Main city, ward transfer, NPC, and gate logic unchanged.
+- Excluded ObjectKind.Pc from research object snapshots.
