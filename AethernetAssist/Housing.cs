@@ -4,6 +4,7 @@ using System.Numerics;
 using System.Runtime.InteropServices;
 using Dalamud.Bindings.ImGui;
 using Dalamud.Game.ClientState.Objects.Enums;
+using Dalamud.Game.ClientState.Objects.Types;
 using FFXIVClientStructs.FFXIV.Client.Game.Control;
 using FFXIVClientStructs.FFXIV.Client.Game.Object;
 using FFXIVClientStructs.FFXIV.Component.GUI;
@@ -45,45 +46,78 @@ public sealed unsafe partial class Plugin
     private HousingDistrict housingTarget;
     private int housingTargetWard;
     private nint housingOriginAddress;
-    private uint housingOriginTerritory;
+
 
     private DateTime housingPhaseStarted;
     private DateTime housingLastAction = DateTime.MinValue;
 
-    private bool housingSawLoading;
+
 
     private string housingStatus =
-        "Choose a district and ward to begin.";
+        "";
 
     private string housingDiagnostic =
         "No housing travel attempted yet.";
 
-    private HousingDistrict SelectedHousingDistrict =>
-        HousingDistricts[
-            Math.Clamp(
-                config.HousingDistrictIndex,
-                0,
-                HousingDistricts.Length - 1
-            )
-        ];
+    // Aethernet shards and main Aetherytes are different objects.
+    // Housing only accepts an actual main-city Aetheryte.
+    private bool TryFindHousingAetheryte(
+        out HousingDistrict district,
+        out IGameObject? aetheryte)
+    {
+        district = default;
+        aetheryte = null;
+
+        var player = Objects.LocalPlayer;
+
+        if (player == null)
+            return false;
+
+        foreach (var candidate in HousingDistricts)
+        {
+            if (candidate.CityTerritory != Client.TerritoryType)
+                continue;
+
+            district = candidate;
+            break;
+        }
+
+        if (district.CityTerritory == 0)
+            return false;
+
+        float bestDistance = config.OpenRange + 1f;
+
+        foreach (var obj in Objects)
+        {
+            if (obj == null ||
+                !obj.IsTargetable ||
+                obj.ObjectKind != Dalamud.Game.ClientState.Objects.Enums.ObjectKind.Aetheryte)
+                continue;
+
+            float distance = Vector3.Distance(
+                player.Position,
+                obj.Position
+            );
+
+            if (distance >= bestDistance)
+                continue;
+
+            bestDistance = distance;
+            aetheryte = obj;
+        }
+
+        return aetheryte != null;
+    }
 
     private bool CanStartHousing()
     {
-        var player = Objects.LocalPlayer;
-        var district = SelectedHousingDistrict;
-
         return housingPhase == HousingPhase.Idle &&
                phase == TravelPhase.Idle &&
                !IsBusy() &&
-               player != null &&
-               nearby != null &&
-               nearby.IsTargetable &&
-               nearby.ObjectKind == Dalamud.Game.ClientState.Objects.Enums.ObjectKind.Aetheryte &&
-               Client.TerritoryType == district.CityTerritory &&
-               Vector3.Distance(
-                   player.Position,
-                   nearby.Position
-               ) <= config.OpenRange + 1f;
+               TryFindHousingAetheryte(
+                   out _,
+                   out _
+               );
     }
 
     private void SetHousingPhase(HousingPhase next)
@@ -92,16 +126,20 @@ public sealed unsafe partial class Plugin
         housingPhaseStarted = DateTime.UtcNow;
     }
 
-    private void StartHousingTravel()
+    private void StartHousingTravel(int ward)
     {
-        if (!CanStartHousing())
+        if (ward < 1 || ward > 30 ||
+            !CanStartHousing() ||
+            !TryFindHousingAetheryte(
+                out var district,
+                out var crystal))
         {
             housingStatus =
-                "Approach the selected city's main Aetheryte.";
+                "Approach a supported main city Aetheryte.";
             return;
         }
 
-        // Do not take over a manually opened game menu.
+        // Never take over a manually opened menu.
         if (GetAddon("SelectString") != null ||
             GetAddon("HousingSelectBlock") != null ||
             GetAddon("SelectYesno") != null)
@@ -111,20 +149,22 @@ public sealed unsafe partial class Plugin
             return;
         }
 
-        housingTarget = SelectedHousingDistrict;
-        housingTargetWard = Math.Clamp(config.HousingWard, 1, 30);
+        housingTarget = district;
+        housingTargetWard = ward;
+        housingOriginAddress = crystal!.Address;
 
-        housingOriginAddress = nearby!.Address;
-        housingOriginTerritory = Client.TerritoryType;
+        config.HousingWard = ward;
+        Save();
 
-        housingSawLoading = false;
         housingLastAction = DateTime.MinValue;
 
         housingDiagnostic =
-            $"Requested: {housingTarget.Name}, Ward {housingTargetWard}.";
+            "Requested: " + district.Name +
+            ", Ward " + ward + ".";
 
         housingStatus =
-            $"Opening travel to {housingTarget.Name}, Ward {housingTargetWard}...";
+            "Traveling to " + district.Name +
+            ", Ward " + ward + "...";
 
         SetHousingPhase(HousingPhase.Interact);
     }
@@ -258,11 +298,7 @@ public sealed unsafe partial class Plugin
 
         if (housingPhase == HousingPhase.WaitForArrival)
         {
-            if (IsBusy() ||
-                Client.TerritoryType != housingOriginTerritory)
-            {
-                housingSawLoading = true;
-            }
+
 
             if (player != null &&
                 !IsBusy() &&
@@ -509,7 +545,7 @@ public sealed unsafe partial class Plugin
                 addon->FireCallbackInt(0);
 
                 housingLastAction = DateTime.UtcNow;
-                housingSawLoading = false;
+
 
                 housingStatus =
                     $"Traveling to {housingTarget.Name}, " +
@@ -521,99 +557,113 @@ public sealed unsafe partial class Plugin
         }
     }
 
-    private void DrawHousingDistrictOption(
-        HousingDistrict district,
-        int index)
-    {
-        bool selected = config.HousingDistrictIndex == index;
-
-        Vector2 pos = ImGui.GetCursorScreenPos();
-        Vector2 size = new(
-            MathF.Max(120f, ImGui.GetContentRegionAvail().X - 4f),
-            27f
-        );
-
-        ImGui.InvisibleButton(
-            $"##housingDistrict{index}",
-            size
-        );
-
-        bool hovered = ImGui.IsItemHovered();
-
-        var draw = ImGui.GetWindowDrawList();
-
-        if (selected || hovered)
-        {
-            draw.AddRectFilled(
-                pos,
-                pos + size,
-                ImGui.ColorConvertFloat4ToU32(
-                    ThemeColor(6)),
-                3f
-            );
-        }
-
-        if (selected)
-        {
-            draw.AddRectFilled(
-                pos + new Vector2(0f, 3f),
-                pos + new Vector2(2f, size.Y - 3f),
-                ImGui.ColorConvertFloat4ToU32(NavAccent)
-            );
-        }
-
-        var color = selected ? NavAccent : ThemeColor(2);
-
-        draw.AddText(
-            pos + new Vector2(11f, 6f),
-            ImGui.ColorConvertFloat4ToU32(color),
-            district.Name
-        );
-
-        string location = district.CityName;
-        float textWidth = ImGui.CalcTextSize(location).X;
-
-        draw.AddText(
-            pos + new Vector2(
-                size.X - textWidth - 9f,
-                6f),
-            ImGui.ColorConvertFloat4ToU32(NavMuted),
-            location
-        );
-
-        if (ImGui.IsItemClicked() &&
-            housingPhase == HousingPhase.Idle)
-        {
-            config.HousingDistrictIndex = index;
-            Save();
-        }
-    }
-
     private void DrawHousingPage()
     {
         ImGui.Spacing();
-        ImGui.TextColored(NavAccent, "HOUSING");
 
-        ImGui.Spacing();
-        ImGui.TextColored(NavMuted, "RESIDENTIAL DISTRICT");
+        bool detected = TryFindHousingAetheryte(
+            out var district,
+            out var crystal
+        );
 
-        for (int i = 0; i < HousingDistricts.Length; i++)
-            DrawHousingDistrictOption(HousingDistricts[i], i);
+        bool canTravel = CanStartHousing();
 
-        ImGui.Spacing();
-        ImGui.TextColored(NavMuted, "WARD");
-
-        int ward = Math.Clamp(config.HousingWard, 1, 30);
-
-        if (ImGui.SliderInt(
-            "##housingWard",
-            ref ward,
-            1,
-            30,
-            "Ward %d"))
+        if (detected)
         {
-            config.HousingWard = ward;
-            Save();
+            ImGui.TextColored(
+                NavAccent,
+                district.Name.ToUpperInvariant()
+            );
+
+            ImGui.SameLine();
+            ImGui.TextColored(
+                NavMuted,
+                district.CityName
+            );
+        }
+        else
+        {
+            ImGui.TextColored(NavAccent, "HOUSING");
+            ImGui.TextDisabled(
+                "No main city Aetheryte in range."
+            );
+        }
+
+        ImGui.Spacing();
+        ImGui.TextColored(NavMuted, "WARD 1 - 30");
+        ImGui.Spacing();
+
+        const int columns = 6;
+        const float gap = 6f;
+        const float height = 29f;
+
+        float available = ImGui.GetContentRegionAvail().X;
+        float width = MathF.Max(
+            30f,
+            MathF.Floor(
+                (available - (columns - 1) * gap) /
+                columns
+            )
+        );
+
+        for (int ward = 1; ward <= 30; ward++)
+        {
+            int column = (ward - 1) % columns;
+
+            Vector2 pos = ImGui.GetCursorScreenPos();
+            Vector2 size = new(width, height);
+
+            if (!canTravel)
+                ImGui.BeginDisabled();
+
+            bool clicked = ImGui.InvisibleButton(
+                "##housingWard" + ward,
+                size
+            );
+
+            bool hovered = canTravel &&
+                           ImGui.IsItemHovered();
+
+            var draw = ImGui.GetWindowDrawList();
+
+            Vector4 background = hovered
+                ? ThemeColor(6)
+                : ThemeColor(10);
+
+            draw.AddRectFilled(
+                pos,
+                pos + size,
+                ImGui.ColorConvertFloat4ToU32(background),
+                3f
+            );
+
+            string label = ward.ToString();
+
+            float labelWidth = ImGui.CalcTextSize(label).X;
+
+            Vector4 foreground = hovered
+                ? NavAccent
+                : canTravel
+                    ? ThemeColor(2)
+                    : NavMuted;
+
+            draw.AddText(
+                pos + new Vector2(
+                    (width - labelWidth) / 2f,
+                    6f
+                ),
+                ImGui.ColorConvertFloat4ToU32(foreground),
+                label
+            );
+
+            if (!canTravel)
+                ImGui.EndDisabled();
+
+            if (clicked && canTravel)
+                StartHousingTravel(ward);
+
+            if (column < columns - 1)
+                ImGui.SameLine(0f, gap);
         }
 
         ImGui.Spacing();
@@ -622,63 +672,61 @@ public sealed unsafe partial class Plugin
         {
             ImGui.TextColored(
                 NavAccent,
-                $"Travel: {housingPhase}"
+                "Travel: " + housingPhase
             );
 
-            if (ImGui.Button("Cancel housing travel"))
-            {
+            ImGui.SameLine();
+
+            if (ImGui.SmallButton("Cancel"))
                 StopHousing("Housing travel cancelled.");
-            }
         }
-        else
+        else if (!detected)
         {
-            bool canTravel = CanStartHousing();
-
-            if (!canTravel)
-                ImGui.BeginDisabled();
-
-            if (ImGui.Button(
-                $"Travel to Ward {ward}",
-                new Vector2(-1f, 29f)) &&
-                canTravel)
-            {
-                StartHousingTravel();
-            }
-
-            if (!canTravel)
-                ImGui.EndDisabled();
+            ImGui.TextDisabled(
+                "Approach the main Aetheryte to travel."
+            );
         }
 
-        ImGui.Spacing();
-
-        if (!CanStartHousing() &&
+        if (!string.IsNullOrWhiteSpace(housingStatus) &&
+            housingStatus != "Select a ward to travel." &&
             housingPhase == HousingPhase.Idle)
         {
-            ImGui.TextWrapped(
-                $"Requires the main Aetheryte in " +
-                $"{SelectedHousingDistrict.CityName}."
-            );
+            ImGui.TextWrapped(housingStatus);
         }
+    }
 
-
-
-        ImGui.Spacing();
-        ImGui.Separator();
-
-        ImGui.TextColored(
-            housingPhase == HousingPhase.Idle
-                ? NavMuted
-                : NavAccent,
-            housingStatus
+    // Centralized diagnostics for Settings.
+    // DC Travel can be added here when implemented.
+    private string BuildDiagnosticsReport()
+    {
+        bool found = TryFindHousingAetheryte(
+            out var district,
+            out var crystal
         );
 
-        if (config.ShowDebug)
-        {
-            ImGui.Spacing();
-            ImGui.TextWrapped(housingDiagnostic);
+        string detected = found
+            ? district.Name + " (" + district.CityName + ")"
+            : "No main housing Aetheryte nearby";
 
-            if (ImGui.SmallButton("Copy housing diagnostics"))
-                ImGui.SetClipboardText(housingDiagnostic);
-        }
+        return
+            "=== AETHERNET ===\n" +
+            "Territory: " + Client.TerritoryType + "\n" +
+            "Network group: " + activeGroup + "\n" +
+            "Nearby object: " + (nearby?.BaseId ?? 0) + "\n" +
+            "Travel phase: " + phase + "\n" +
+            "Callbacks: " + callbackAttempts + "/2\n" +
+            "Native menu: " +
+            (GetAddon("TelepotTown") != null) + "\n" +
+            lastMenuReadout + "\n\n" +
+            "=== HOUSING ===\n" +
+            "Detected: " + detected + "\n" +
+            "Aetheryte DataId: " +
+            (crystal == null ? "none" : crystal.DataId.ToString()) +
+            "\n" +
+            "Phase: " + housingPhase + "\n" +
+            "Target: " + housingTarget.Name +
+            ", Ward " + housingTargetWard + "\n" +
+            "Status: " + housingStatus + "\n" +
+            housingDiagnostic;
     }
 }

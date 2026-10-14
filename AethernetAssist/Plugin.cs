@@ -158,7 +158,7 @@ public sealed unsafe partial class Plugin : IDalamudPlugin
         Pi.UiBuilder.OpenMainUi += Open;
         Pi.UiBuilder.OpenConfigUi += OpenConfig;
 
-        Log.Information("AethernetAssist v0.0.12 DEV4 FIX1 initialized.");
+        Log.Information("AethernetAssist v0.0.13 DEV4 FIX2 initialized.");
     }
 
     public void Dispose()
@@ -1329,7 +1329,7 @@ public sealed unsafe partial class Plugin : IDalamudPlugin
 
         ImGui.TextColored(NavAccent, "SETTINGS");
         ImGui.SameLine();
-        ImGui.TextDisabled("0.0.12");
+        ImGui.TextDisabled("0.0.13");
         ImGui.Separator();
 
         bool autoOpen = config.AutoOpen;
@@ -1416,29 +1416,74 @@ public sealed unsafe partial class Plugin : IDalamudPlugin
         if (config.ShowDebug &&
             ImGui.CollapsingHeader("Diagnostics"))
         {
-            ImGui.TextUnformatted(
-                $"Territory: {Client.TerritoryType}");
+            ImGui.TextColored(NavMuted, "AETHERNET");
 
             ImGui.TextUnformatted(
-                $"Network group: {activeGroup}");
+                "Territory: " + Client.TerritoryType
+            );
 
             ImGui.TextUnformatted(
-                $"Nearby object: {nearby?.BaseId ?? 0}");
+                "Network group: " + activeGroup
+            );
 
             ImGui.TextUnformatted(
-                $"Travel phase: {phase}");
+                "Nearby object: " + (nearby?.BaseId ?? 0)
+            );
 
             ImGui.TextUnformatted(
-                $"Callbacks: {callbackAttempts}/2");
+                "Travel phase: " + phase
+            );
 
             ImGui.TextUnformatted(
-                $"Native menu: {GetAddon("TelepotTown") != null}");
+                "Callbacks: " + callbackAttempts + "/2"
+            );
 
-            ImGui.Separator();
             ImGui.TextWrapped(lastMenuReadout);
 
+            ImGui.Spacing();
+            ImGui.Separator();
+            ImGui.TextColored(NavMuted, "HOUSING");
+
+            bool found = TryFindHousingAetheryte(
+                out var district,
+                out var crystal
+            );
+
+            string foundText = found
+                ? district.Name + " (" + district.CityName + ")"
+                : "No main Aetheryte nearby";
+
+            ImGui.TextUnformatted(
+                "Detected: " + foundText
+            );
+
+            ImGui.TextUnformatted(
+                "Aetheryte ID: " +
+                (crystal == null
+                    ? "none"
+                    : crystal.DataId.ToString())
+            );
+
+            ImGui.TextUnformatted(
+                "Travel phase: " + housingPhase
+            );
+
+            ImGui.TextUnformatted(
+                "Target ward: " + housingTargetWard
+            );
+
+            ImGui.TextWrapped(
+                "Status: " + housingStatus
+            );
+
+            ImGui.TextWrapped(housingDiagnostic);
+
+            ImGui.Spacing();
+
             if (ImGui.Button("Copy diagnostics"))
-                ImGui.SetClipboardText(lastMenuReadout);
+                ImGui.SetClipboardText(
+                    BuildDiagnosticsReport()
+                );
         }
 
         ImGui.End();
@@ -1494,7 +1539,7 @@ public sealed unsafe partial class Plugin : IDalamudPlugin
                 return;
             }
 
-            ImGui.TextDisabled("v0.0.12");
+            ImGui.TextDisabled("v0.0.13");
 
             ImGui.SameLine(ImGui.GetWindowWidth() - 87f);
 

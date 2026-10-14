@@ -33,10 +33,15 @@ Status: OPEN - low frequency, investigation deferred.
 
 ## Housing
 
-DEV4.0 initial scope:
-- Five residential districts.
-- Wards 1-30 through native city Aetheryte menus.
+DEV4 FIX2 scope:
+- Automatically detected residential district from the nearby main city Aetheryte.
+- Clickable ward grid (1-30) through native city Aetheryte menus.
 - Current-city main Aetheryte required.
 - English native menu matching initially.
 - Subdivision navigation is intentionally manual.
 - Ward travel pending in-game validation.
+
+Housing diagnostics are shown exclusively in Settings >
+Diagnostics alongside Aethernet diagnostics. Future DC Travel
+diagnostics should use the same section without additional
+main-window buttons.
