@@ -251,15 +251,6 @@ public sealed unsafe partial class Plugin
             //
             // Selection revalidates the destination name,
             // type, state and callback ID before retrying.
-            if (menuOpen && !busy &&
-                residentialCallbackAttempts == 1 &&
-                (now - residentialLastAction)
-                    .TotalMilliseconds >= 180)
-            {
-                SetResidentialPhase(
-                    ResidentialPhase.SelectDestination);
-                return;
-            }
 
             if (menuOpen && !busy && elapsed > 7)
             {
@@ -279,6 +270,13 @@ public sealed unsafe partial class Plugin
             if (elapsed > 35)
                 StopResidential("Residential travel timed out.");
 
+            return;
+        }
+
+        if (residentialCallbackAttempts > 0 &&
+            (IsBusy() || GetAddon("TelepotTown") == null))
+        {
+            SetResidentialPhase(ResidentialPhase.WaitForArrival);
             return;
         }
 
@@ -493,12 +491,14 @@ public sealed unsafe partial class Plugin
             UInt = callback.UInt
         };
 
-        addon->FireCallback(2, args, true);
+        bool dispatchResult = addon->FireCallback(2, args, true);
 
         residentialCallbackAttempts++;
 
         residentialMenuReadout +=
-            " | Attempt " + residentialCallbackAttempts + "/2";
+            " | DEV5 attempt " + residentialCallbackAttempts + "/2" +
+            " dispatch=" + dispatchResult;
+        Log.Information("AethernetAssist RESIDENTIAL DEV5: " + residentialMenuReadout);
 
         residentialStatus =
             "Teleporting to " + residentialTarget.Name + "...";
@@ -507,7 +507,8 @@ public sealed unsafe partial class Plugin
             Log.Information(residentialMenuReadout);
 
         residentialLastAction = now;
-        SetResidentialPhase(ResidentialPhase.WaitForArrival);
+        if (residentialCallbackAttempts >= 2)
+            SetResidentialPhase(ResidentialPhase.WaitForArrival);
     }
 
     private void DrawResidentialStop(ResidentialStop stop)

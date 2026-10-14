@@ -970,9 +970,7 @@ public sealed unsafe partial class Plugin : IDalamudPlugin
                     $"State={nativeState.UInt} ({nativeState.Type}); " +
                     $"AtkValuesCount={valueCount}.";
 
-                if (callbackAttempts == 0 ||
-                    (callbackAttempts == 1 &&
-                     (DateTime.UtcNow - lastInteraction).TotalMilliseconds > 120))
+                if (callbackAttempts < 2)
                 {
                     AtkValue* args = stackalloc AtkValue[2];
 
@@ -988,10 +986,13 @@ public sealed unsafe partial class Plugin : IDalamudPlugin
                         UInt = callbackData
                     };
 
-                    addon->FireCallback(2, args, true);
+                    bool dispatchResult = addon->FireCallback(2, args, true);
 
                     lastInteraction = DateTime.UtcNow;
                     callbackAttempts++;
+                    lastMenuReadout +=
+                        $" | DEV5 dispatch {callbackAttempts}/2 result={dispatchResult}";
+                    Log.Information("AethernetAssist CITY DEV5: " + lastMenuReadout);
 
                     status = $"Teleporting to {destination.Name}...";
 
