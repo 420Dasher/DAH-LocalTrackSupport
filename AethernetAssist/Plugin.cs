@@ -158,7 +158,7 @@ public sealed unsafe class Plugin : IDalamudPlugin
         Pi.UiBuilder.OpenMainUi += Open;
         Pi.UiBuilder.OpenConfigUi += OpenConfig;
 
-        Log.Information("AethernetAssist v0.0.8 DEV3 initialized.");
+        Log.Information("AethernetAssist v0.0.9 DEV3 FIX1 initialized.");
     }
 
     public void Dispose()
@@ -310,27 +310,66 @@ public sealed unsafe class Plugin : IDalamudPlugin
 
     private void DrawDestination(Shard shard)
     {
-        bool available = DestinationAvailable(shard);
+        bool locked = !DestinationAvailable(shard);
 
-        if (!available && !config.ShowUnlearned)
+        if (locked && !config.ShowUnlearned)
             return;
 
-        if (!available)
-            ImGui.BeginDisabled();
+        Vector2 pos = ImGui.GetCursorScreenPos();
+        Vector2 size = new(
+            MathF.Max(100f, ImGui.GetContentRegionAvail().X - 4f),
+            26f);
 
-        string label = available
-            ? shard.Name
-            : $"{shard.Name} (Locked)";
+        ImGui.InvisibleButton($"##destination-{shard.Id}", size);
 
-        if (ImGui.Button(
-                $"{label}##{shard.Id}",
-                new Vector2(-1f, 25f)) && available)
+        bool hovered = ImGui.IsItemHovered();
+        bool clicked = ImGui.IsItemClicked();
+
+        var draw = ImGui.GetWindowDrawList();
+
+        if (hovered && !locked)
+        {
+            draw.AddRectFilled(
+                pos, pos + size,
+                ImGui.ColorConvertFloat4ToU32(
+                    new Vector4(0.14f, 0.20f, 0.26f, 0.95f)),
+                3f);
+        }
+
+        Vector4 iconColor = locked ? NavMuted : NavAccent;
+        Vector4 textColor = locked
+            ? new Vector4(0.46f, 0.51f, 0.55f, 1f)
+            : new Vector4(0.86f, 0.89f, 0.93f, 1f);
+
+        string label = locked
+            ? $"{shard.Name}  (locked)"
+            : shard.Name;
+
+        ImGui.PushClipRect(pos, pos + size, true);
+
+        draw.AddText(
+            pos + new Vector2(10f, 5f),
+            ImGui.ColorConvertFloat4ToU32(iconColor),
+            "\u25C6");
+
+        draw.AddText(
+            pos + new Vector2(29f, 5f),
+            ImGui.ColorConvertFloat4ToU32(textColor),
+            label);
+
+        if (hovered && !locked)
+        {
+            draw.AddText(
+                pos + new Vector2(size.X - 18f, 5f),
+                ImGui.ColorConvertFloat4ToU32(NavAccent),
+                ">");
+        }
+
+        ImGui.PopClipRect();
+
+        if (clicked && !locked)
             StartTravel(shard);
-
-        if (!available)
-            ImGui.EndDisabled();
     }
-
 
     private static bool IsShardObject(IGameObject obj)
     {
@@ -478,7 +517,11 @@ public sealed unsafe class Plugin : IDalamudPlugin
         activeGroup = resolvedGroup;
         activeTerritory = Client.TerritoryType;
 
-        if (changed) status = "Ready";
+        if (changed)
+        {
+            status = "Ready";
+            resetDestinationScroll = true;
+        }
 
         if (changed && config.AutoOpen)
         {
@@ -929,6 +972,15 @@ public sealed unsafe class Plugin : IDalamudPlugin
             : null;
     }
 
+    private static readonly Vector4 NavAccent =
+        new(0.51f, 0.76f, 0.92f, 1f);
+
+    private static readonly Vector4 NavMuted =
+        new(0.51f, 0.58f, 0.65f, 1f);
+
+    private static readonly Vector4 NavReady =
+        new(0.49f, 0.80f, 0.66f, 1f);
+
     private enum NavigationPage
     {
         Aethernet,
@@ -938,6 +990,7 @@ public sealed unsafe class Plugin : IDalamudPlugin
 
     private NavigationPage currentPage = NavigationPage.Aethernet;
     private bool settingsWindowOpen;
+    private bool resetDestinationScroll = true;
 
     private void OpenConfig()
     {
@@ -950,47 +1003,26 @@ public sealed unsafe class Plugin : IDalamudPlugin
             !networks.TryGetValue(activeGroup, out var entries))
             return 0f;
 
-        var physical = entries.Where(x => !x.Invisible).ToList();
-
-        var areas = physical
-            .GroupBy(x => x.Territory)
-            .Select(g => g.Where(x =>
-                config.ShowUnlearned || DestinationAvailable(x))
-                .ToList())
-            .Where(g => g.Count > 0)
+        // Size the viewport using ONLY normal city shards.
+        // Additional destinations remain below the fold.
+        var city = entries.Where(x =>
+            !x.Invisible &&
+            (config.ShowUnlearned || DestinationAvailable(x)))
             .ToList();
 
-        int rows = areas.Sum(g => g.Count);
-        int headings = areas.Count;
+        int groups = city.GroupBy(x => x.Territory).Count();
 
-        int extras = entries.Count(x =>
-            x.Invisible &&
-            (config.ShowUnlearned || DestinationAvailable(x)));
+        if (city.Count == 0)
+            return 72f;
 
-        rows += extras;
+        float spacing = ImGui.GetStyle().ItemSpacing.Y;
+        float rowHeight = 26f + spacing;
+        float groupHeight = ImGui.GetTextLineHeightWithSpacing() + 8f;
 
-        if (extras > 0)
-            headings++;
+        float height = city.Count * rowHeight +
+                       groups * groupHeight + 10f;
 
-        float naturalHeight =
-            rows * 29f +
-            headings * 33f +
-            8f;
-
-        return Math.Clamp(naturalHeight, 62f, 390f);
-    }
-
-    private float GetNavigationHeight()
-    {
-        if (currentPage != NavigationPage.Aethernet)
-            return 178f;
-
-        float content = GetDestinationContentHeight();
-
-        if (content <= 0f)
-            return 193f;
-
-        return 170f + content;
+        return Math.Clamp(height, 72f, 590f);
     }
 
     private void DrawPageTab(
@@ -998,24 +1030,50 @@ public sealed unsafe class Plugin : IDalamudPlugin
         NavigationPage target,
         float width)
     {
+        Vector2 pos = ImGui.GetCursorScreenPos();
+        Vector2 size = new(width, 30f);
+
+        ImGui.InvisibleButton(
+            $"##navigation-{(int)target}", size);
+
+        bool hovered = ImGui.IsItemHovered();
         bool selected = currentPage == target;
 
-        if (selected)
+        var draw = ImGui.GetWindowDrawList();
+
+        if (hovered && !selected)
         {
-            ImGui.PushStyleColor(
-                ImGuiCol.Button,
-                new Vector4(0.21f, 0.33f, 0.43f, 1f));
+            draw.AddRectFilled(
+                pos, pos + size,
+                ImGui.ColorConvertFloat4ToU32(
+                    new Vector4(0.13f, 0.18f, 0.23f, 0.75f)),
+                3f);
         }
 
-        if (ImGui.Button(
-            label,
-            new Vector2(width, 27f)))
+        Vector4 color = selected ? NavAccent : NavMuted;
+        float textWidth = ImGui.CalcTextSize(label).X;
+
+        draw.AddText(
+            pos + new Vector2((width - textWidth) * 0.5f, 6f),
+            ImGui.ColorConvertFloat4ToU32(color),
+            label);
+
+        if (selected)
+        {
+            draw.AddRectFilled(
+                pos + new Vector2(14f, 28f),
+                pos + new Vector2(width - 14f, 30f),
+                ImGui.ColorConvertFloat4ToU32(NavAccent),
+                1f);
+        }
+
+        if (ImGui.IsItemClicked() && !selected)
         {
             currentPage = target;
-        }
 
-        if (selected)
-            ImGui.PopStyleColor();
+            if (target == NavigationPage.Aethernet)
+                resetDestinationScroll = true;
+        }
     }
 
     private void DrawAethernetPage()
@@ -1025,44 +1083,53 @@ public sealed unsafe class Plugin : IDalamudPlugin
         {
             ImGui.Spacing();
             ImGui.TextDisabled("No Aethernet shard nearby.");
-            ImGui.TextWrapped(
-                "Approach an Aetheryte or Aethernet shard.");
+            ImGui.TextDisabled("Approach an Aethernet crystal.");
             return;
         }
 
+        var physical = entries.Where(x => !x.Invisible).ToList();
         var main = entries.FirstOrDefault(x => x.IsMain);
 
-        ImGui.TextUnformatted(
-            main?.Name ?? "Local Aethernet");
-
-        var physical = entries.Where(x => !x.Invisible).ToList();
+        string name = main?.Name ?? "Local Aethernet";
         int unlocked = physical.Count(x => IsUnlocked(x.Id));
 
-        ImGui.TextDisabled(
-            $"{unlocked}/{physical.Count} shards attuned");
+        string attuned = $"{unlocked}/{physical.Count} attuned";
+
+        ImGui.TextUnformatted(name);
+        ImGui.SameLine(
+            MathF.Max(210f,
+                ImGui.GetWindowWidth() -
+                ImGui.CalcTextSize(attuned).X - 16f));
+        ImGui.TextColored(NavReady, attuned);
 
         ImGui.Spacing();
 
-        float childHeight = GetDestinationContentHeight();
+        float viewport = GetDestinationContentHeight();
 
         if (ImGui.BeginChild(
             "##AethernetDestinations",
-            new Vector2(0f, childHeight),
+            new Vector2(0f, viewport),
             false))
         {
+            if (resetDestinationScroll)
+            {
+                ImGui.SetScrollY(0f);
+                resetDestinationScroll = false;
+            }
+
             foreach (var area in physical.GroupBy(x => x.Territory))
             {
-                var visible = area
-                    .Where(x =>
-                        config.ShowUnlearned ||
-                        DestinationAvailable(x))
+                var visible = area.Where(x =>
+                    config.ShowUnlearned || DestinationAvailable(x))
                     .ToList();
 
                 if (visible.Count == 0)
                     continue;
 
-                ImGui.TextDisabled(GetAreaName(area.Key));
-                ImGui.Separator();
+                ImGui.TextColored(
+                    NavMuted,
+                    GetAreaName(area.Key).ToUpperInvariant());
+                ImGui.Spacing();
 
                 foreach (var shard in visible)
                     DrawDestination(shard);
@@ -1070,17 +1137,20 @@ public sealed unsafe class Plugin : IDalamudPlugin
                 ImGui.Spacing();
             }
 
-            var extras = entries
-                .Where(x =>
-                    x.Invisible &&
-                    (config.ShowUnlearned ||
-                     DestinationAvailable(x)))
+            var extras = entries.Where(x =>
+                x.Invisible &&
+                (config.ShowUnlearned || DestinationAvailable(x)))
                 .ToList();
 
             if (extras.Count > 0)
             {
-                ImGui.TextDisabled("Other");
-                ImGui.Separator();
+                // This gap starts AFTER the physical shards.
+                // The Other heading is initially below the
+                // visible scroll viewport, not in the main list.
+                ImGui.Dummy(new Vector2(0f, 38f));
+
+                ImGui.TextColored(NavMuted, "OTHER");
+                ImGui.Spacing();
 
                 foreach (var shard in extras)
                     DrawDestination(shard);
@@ -1089,8 +1159,33 @@ public sealed unsafe class Plugin : IDalamudPlugin
 
         ImGui.EndChild();
 
+        ImGui.Spacing();
         ImGui.Separator();
+
+        bool ready = phase == TravelPhase.Idle &&
+            (status == "Ready" || status.StartsWith("Arrived:"));
+
+        ImGui.TextColored(
+            ready ? NavReady : NavMuted,
+            "\u25CF");
+
+        ImGui.SameLine(0f, 5f);
         ImGui.TextDisabled(status);
+
+        if (entries.Any(x => x.Invisible))
+        {
+            string hint = "Scroll for more";
+            float hintWidth = ImGui.CalcTextSize(hint).X;
+
+            // Only show the hint when the footer has space.
+            if (ImGui.GetWindowWidth() >
+                ImGui.CalcTextSize(status).X + hintWidth + 65f)
+            {
+                ImGui.SameLine(
+                    ImGui.GetWindowWidth() - hintWidth - 16f);
+                ImGui.TextColored(NavMuted, hint);
+            }
+        }
     }
 
     private void DrawSettings()
@@ -1203,8 +1298,7 @@ public sealed unsafe class Plugin : IDalamudPlugin
 
     private void Draw()
     {
-        // Independent settings: always drawn, even when
-        // the navigation window has closed or auto-hidden.
+        // Settings are fully independent of navigation.
         DrawSettings();
 
         if (!windowOpen)
@@ -1212,98 +1306,129 @@ public sealed unsafe class Plugin : IDalamudPlugin
 
         const float width = 386f;
 
-        // Explicit sizing every frame: no animated resize and
-        // no AlwaysAutoResize window flag.
-        ImGui.SetNextWindowSize(
-            new Vector2(width, GetNavigationHeight()),
-            ImGuiCond.Always);
+        ImGui.PushStyleColor(
+            ImGuiCol.WindowBg,
+            new Vector4(0.065f, 0.080f, 0.105f, 0.97f));
 
-        bool open = windowOpen;
+        ImGui.PushStyleColor(
+            ImGuiCol.ChildBg,
+            new Vector4(0.077f, 0.095f, 0.120f, 0.95f));
 
-        if (!ImGui.Begin(
-            "Aethernet Assist###AethernetAssist",
-            ref open,
-            ImGuiWindowFlags.NoCollapse |
-            ImGuiWindowFlags.NoResize |
-            ImGuiWindowFlags.NoScrollbar))
+        ImGui.PushStyleColor(
+            ImGuiCol.ScrollbarBg,
+            new Vector4(0.075f, 0.090f, 0.115f, 1f));
+
+        ImGui.PushStyleColor(
+            ImGuiCol.ScrollbarGrab,
+            new Vector4(0.26f, 0.34f, 0.42f, 0.9f));
+
+        ImGui.PushStyleColor(
+            ImGuiCol.ScrollbarGrabHovered,
+            new Vector4(0.40f, 0.55f, 0.67f, 1f));
+
+        ImGui.PushStyleVar(
+            ImGuiStyleVar.ItemSpacing,
+            new Vector2(7f, 3f));
+
+        ImGui.PushStyleVar(ImGuiStyleVar.ScrollbarSize, 7f);
+
+        try
         {
+            ImGui.SetNextWindowSize(
+                new Vector2(width, 195f),
+                ImGuiCond.FirstUseEver);
+
+            bool open = windowOpen;
+
+            if (!ImGui.Begin(
+                "Aethernet Assist###AethernetAssist",
+                ref open,
+                ImGuiWindowFlags.NoCollapse |
+                ImGuiWindowFlags.NoResize |
+                ImGuiWindowFlags.NoScrollbar))
+            {
+                ImGui.End();
+                windowOpen = open;
+                return;
+            }
+
+            ImGui.TextDisabled("v0.0.9");
+
+            ImGui.SameLine(ImGui.GetWindowWidth() - 87f);
+
+            ImGui.PushStyleColor(
+                ImGuiCol.Button, new Vector4(0f, 0f, 0f, 0f));
+            ImGui.PushStyleColor(
+                ImGuiCol.ButtonHovered,
+                new Vector4(0.16f, 0.23f, 0.30f, 0.9f));
+            ImGui.PushStyleColor(
+                ImGuiCol.ButtonActive,
+                new Vector4(0.20f, 0.31f, 0.40f, 1f));
+
+            if (ImGui.SmallButton("Settings"))
+                settingsWindowOpen = true;
+
+            ImGui.PopStyleColor(3);
+            ImGui.Spacing();
+
+            float available = ImGui.GetContentRegionAvail().X;
+            float tabWidth = MathF.Max(85f, (available - 14f) / 3f);
+
+            DrawPageTab(
+                "Aethernet", NavigationPage.Aethernet, tabWidth);
+
+            ImGui.SameLine(0f, 7f);
+
+            DrawPageTab(
+                "Housing", NavigationPage.Housing, tabWidth);
+
+            ImGui.SameLine(0f, 7f);
+
+            DrawPageTab(
+                "DC Travel", NavigationPage.DcTravel, tabWidth);
+
+            ImGui.Spacing();
+
+            switch (currentPage)
+            {
+                case NavigationPage.Aethernet:
+                    DrawAethernetPage();
+                    break;
+
+                case NavigationPage.Housing:
+                    ImGui.Spacing();
+                    ImGui.TextColored(NavAccent, "HOUSING");
+                    ImGui.TextDisabled(
+                        "Residential travel is planned.");
+                    ImGui.Spacing();
+                    break;
+
+                case NavigationPage.DcTravel:
+                    ImGui.Spacing();
+                    ImGui.TextColored(NavAccent, "DC TRAVEL");
+                    ImGui.TextDisabled(
+                        "Same-DC world visiting is planned.");
+                    ImGui.Spacing();
+                    break;
+            }
+
+            // Match the actual content immediately, on the
+            // current frame. No delayed resize animation.
+            float naturalHeight =
+                ImGui.GetCursorPosY() +
+                ImGui.GetStyle().WindowPadding.Y + 3f;
+
+            ImGui.SetWindowSize(
+                new Vector2(width, MathF.Max(132f, naturalHeight)),
+                ImGuiCond.Always);
+
             ImGui.End();
             windowOpen = open;
-            return;
         }
-
-        var accent = new Vector4(
-            0.53f, 0.78f, 0.97f, 1f);
-
-        ImGui.TextColored(accent, "AETHERNET ASSIST");
-
-        ImGui.SameLine();
-        ImGui.TextDisabled("0.0.8");
-
-        float settingsX = ImGui.GetWindowWidth() - 87f;
-
-        ImGui.SameLine(settingsX);
-
-        if (ImGui.SmallButton("Settings"))
-            settingsWindowOpen = true;
-
-        ImGui.Separator();
-
-        float available = ImGui.GetContentRegionAvail().X;
-        float tabWidth = Math.Max(80f, (available - 16f) / 3f);
-
-        DrawPageTab(
-            "Aethernet",
-            NavigationPage.Aethernet,
-            tabWidth);
-
-        ImGui.SameLine();
-
-        DrawPageTab(
-            "Housing",
-            NavigationPage.Housing,
-            tabWidth);
-
-        ImGui.SameLine();
-
-        DrawPageTab(
-            "DC Travel",
-            NavigationPage.DcTravel,
-            tabWidth);
-
-        // Snap to the new height on the same frame
-        // when the selected navigation page changes.
-        ImGui.SetWindowSize(
-            new Vector2(width, GetNavigationHeight()),
-            ImGuiCond.Always);
-
-        ImGui.Separator();
-
-        switch (currentPage)
+        finally
         {
-            case NavigationPage.Aethernet:
-                DrawAethernetPage();
-                break;
-
-            case NavigationPage.Housing:
-                ImGui.Spacing();
-                ImGui.TextUnformatted("HOUSING");
-                ImGui.TextDisabled(
-                    "Housing ward navigation is planned.");
-                ImGui.Spacing();
-                break;
-
-            case NavigationPage.DcTravel:
-                ImGui.Spacing();
-                ImGui.TextUnformatted("DC TRAVEL");
-                ImGui.TextDisabled(
-                    "Same-DC world travel is planned.");
-                ImGui.Spacing();
-                break;
+            ImGui.PopStyleVar(2);
+            ImGui.PopStyleColor(5);
         }
-
-        ImGui.End();
-
-        windowOpen = open;
     }
 }
