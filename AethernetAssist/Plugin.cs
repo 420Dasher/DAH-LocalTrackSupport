@@ -17,6 +17,7 @@ using FFXIVClientStructs.FFXIV.Client.Game.UI;
 using FFXIVClientStructs.FFXIV.Client.UI;
 using FFXIVClientStructs.FFXIV.Component.GUI;
 using Lumina.Excel.Sheets;
+using AetheryteSheet = Lumina.Excel.Sheets.Aetheryte;
 
 namespace AethernetAssist;
 
@@ -142,7 +143,7 @@ public sealed unsafe class Plugin : IDalamudPlugin
         Pi.UiBuilder.OpenMainUi += Open;
         Pi.UiBuilder.OpenConfigUi += Open;
 
-        Log.Information("AethernetAssist v0.0.1 DEV1 initialized.");
+        Log.Information("AethernetAssist v0.0.2 DEV1 FIX1 initialized.");
     }
 
     public void Dispose()
@@ -160,7 +161,7 @@ public sealed unsafe class Plugin : IDalamudPlugin
 
     private void LoadNetworks()
     {
-        foreach (var row in Data.GetExcelSheet<Aetheryte>())
+        foreach (var row in Data.GetExcelSheet<AetheryteSheet>())
         {
             if (row.AethernetGroup == 0 || row.Invisible)
                 continue;
@@ -248,10 +249,10 @@ public sealed unsafe class Plugin : IDalamudPlugin
 
     private static bool IsShardObject(IGameObject obj)
     {
-        if (obj.ObjectKind == ObjectKind.Aetheryte)
+        if (obj.ObjectKind == Dalamud.Game.ClientState.Objects.Enums.ObjectKind.Aetheryte)
             return true;
 
-        return obj.DataId is 2000151 or 2014665;
+        return obj.BaseId is 2000151 or 2014665;
     }
 
     private void Save() => Pi.SavePluginConfig(config);
@@ -306,7 +307,7 @@ public sealed unsafe class Plugin : IDalamudPlugin
 
     private void ScanNearby()
     {
-        var player = Client.LocalPlayer;
+        var player = Objects.LocalPlayer;
 
         if (player == null || IsBusy() ||
             !territories.TryGetValue(Client.TerritoryType, out var groups))
@@ -408,14 +409,14 @@ public sealed unsafe class Plugin : IDalamudPlugin
     {
         if (phase != TravelPhase.Idle ||
             nearby == null ||
-            Client.LocalPlayer == null ||
+            Objects.LocalPlayer == null ||
             IsBusy() ||
             !IsUnlocked(chosen.Id))
             return;
 
         if (!nearby.IsTargetable ||
             Vector3.Distance(
-                Client.LocalPlayer.Position,
+                Objects.LocalPlayer.Position,
                 nearby.Position
             ) > config.OpenRange + 1f)
             return;
@@ -460,7 +461,7 @@ public sealed unsafe class Plugin : IDalamudPlugin
 
             if (sawLoading &&
                 !IsBusy() &&
-                Client.LocalPlayer != null)
+                Objects.LocalPlayer != null)
             {
                 status = $"Arrived: {destination.Name}";
 
@@ -484,7 +485,7 @@ public sealed unsafe class Plugin : IDalamudPlugin
             return;
         }
 
-        if (Client.LocalPlayer == null || IsBusy())
+        if (Objects.LocalPlayer == null || IsBusy())
         {
             Cancel("Travel unavailable in the current game state.");
             return;
@@ -519,9 +520,9 @@ public sealed unsafe class Plugin : IDalamudPlugin
 
             if (obj == null ||
                 !obj.IsTargetable ||
-                Client.LocalPlayer == null ||
+                Objects.LocalPlayer == null ||
                 Vector3.Distance(
-                    Client.LocalPlayer.Position,
+                    Objects.LocalPlayer.Position,
                     obj.Position
                 ) > config.OpenRange + 1f)
             {
@@ -757,7 +758,7 @@ public sealed unsafe class Plugin : IDalamudPlugin
 
         ImGui.TextColored(accent, "AETHERNET ASSIST");
         ImGui.SameLine();
-        ImGui.TextDisabled("v0.0.1 DEV1");
+        ImGui.TextDisabled("v0.0.2 DEV1 FIX1");
 
         ImGui.Separator();
 
@@ -861,7 +862,7 @@ public sealed unsafe class Plugin : IDalamudPlugin
                 $"Network group: {activeGroup}");
 
             ImGui.TextUnformatted(
-                $"Nearby object: {nearby?.DataId ?? 0}");
+                $"Nearby object: {nearby?.BaseId ?? 0}");
 
             ImGui.TextUnformatted(
                 $"Travel phase: {phase}");
