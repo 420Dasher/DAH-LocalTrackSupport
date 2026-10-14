@@ -89,7 +89,7 @@ public sealed unsafe partial class Plugin
         if (district.CityTerritory == 0)
             return false;
 
-        float bestDistance = config.OpenRange + 1f;
+        float bestDistance = config.OpenRange;
 
         foreach (var obj in Objects)
         {
@@ -919,6 +919,9 @@ public sealed unsafe partial class Plugin
             (GetAddon("TelepotTown") != null) + "\n" +
             lastMenuReadout + "\n\n" +
             "=== HOUSING ===\n" +
+            "Proximity source: " + autoWindowSource + "\n" +
+            "Auto-window ownership: " +
+            autoWindowOwnsVisibility + "\n" +
             "Detected: " + detected + "\n" +
             "Entrance: " + DescribeWardEntrance() + "\n" +
             "Aetheryte DataId: " +

@@ -145,9 +145,9 @@
 {
     "Author":  "Dash + AI",
     "InternalName":  "AethernetAssist",
-    "Name":  "AethernetAssist [DEV4 FIX6]",
-    "AssemblyVersion":  "0.0.17.0",
-    "TestingAssemblyVersion":  "0.0.17.0",
+    "Name":  "AethernetAssist [DEV4 FIX7]",
+    "AssemblyVersion":  "0.0.18.0",
+    "TestingAssemblyVersion":  "0.0.18.0",
     "DalamudApiLevel":  15,
     "TestingDalamudApiLevel":  15,
     "ApplicableVersion":  "any",
@@ -160,7 +160,7 @@
     "IsTestingExclusive":  false,
     "Punchline":  "Aethernet travel without the clutter.",
     "Description":  "Contextual Aethernet window with real attunement checks and one-click travel.",
-    "Changelog":  "DEV4 FIX6: Manual movement now cancels both vnavmesh walking and the Housing travel state, including the native-menu waiting phase. Manual fallback is preserved when auto-walk never started. Tested ward travel logic unchanged.",
+    "Changelog":  "DEV4 FIX7: Unified proximity auto-open and auto-close for Aethernet shards, city Aetherytes, Housing NPCs, and walk-through gates. All use the configured 8-11.1-yalm range. Manual windows and active travel are preserved. Movement and native ward-selection behavior unchanged.",
     "Tags":  [
                  "aethernet",
                  "aetheryte",

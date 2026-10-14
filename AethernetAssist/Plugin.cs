@@ -161,7 +161,7 @@ public sealed unsafe partial class Plugin : IDalamudPlugin
         Pi.UiBuilder.OpenMainUi += Open;
         Pi.UiBuilder.OpenConfigUi += OpenConfig;
 
-        Log.Information("AethernetAssist v0.0.17 DEV4 FIX6 initialized.");
+        Log.Information("AethernetAssist v0.0.18 DEV4 FIX7 initialized.");
     }
 
     public void Dispose()
@@ -387,7 +387,7 @@ public sealed unsafe partial class Plugin : IDalamudPlugin
 
     private void Open()
     {
-        windowOpen = true;
+        OpenWindowManually();
     }
 
     private void OnCommand(string command, string arguments)
@@ -407,7 +407,7 @@ public sealed unsafe partial class Plugin : IDalamudPlugin
 
             case "housing":
                 currentPage = NavigationPage.Housing;
-                windowOpen = true;
+                OpenWindowManually();
                 break;
 
             case "cancel":
@@ -418,7 +418,7 @@ public sealed unsafe partial class Plugin : IDalamudPlugin
                 break;
 
             default:
-                windowOpen = true;
+                OpenWindowManually();
                 break;
         }
     }
@@ -443,8 +443,8 @@ public sealed unsafe partial class Plugin : IDalamudPlugin
                 return;
 
             lastScan = DateTime.UtcNow;
-            UpdateHousingEntranceProximity();
             ScanNearby();
+            UpdateProximityWindow();
         }
         catch (Exception ex)
         {
@@ -469,8 +469,7 @@ public sealed unsafe partial class Plugin : IDalamudPlugin
 
         IGameObject? nearest = null;
 
-        var maxRange = config.OpenRange +
-                       (nearby != null ? 0.8f : 0f);
+        var maxRange = config.OpenRange;
 
         var closest = maxRange;
 
@@ -545,18 +544,11 @@ public sealed unsafe partial class Plugin : IDalamudPlugin
             resetDestinationScroll = true;
         }
 
-        if (changed && config.AutoOpen)
-        {
-            currentPage = NavigationPage.Aethernet;
-            windowOpen = true;
-        }
+
     }
 
     private void ClearNearby()
     {
-        if (nearby != null && currentPage == NavigationPage.Aethernet)
-            windowOpen = false;
-
         nearby = null;
         nearbyAddress = 0;
         activeGroup = 0;
@@ -1337,7 +1329,7 @@ public sealed unsafe partial class Plugin : IDalamudPlugin
 
         ImGui.TextColored(NavAccent, "SETTINGS");
         ImGui.SameLine();
-        ImGui.TextDisabled("0.0.17");
+        ImGui.TextDisabled("0.0.18");
         ImGui.Separator();
 
         bool autoOpen = config.AutoOpen;
@@ -1501,6 +1493,15 @@ public sealed unsafe partial class Plugin : IDalamudPlugin
             );
 
             ImGui.TextUnformatted(
+                "Proximity source: " + autoWindowSource
+            );
+
+            ImGui.TextUnformatted(
+                "Proximity auto-opened: " +
+                autoWindowOwnsVisibility
+            );
+
+            ImGui.TextUnformatted(
                 "Gate movement: " + housingGateWalkDiagnostic
             );
 
@@ -1571,7 +1572,7 @@ public sealed unsafe partial class Plugin : IDalamudPlugin
                 return;
             }
 
-            ImGui.TextDisabled("v0.0.17");
+            ImGui.TextDisabled("v0.0.18");
 
             ImGui.SameLine(ImGui.GetWindowWidth() - 87f);
 

@@ -83,3 +83,13 @@ DEV4 FIX6:
 - Existing Cancel button and /anet cancel remain unchanged.
 - Existing ward travel, NPC interactions, and Aethernet callbacks unchanged.
 - Mist and Goblet auto-walk and Gridania NPC routes were user-tested in FIX5.
+DEV4 FIX7 - Unified proximity window:
+- Aethernet shards, main Aetherytes, Housing NPCs, and
+  housing gates share the configured proximity range.
+- Auto-close applies to every proximity-opened window.
+- Manual /anet and Open Main UI windows are preserved.
+- Active Aethernet and Housing travel is not interrupted.
+- Re-evaluates the auto-window after territory changes.
+- Removed duplicate Housing and Aethernet close handlers.
+- Native travel callbacks and gate movement are unchanged.
+- Lavender Beds NPC proximity close requires validation.

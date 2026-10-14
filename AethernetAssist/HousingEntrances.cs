@@ -48,8 +48,6 @@ public sealed unsafe partial class Plugin
     private bool housingLeavingDistrict;
     private bool housingSawLoading;
     private bool housingGateSource;
-    private bool housingWasNearEntrance;
-    private bool housingAutoOpenedByEntrance;
 
     private bool TryGetResidentialDistrict(
         out HousingDistrict district)
@@ -104,7 +102,7 @@ public sealed unsafe partial class Plugin
                         entrance.Second) <= config.OpenRange;
             }
 
-            float best = config.OpenRange + 1f;
+            float best = config.OpenRange;
 
             foreach (var obj in Objects)
             {
@@ -141,32 +139,6 @@ public sealed unsafe partial class Plugin
         return false;
     }
 
-    private void UpdateHousingEntranceProximity()
-    {
-        bool near = !IsBusy() &&
-            TryFindWardEntrance(out _, out _, out _);
-
-        if (near && !housingWasNearEntrance && config.AutoOpen)
-        {
-            // Only close automatically if this detector
-            // opened a previously closed window.
-            housingAutoOpenedByEntrance = !windowOpen;
-
-            currentPage = NavigationPage.Housing;
-            windowOpen = true;
-        }
-
-        if (!near && housingAutoOpenedByEntrance &&
-            housingPhase == HousingPhase.Idle)
-        {
-            if (currentPage == NavigationPage.Housing)
-                windowOpen = false;
-
-            housingAutoOpenedByEntrance = false;
-        }
-
-        housingWasNearEntrance = near;
-    }
     private void StartHousingExit()
     {
         if (!CanStartHousing() ||

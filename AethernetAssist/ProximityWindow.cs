@@ -1,0 +1,98 @@
+using System;
+
+namespace AethernetAssist;
+
+public sealed unsafe partial class Plugin
+{
+    // Only windows opened by proximity are auto-closed.
+    private bool autoWindowOwnsVisibility;
+    private bool autoWindowWasInRange;
+
+    private uint autoWindowTerritory;
+    private string autoWindowSource = "None";
+
+    private void OpenWindowManually()
+    {
+        autoWindowOwnsVisibility = false;
+        windowOpen = true;
+    }
+
+    private void UpdateProximityWindow()
+    {
+        // Re-evaluate after zoning rather than carrying a
+        // previous territory's detection into the new zone.
+        if (autoWindowTerritory != Client.TerritoryType)
+        {
+            if (autoWindowOwnsVisibility &&
+                housingPhase == HousingPhase.Idle &&
+                phase == TravelPhase.Idle)
+            {
+                windowOpen = false;
+            }
+
+            autoWindowOwnsVisibility = false;
+            autoWindowWasInRange = false;
+            autoWindowTerritory = Client.TerritoryType;
+        }
+
+        bool nearAethernet = nearby != null;
+
+        bool nearHousingEntrance = TryFindWardEntrance(
+            out _,
+            out _,
+            out bool isGate
+        );
+
+        bool nearCityAetheryte = TryFindHousingAetheryte(
+            out _,
+            out _
+        );
+
+        bool inRange =
+            nearAethernet ||
+            nearHousingEntrance ||
+            nearCityAetheryte;
+
+        autoWindowSource = nearHousingEntrance
+            ? isGate
+                ? "Housing walk-through gate"
+                : "Housing entrance NPC"
+            : nearAethernet
+                ? "Aethernet shard / Aetheryte"
+                : nearCityAetheryte
+                    ? "Main city Aetheryte"
+                    : "None";
+
+        if (!inRange)
+        {
+            // Never interrupt an active navigation operation.
+            if (autoWindowOwnsVisibility &&
+                housingPhase == HousingPhase.Idle &&
+                phase == TravelPhase.Idle)
+            {
+                windowOpen = false;
+                autoWindowOwnsVisibility = false;
+            }
+
+            autoWindowWasInRange = false;
+            return;
+        }
+
+        if (!autoWindowWasInRange &&
+            config.AutoOpen &&
+            !windowOpen)
+        {
+            currentPage = nearHousingEntrance ||
+                (!nearAethernet && nearCityAetheryte)
+                    ? NavigationPage.Housing
+                    : NavigationPage.Aethernet;
+
+            windowOpen = true;
+            autoWindowOwnsVisibility = true;
+        }
+
+        // If the user closes the window while still nearby,
+        // do not immediately force it open again.
+        autoWindowWasInRange = true;
+    }
+}
