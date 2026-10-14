@@ -38,5 +38,5 @@ DEV4.0 initial scope:
 - Wards 1-30 through native city Aetheryte menus.
 - Current-city main Aetheryte required.
 - English native menu matching initially.
-- Subdivision Aethernet transfers not yet implemented.
+- Subdivision navigation is intentionally manual.
 - Ward travel pending in-game validation.

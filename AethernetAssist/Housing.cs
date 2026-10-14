@@ -78,7 +78,7 @@ public sealed unsafe partial class Plugin
                player != null &&
                nearby != null &&
                nearby.IsTargetable &&
-               nearby.ObjectKind == ObjectKind.Aetheryte &&
+               nearby.ObjectKind == Dalamud.Game.ClientState.Objects.Enums.ObjectKind.Aetheryte &&
                Client.TerritoryType == district.CityTerritory &&
                Vector3.Distance(
                    player.Position,
@@ -660,9 +660,7 @@ public sealed unsafe partial class Plugin
             );
         }
 
-        ImGui.TextDisabled(
-            "Subdivision transfers: next housing iteration."
-        );
+
 
         ImGui.Spacing();
         ImGui.Separator();
