@@ -1,4 +1,4 @@
-# AethernetAssist v0.0.37 DEV4.3 WORLD VISIT RESEARCH1
+# AethernetAssist v0.0.38 DEV4.3 WORLD VISIT TEST1
 
 Dalamud API 15 / .NET 10
 Development branch: testing
@@ -252,3 +252,25 @@ are not automated yet.
 
 Cross-data-center travel is explicitly out of scope.
 Do not push to main.
+## DEV4.3 WORLD VISIT TEST1 (v0.0.38)
+
+Same-data-center World Visit selection testing.
+
+- DC Travel appears only at the three original
+  starting-city main Aetherytes.
+- World names are read from the native WorldTranslate
+  destination list.
+- Names are verified against the game's World sheet.
+- DataCenter IDs must match the current World.
+- Every native destination must have a matching
+  visible WorldTravelSelect label.
+- Current World is not selectable.
+- Native callback uses the validated destination
+  index plus two, consistent with World Visit.
+- The in-game Yes/No confirmation is manual in TEST1.
+- No automatic logout or cross-DC travel.
+- No changes to Cosmic, Housing or residential travel.
+
+Retains the complete read-only research diagnostics.
+
+Stay on testing. Never release to main automatically.

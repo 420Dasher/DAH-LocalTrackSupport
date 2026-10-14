@@ -169,7 +169,7 @@ public sealed unsafe partial class Plugin : IDalamudPlugin
         Pi.UiBuilder.OpenMainUi += Open;
         Pi.UiBuilder.OpenConfigUi += OpenConfig;
 
-        Log.Information("AethernetAssist v0.0.37 DEV4.3 WORLD VISIT RESEARCH1 initialized.");
+        Log.Information("AethernetAssist v0.0.38 DEV4.3 WORLD VISIT TEST1 initialized.");
     }
 
     public void Dispose()
@@ -1404,7 +1404,7 @@ public sealed unsafe partial class Plugin : IDalamudPlugin
 
         ImGui.TextColored(NavAccent, "SETTINGS");
         ImGui.SameLine();
-        ImGui.TextDisabled("0.0.37");
+        ImGui.TextDisabled("0.0.38");
         ImGui.Separator();
 
         bool autoOpen = config.AutoOpen;
@@ -1668,7 +1668,7 @@ public sealed unsafe partial class Plugin : IDalamudPlugin
                 return;
             }
 
-            ImGui.TextDisabled("v0.0.37");
+            ImGui.TextDisabled("v0.0.38");
 
             ImGui.SameLine(ImGui.GetWindowWidth() - 87f);
 
@@ -1755,7 +1755,7 @@ public sealed unsafe partial class Plugin : IDalamudPlugin
                     break;
 
                 case NavigationPage.DcTravel:
-                    DrawWorldVisitResearchPage();
+                    DrawWorldVisitSelectionPage();
                     break;
             }
 

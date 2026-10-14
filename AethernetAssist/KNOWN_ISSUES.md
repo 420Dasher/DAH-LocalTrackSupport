@@ -204,3 +204,12 @@ Historical development notes remain available in Git history.
   still require native menu verification.
 - Cross-DC travel will not be implemented.
 - Keep this version on testing.
+## DEV4.3 WORLD VISIT TEST1 (v0.0.38)
+
+- DEV4.3 research verified native WorldTravelSelect.
+- First native destination selection now implemented.
+- Destination index is resolved from the game UI data.
+- Same-DC matching and current-world filtering required.
+- Final confirmation remains manual.
+- Full end-to-end world travel remains unverified.
+- Testing branch only.
