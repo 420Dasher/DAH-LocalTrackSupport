@@ -24,7 +24,7 @@ using NativeQuestManager = FFXIVClientStructs.FFXIV.Client.Game.QuestManager;
 
 namespace AethernetAssist;
 
-public sealed unsafe class Plugin : IDalamudPlugin
+public sealed unsafe partial class Plugin : IDalamudPlugin
 {
     [PluginService]
     private static IDalamudPluginInterface Pi { get; set; } = null!;
@@ -158,7 +158,7 @@ public sealed unsafe class Plugin : IDalamudPlugin
         Pi.UiBuilder.OpenMainUi += Open;
         Pi.UiBuilder.OpenConfigUi += OpenConfig;
 
-        Log.Information("AethernetAssist v0.0.10 DEV3 FIX2 initialized.");
+        Log.Information("AethernetAssist v0.0.11 DEV4.0 initialized.");
     }
 
     public void Dispose()
@@ -401,8 +401,16 @@ public sealed unsafe class Plugin : IDalamudPlugin
                 settingsWindowOpen = true;
                 break;
 
+            case "housing":
+                currentPage = NavigationPage.Housing;
+                windowOpen = true;
+                break;
+
             case "cancel":
-                Cancel("Cancelled by user.");
+                if (housingPhase != HousingPhase.Idle)
+                    StopHousing("Cancelled by user.");
+                else
+                    Cancel("Cancelled by user.");
                 break;
 
             default:
@@ -415,6 +423,12 @@ public sealed unsafe class Plugin : IDalamudPlugin
     {
         try
         {
+            if (housingPhase != HousingPhase.Idle)
+            {
+                TickHousing();
+                return;
+            }
+
             if (phase != TravelPhase.Idle)
             {
                 TickTravel();
@@ -1315,7 +1329,7 @@ public sealed unsafe class Plugin : IDalamudPlugin
 
         ImGui.TextColored(NavAccent, "SETTINGS");
         ImGui.SameLine();
-        ImGui.TextDisabled("0.0.10");
+        ImGui.TextDisabled("0.0.11");
         ImGui.Separator();
 
         bool autoOpen = config.AutoOpen;
@@ -1480,7 +1494,7 @@ public sealed unsafe class Plugin : IDalamudPlugin
                 return;
             }
 
-            ImGui.TextDisabled("v0.0.10");
+            ImGui.TextDisabled("v0.0.11");
 
             ImGui.SameLine(ImGui.GetWindowWidth() - 87f);
 
@@ -1524,11 +1538,7 @@ public sealed unsafe class Plugin : IDalamudPlugin
                     break;
 
                 case NavigationPage.Housing:
-                    ImGui.Spacing();
-                    ImGui.TextColored(NavAccent, "HOUSING");
-                    ImGui.TextDisabled(
-                        "Residential travel is planned.");
-                    ImGui.Spacing();
+                    DrawHousingPage();
                     break;
 
                 case NavigationPage.DcTravel:
