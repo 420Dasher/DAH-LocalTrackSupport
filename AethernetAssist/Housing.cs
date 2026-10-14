@@ -938,6 +938,7 @@ public sealed unsafe partial class Plugin
             "\n\n=== RESIDENTIAL AETHERNET ===\n" +
             "Phase: " + residentialPhase + "\n" +
             "Status: " + residentialStatus + "\n" +
-            residentialMenuReadout;
+            residentialMenuReadout +
+            "\n\n" + BuildCosmicResearchReport();
     }
 }

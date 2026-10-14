@@ -1,4 +1,4 @@
-# AethernetAssist v0.0.24 DEV4.1 CLEANUP
+# AethernetAssist v0.0.25 DEV4.2 RESEARCH1
 
 Dalamud API 15 / .NET 10
 Development branch: testing
@@ -36,3 +36,16 @@ Operational transport diagnostics remain available.
 
 Cosmic Exploration is planned for DEV4.2.
 World Travel is not yet implemented.
+## DEV4.2 Cosmic Exploration
+
+Planned command destinations:
+- /anet sinus
+- /anet phaenna
+- /anet oizys
+- /anet auxesia
+
+DEV4.2 RESEARCH1 only captures NPC and native-menu data.
+No Cosmic Exploration travel command is active yet.
+
+Drivingway reference: Mare Lamentorum map X21.9 Y13.2 Z-1.4.
+The raw world XYZ position must be obtained from the object table.

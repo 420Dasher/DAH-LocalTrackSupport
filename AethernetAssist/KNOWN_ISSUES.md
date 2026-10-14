@@ -66,3 +66,13 @@ Status: Validated through DEV4.1 TEST3.
 - Kept live residential and Housing travel implementation intact.
 
 Historical development notes remain available in Git history.
+## DEV4.2 Cosmic Exploration Research 1
+
+- Starting point: verified v0.0.24 residential baseline.
+- Goblet regression passed after the residential cleanup.
+- Drivingway reference: Mare Lamentorum (21.9, 13.2, -1.4).
+- NPC BaseID and world coordinates pending live capture.
+- Drivingway native dialogue/menu structure pending capture.
+- Teleport and vnavmesh automation not implemented yet.
+- Local Cosmoliner transportation will be researched separately.
+- Field operations intentionally excluded from planned scope.
