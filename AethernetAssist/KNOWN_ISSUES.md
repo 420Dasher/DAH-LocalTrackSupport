@@ -149,3 +149,16 @@ Historical development notes remain available in Git history.
 - WKS sheets provide the 20 shard records.
 - Inspecting native callback values before automation.
 - All working journey and residential code preserved.
+## DEV4.2 LOCAL TEST1 (v0.0.33)
+
+- First live local Cosmic Aethernet integration.
+- Native TelepotTown menu confirmed in Sinus Ardorum.
+- Header slot 0, destination slots 1-5.
+- Callbacks 0-4 mapped from WKS subrow ordering.
+- Only states 0 and 4 accepted for selectable destinations
+  pending further in-game verification.
+- Sends one native selection callback only.
+- All four planet catalogs are available.
+- Test Sinus Ardorum first before other planets.
+- Existing city, Housing, residential and
+  Cosmic journey implementations remain unchanged.

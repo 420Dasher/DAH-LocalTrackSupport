@@ -38,8 +38,11 @@ public sealed unsafe partial class Plugin
         bool nearResidentialShard =
             TryFindResidentialShard(out _);
 
+        bool nearCosmicShard = cosmicLocalNearby != null;
+
         bool nearAethernet =
-            nearby != null || nearResidentialShard;
+            nearby != null || nearResidentialShard ||
+            nearCosmicShard;
 
         bool nearHousingEntrance = TryFindWardEntrance(
             out _,
@@ -61,6 +64,8 @@ public sealed unsafe partial class Plugin
             ? isGate
                 ? "Housing walk-through gate"
                 : "Housing entrance NPC"
+            : nearCosmicShard
+                ? "Cosmic Aethernet shard"
             : nearResidentialShard
                 ? "Residential Aethernet shard"
             : nearAethernet

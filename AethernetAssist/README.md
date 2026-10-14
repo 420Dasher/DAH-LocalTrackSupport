@@ -1,4 +1,4 @@
-# AethernetAssist v0.0.32 DEV4.2 LOCAL RESEARCH2
+# AethernetAssist v0.0.33 DEV4.2 LOCAL TEST1
 
 Dalamud API 15 / .NET 10
 Development branch: testing
@@ -141,3 +141,22 @@ TelepotTown remains visible.
 
 Existing Cosmic journey and city/residential travel
 are unchanged. No Cosmoliner automation.
+## DEV4.2 LOCAL TEST1
+
+Native Cosmic Exploration Aethernet support.
+
+- Auto-detect WKS EventObj Aethernet shards.
+- Resolve WKS destination lists for four planets.
+- Display five local destinations in the existing
+  AethernetAssist city-style window.
+- Identify the current shard by its object-group IDs.
+- Validate native TelepotTown planet header,
+  network ID, five destination names and callback IDs.
+- Submit exactly one guarded callback.
+- Confirm arrival using game state and position.
+- Support /anet cancel and manual movement cancellation.
+
+The native selection callback is experimental in TEST1.
+No Cosmoliners are included.
+
+Previous Cosmic journey automation is unchanged.
