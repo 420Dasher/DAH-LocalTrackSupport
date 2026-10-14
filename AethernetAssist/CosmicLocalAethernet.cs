@@ -498,11 +498,14 @@ public sealed unsafe partial class Plugin
 
         string? header = CosmicNativeName(values, 262, count);
 
+        // TelepotTown AtkValues[1] is NOT the WKS network ID.
+        // Phaenna has WKSAethernet row 2, but this field is 1.
+        // Verify the planet header and native menu layout instead.
+        // All five destination names and callback IDs are
+        // independently verified below before any selection.
         if (!string.Equals(
             header, expectedPlanet,
             StringComparison.OrdinalIgnoreCase) ||
-            values[1].Type != AtkValueType.UInt ||
-            values[1].UInt != target.Network ||
             values[2].Type != AtkValueType.UInt ||
             values[2].UInt != 6)
         {

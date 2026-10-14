@@ -1,4 +1,4 @@
-# AethernetAssist v0.0.34 DEV4.2 LOCAL TEST2
+# AethernetAssist v0.0.35 DEV4.2 LOCAL TEST3
 
 Dalamud API 15 / .NET 10
 Development branch: testing
@@ -179,3 +179,26 @@ TEST2 adds:
 
 The Cosmic journey and all other Aethernet systems
 remain unchanged.
+## DEV4.2 LOCAL TEST3 (v0.0.35)
+
+Fixes Cosmic local Aethernet validation on Phaenna.
+
+The TelepotTown AtkValues[1] field does not represent
+the WKSAethernet network row ID. Phaenna reports 1,
+while its WKS network row is 2.
+
+Removed the incorrect ID comparison.
+
+Retained:
+- Territory and native planet name validation
+- Native menu layout checks
+- All five destination-name validations
+- Destination availability checks
+- Callback-index verification
+- Guarded two-stage selection with 250 ms interval
+- Two-callback maximum and arrival verification
+
+Previously working Cosmic journey, city, residential
+and housing implementations remain untouched.
+
+No Cosmoliner automation.

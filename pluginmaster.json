@@ -145,9 +145,9 @@
 {
     "Author":  "Dash + AI",
     "InternalName":  "AethernetAssist",
-    "Name":  "AethernetAssist [DEV4.2 LOCAL TEST2]",
-    "AssemblyVersion":  "0.0.34.0",
-    "TestingAssemblyVersion":  "0.0.34.0",
+    "Name":  "AethernetAssist [DEV4.2 LOCAL TEST3]",
+    "AssemblyVersion":  "0.0.35.0",
+    "TestingAssemblyVersion":  "0.0.35.0",
     "DalamudApiLevel":  15,
     "TestingDalamudApiLevel":  15,
     "ApplicableVersion":  "any",
@@ -160,7 +160,7 @@
     "IsTestingExclusive":  false,
     "Punchline":  "Aethernet travel without the clutter.",
     "Description":  "Contextual Aethernet window with real attunement checks and one-click travel.",
-    "Changelog":  "DEV4.2 LOCAL TEST2: Fixes Cosmic local Aethernet travel using a guarded two-stage TelepotTown callback. Includes a 250 ms delay, full native destination revalidation, two-attempt limit and arrival diagnostics. Existing Cosmic journey and other travel preserved.",
+    "Changelog":  "DEV4.2 LOCAL TEST3: Fixes Phaenna Cosmic Aethernet rejecting valid native menus because TelepotTown value[1] was incorrectly treated as the WKS network ID. Preserves destination verification, two-stage callbacks and other travel implementations.",
     "Tags":  [
                  "aethernet",
                  "aetheryte",

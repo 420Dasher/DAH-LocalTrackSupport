@@ -173,3 +173,12 @@ Historical development notes remain available in Git history.
   still requires live testing.
 - No changes to the four Cosmic journey commands,
   residential or city Aethernet.
+## DEV4.2 LOCAL TEST3 (v0.0.35)
+
+- Sinus Ardorum local travel passed in both directions.
+- Phaenna failed before callback submission in v0.0.34.
+- Native Phaenna TelepotTown value[1] = 1, while
+  WKSAethernet network row = 2.
+- Removed invalid assumption from menu verification.
+- Native destination identity and callback guards remain.
+- Phaenna, Oizys and Auxesia require live verification.

@@ -169,7 +169,7 @@ public sealed unsafe partial class Plugin : IDalamudPlugin
         Pi.UiBuilder.OpenMainUi += Open;
         Pi.UiBuilder.OpenConfigUi += OpenConfig;
 
-        Log.Information("AethernetAssist v0.0.34 DEV4.2 LOCAL TEST2 initialized.");
+        Log.Information("AethernetAssist v0.0.35 DEV4.2 LOCAL TEST3 initialized.");
     }
 
     public void Dispose()
@@ -1399,7 +1399,7 @@ public sealed unsafe partial class Plugin : IDalamudPlugin
 
         ImGui.TextColored(NavAccent, "SETTINGS");
         ImGui.SameLine();
-        ImGui.TextDisabled("0.0.34");
+        ImGui.TextDisabled("0.0.35");
         ImGui.Separator();
 
         bool autoOpen = config.AutoOpen;
@@ -1673,7 +1673,7 @@ public sealed unsafe partial class Plugin : IDalamudPlugin
                 return;
             }
 
-            ImGui.TextDisabled("v0.0.34");
+            ImGui.TextDisabled("v0.0.35");
 
             ImGui.SameLine(ImGui.GetWindowWidth() - 87f);
 
