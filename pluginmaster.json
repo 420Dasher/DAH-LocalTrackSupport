@@ -145,9 +145,9 @@
 {
     "Author":  "Dash + AI",
     "InternalName":  "AethernetAssist",
-    "Name":  "AethernetAssist [DEV4.2 RESEARCH1]",
-    "AssemblyVersion":  "0.0.25.0",
-    "TestingAssemblyVersion":  "0.0.25.0",
+    "Name":  "AethernetAssist [DEV4.2 RESEARCH2]",
+    "AssemblyVersion":  "0.0.26.0",
+    "TestingAssemblyVersion":  "0.0.26.0",
     "DalamudApiLevel":  15,
     "TestingDalamudApiLevel":  15,
     "ApplicableVersion":  "any",
@@ -160,7 +160,7 @@
     "IsTestingExclusive":  false,
     "Punchline":  "Aethernet travel without the clutter.",
     "Description":  "Contextual Aethernet window with real attunement checks and one-click travel.",
-    "Changelog":  "DEV4.2 RESEARCH1: Adds read-only Cosmic Exploration NPC discovery, raw world XYZ capture, and native travel-menu diagnostics. No Cosmic travel actions implemented yet. Verified residential and city navigation systems remain unchanged.",
+    "Changelog":  "DEV4.2 RESEARCH2: Read-only addon lifecycle capture for identifying the Cosmic Exploration destination selector. Drivingway NPC and world coordinates confirmed. Existing travel preserved.",
     "Tags":  [
                  "aethernet",
                  "aetheryte",

@@ -1,8 +1,8 @@
 {
   "Author": "Dash + AI",
-  "Name": "AethernetAssist [DEV4.2 RESEARCH1]",
+  "Name": "AethernetAssist [DEV4.2 RESEARCH2]",
   "InternalName": "AethernetAssist",
-  "AssemblyVersion": "0.0.25.0",
+  "AssemblyVersion": "0.0.26.0",
   "DalamudApiLevel": 15,
   "ApplicableVersion": "any",
   "LoadRequiredState": 0,

@@ -56,6 +56,9 @@ public sealed unsafe partial class Plugin : IDalamudPlugin
     [PluginService]
     private static IPluginLog Log { get; set; } = null!;
 
+    [PluginService]
+    private static IAddonLifecycle AddonLifecycle { get; set; } = null!;
+
     private sealed record Shard(
         uint Id,
         uint Territory,
@@ -162,12 +165,13 @@ public sealed unsafe partial class Plugin : IDalamudPlugin
         Pi.UiBuilder.OpenMainUi += Open;
         Pi.UiBuilder.OpenConfigUi += OpenConfig;
 
-        Log.Information("AethernetAssist v0.0.25 DEV4.2 RESEARCH1 initialized.");
+        Log.Information("AethernetAssist v0.0.26 DEV4.2 RESEARCH2 initialized.");
     }
 
     public void Dispose()
     {
         StopHousingGateWalk();
+        StopCosmicUiCapture();
         Framework.Update -= Update;
 
         Pi.UiBuilder.Draw -= Draw;
@@ -1346,7 +1350,7 @@ public sealed unsafe partial class Plugin : IDalamudPlugin
 
         ImGui.TextColored(NavAccent, "SETTINGS");
         ImGui.SameLine();
-        ImGui.TextDisabled("0.0.25");
+        ImGui.TextDisabled("0.0.26");
         ImGui.Separator();
 
         bool autoOpen = config.AutoOpen;
@@ -1540,6 +1544,24 @@ public sealed unsafe partial class Plugin : IDalamudPlugin
 
             ImGui.TextWrapped(residentialMenuReadout);
 
+            ImGui.Spacing();
+            ImGui.Separator();
+            ImGui.TextColored(NavMuted, "COSMIC UI RESEARCH");
+
+            if (ImGui.Button(
+                cosmicCaptureActive
+                    ? "Stop Cosmic capture"
+                    : "Start Cosmic capture"))
+            {
+                if (cosmicCaptureActive)
+                    StopCosmicUiCapture();
+                else
+                    StartCosmicUiCapture();
+            }
+
+            ImGui.TextDisabled(
+                cosmicCaptureTimeline.Count +
+                " addon names captured.");
 
             ImGui.Spacing();
 
@@ -1602,7 +1624,7 @@ public sealed unsafe partial class Plugin : IDalamudPlugin
                 return;
             }
 
-            ImGui.TextDisabled("v0.0.25");
+            ImGui.TextDisabled("v0.0.26");
 
             ImGui.SameLine(ImGui.GetWindowWidth() - 87f);
 

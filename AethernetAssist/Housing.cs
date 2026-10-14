@@ -939,6 +939,7 @@ public sealed unsafe partial class Plugin
             "Phase: " + residentialPhase + "\n" +
             "Status: " + residentialStatus + "\n" +
             residentialMenuReadout +
-            "\n\n" + BuildCosmicResearchReport();
+            "\n\n" + BuildCosmicResearchReport() +
+            BuildCosmicAddonCaptureReport();
     }
 }

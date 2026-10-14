@@ -76,3 +76,11 @@ Historical development notes remain available in Git history.
 - Teleport and vnavmesh automation not implemented yet.
 - Local Cosmoliner transportation will be researched separately.
 - Field operations intentionally excluded from planned scope.
+## DEV4.2 Research 2 (v0.0.26)
+
+- Drivingway verified at NPC BaseID 1052581.
+- World position (25.681, -137.417, -411.307).
+- Initial SelectString row 0 opens Cosmic Exploration travel.
+- Planet selector not identified by standard addon checks.
+- Temporary read-only AddonLifecycle PostDraw capture added.
+- No Cosmic travel callbacks or movement enabled yet.
