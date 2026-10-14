@@ -136,3 +136,12 @@ DEV4.1 TEST2 (v0.0.22):
 - Successful residential arrival resets proximity detection.
 - Previously working city, Housing, and gate code unchanged.
 - Residential callback retry requires in-game validation.
+DEV4.1 TEST3 (v0.0.23):
+- Confirmed residential travel works in both divisions
+  and between main division and subdivision.
+- Initial viewport now fits Main Division destinations.
+- Subdivision moved below the fold with the same 38px
+  separation used by the city Aethernet OTHER section.
+- Residential startup status displays Ready at a shard.
+- Residential teleport callbacks remain unchanged.
+- Existing city and ward-transfer code remain unchanged.

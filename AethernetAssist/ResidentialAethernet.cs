@@ -598,15 +598,21 @@ public sealed unsafe partial class Plugin
 
         ImGui.Spacing();
 
-        // Keep the same compact viewport behavior as
-        // our city destination list.
+        // Size the initial viewport using MAIN DIVISION
+        // destinations only, matching the city Aethernet
+        // behavior where OTHER starts below the fold.
+        int mainCount = stops.Count(x => !x.Subdivision);
+
         float rowHeight =
             26f + ImGui.GetStyle().ItemSpacing.Y;
 
+        float headerHeight =
+            ImGui.GetTextLineHeightWithSpacing() + 8f;
+
         float viewport = Math.Clamp(
-            stops.Count * rowHeight + 75f,
-            140f,
-            310f);
+            mainCount * rowHeight + headerHeight + 10f,
+            100f,
+            320f);
 
         if (ImGui.BeginChild(
             "##ResidentialDestinations",
@@ -628,6 +634,12 @@ public sealed unsafe partial class Plugin
                 if (group.Length == 0)
                     continue;
 
+                // Match the city Aethernet OTHER category:
+                // keep the secondary group completely
+                // below the initially visible viewport.
+                if (sub)
+                    ImGui.Dummy(new Vector2(0f, 38f));
+
                 ImGui.TextColored(
                     NavMuted,
                     sub ? "SUBDIVISION" : "MAIN DIVISION");
@@ -644,8 +656,26 @@ public sealed unsafe partial class Plugin
         ImGui.EndChild();
         ImGui.Separator();
 
-        ImGui.TextColored(NavReady, "\u25CF");
+        // This page is shown only while a residential
+        // shard is detected. Show Ready instead of the
+        // original startup instruction.
+        string displayedStatus =
+            residentialStatus ==
+                "Approach a residential Aethernet shard."
+                ? "Ready"
+                : residentialStatus;
+
+        bool ready =
+            displayedStatus == "Ready" ||
+            displayedStatus.StartsWith(
+                "Arrived:",
+                StringComparison.Ordinal);
+
+        ImGui.TextColored(
+            ready ? NavReady : NavMuted,
+            "\u25CF");
+
         ImGui.SameLine();
-        ImGui.TextWrapped(residentialStatus);
+        ImGui.TextWrapped(displayedStatus);
     }
 }
