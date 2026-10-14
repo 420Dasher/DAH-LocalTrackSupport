@@ -19,6 +19,8 @@ using FFXIVClientStructs.FFXIV.Client.UI;
 using FFXIVClientStructs.FFXIV.Component.GUI;
 using Lumina.Excel.Sheets;
 using AetheryteSheet = Lumina.Excel.Sheets.Aetheryte;
+using TerritorySheet = Lumina.Excel.Sheets.TerritoryType;
+using NativeQuestManager = FFXIVClientStructs.FFXIV.Client.Game.QuestManager;
 
 namespace AethernetAssist;
 
@@ -56,7 +58,9 @@ public sealed unsafe class Plugin : IDalamudPlugin
         uint Territory,
         uint Group,
         string Name,
-        bool IsMain
+        bool IsMain,
+        bool Invisible,
+        uint RequiredQuest
     );
 
     private readonly Configuration config;
@@ -64,12 +68,12 @@ public sealed unsafe class Plugin : IDalamudPlugin
     private readonly Dictionary<uint, List<Shard>> networks = new();
     private readonly Dictionary<uint, HashSet<uint>> territories = new();
 
-    private static readonly uint[] LimsaOrder =
+    private static readonly uint[] GridaniaOrder =
     {
         2, 25, 26, 27, 28, 29, 30, 31, 32, 54, 94
     };
 
-    private static readonly uint[] GridaniaOrder =
+    private static readonly uint[] LimsaOrder =
     {
         8, 43, 44, 49, 41, 42, 48, 45, 46, 93
     };
@@ -153,7 +157,7 @@ public sealed unsafe class Plugin : IDalamudPlugin
         Pi.UiBuilder.OpenMainUi += Open;
         Pi.UiBuilder.OpenConfigUi += Open;
 
-        Log.Information("AethernetAssist v0.0.5 DEV1 FIX4 initialized.");
+        Log.Information("AethernetAssist v0.0.6 DEV2 initialized.");
     }
 
     public void Dispose()
@@ -173,7 +177,7 @@ public sealed unsafe class Plugin : IDalamudPlugin
     {
         foreach (var row in Data.GetExcelSheet<AetheryteSheet>())
         {
-            if (row.AethernetGroup == 0 || row.Invisible)
+            if (row.AethernetGroup == 0)
                 continue;
 
             var name = row.AethernetName.Value.Name
@@ -188,7 +192,9 @@ public sealed unsafe class Plugin : IDalamudPlugin
                 row.Territory.Value.RowId,
                 (uint)row.AethernetGroup,
                 name,
-                row.IsAetheryte
+                row.IsAetheryte,
+                row.Invisible,
+                row.RequiredQuest.RowId
             );
 
             if (!networks.TryGetValue(shard.Group, out var entries))
@@ -199,13 +205,16 @@ public sealed unsafe class Plugin : IDalamudPlugin
 
             entries.Add(shard);
 
-            if (!territories.TryGetValue(shard.Territory, out var groups))
+            if (!shard.Invisible)
             {
-                groups = new HashSet<uint>();
-                territories[shard.Territory] = groups;
-            }
+                if (!territories.TryGetValue(shard.Territory, out var groups))
+                {
+                    groups = new HashSet<uint>();
+                    territories[shard.Territory] = groups;
+                }
 
-            groups.Add(shard.Group);
+                groups.Add(shard.Group);
+            }
         }
 
         foreach (var entries in networks.Values)
@@ -214,8 +223,8 @@ public sealed unsafe class Plugin : IDalamudPlugin
 
             uint[] order = root?.Id switch
             {
-                2 => LimsaOrder,
-                8 => GridaniaOrder,
+                2 => GridaniaOrder,
+                8 => LimsaOrder,
                 9 => UldahOrder,
                 134 => EulmoreOrder,
                 183 => RadzOrder,
@@ -256,6 +265,71 @@ public sealed unsafe class Plugin : IDalamudPlugin
         return state != null &&
                state->IsAetheryteUnlocked(id);
     }
+
+    private bool DestinationAvailable(Shard shard)
+    {
+        if (!shard.Invisible)
+            return IsUnlocked(shard.Id);
+
+        if (!networks.TryGetValue(shard.Group, out var entries))
+            return false;
+
+        // Standard additional destinations require the local
+        // physical Aethernet network to be fully attuned.
+        foreach (var entry in entries)
+        {
+            if (!entry.Invisible && !IsUnlocked(entry.Id))
+                return false;
+        }
+
+        // Some exits additionally require quest completion.
+        if (shard.RequiredQuest != 0 &&
+            !NativeQuestManager.IsQuestComplete(shard.RequiredQuest))
+            return false;
+
+        return true;
+    }
+
+    private string GetAreaName(uint territory)
+    {
+        try
+        {
+            var name = Data.GetExcelSheet<TerritorySheet>()
+                .GetRow(territory).PlaceName.Value.Name.ToString();
+
+            return string.IsNullOrWhiteSpace(name)
+                ? $"Area {territory}"
+                : name;
+        }
+        catch
+        {
+            return $"Area {territory}";
+        }
+    }
+
+    private void DrawDestination(Shard shard)
+    {
+        bool available = DestinationAvailable(shard);
+
+        if (!available && !config.ShowUnlearned)
+            return;
+
+        if (!available)
+            ImGui.BeginDisabled();
+
+        string label = available
+            ? shard.Name
+            : $"{shard.Name} (Locked)";
+
+        if (ImGui.Button(
+                $"{label}##{shard.Id}",
+                new Vector2(-1f, 29f)) && available)
+            StartTravel(shard);
+
+        if (!available)
+            ImGui.EndDisabled();
+    }
+
 
     private static bool IsShardObject(IGameObject obj)
     {
@@ -421,7 +495,7 @@ public sealed unsafe class Plugin : IDalamudPlugin
             nearby == null ||
             Objects.LocalPlayer == null ||
             IsBusy() ||
-            !IsUnlocked(chosen.Id))
+            !DestinationAvailable(chosen))
             return;
 
         if (!nearby.IsTargetable ||
@@ -691,7 +765,7 @@ public sealed unsafe class Plugin : IDalamudPlugin
                     StringComparison.OrdinalIgnoreCase))
                     continue;
 
-                if (!IsUnlocked(destination.Id))
+                if (!DestinationAvailable(destination))
                 {
                     Cancel("Destination is not attuned.");
                     return;
@@ -838,7 +912,7 @@ public sealed unsafe class Plugin : IDalamudPlugin
 
         ImGui.TextColored(accent, "AETHERNET ASSIST");
         ImGui.SameLine();
-        ImGui.TextDisabled("v0.0.5 DEV1 FIX4");
+        ImGui.TextDisabled("v0.0.6 DEV2");
 
         ImGui.Separator();
 
@@ -856,36 +930,49 @@ public sealed unsafe class Plugin : IDalamudPlugin
             ImGui.TextUnformatted(
                 main?.Name ?? "Local Aethernet");
 
-            int unlocked = entries.Count(x => IsUnlocked(x.Id));
+            var physical = entries.Where(x => !x.Invisible).ToList();
+            int unlocked = physical.Count(x => IsUnlocked(x.Id));
 
             ImGui.TextDisabled(
-                $"{unlocked}/{entries.Count} destinations attuned");
+                $"{unlocked}/{physical.Count} shards attuned");
 
             ImGui.Spacing();
 
-            foreach (var shard in entries)
+            // Vanilla-style city sections, based on the
+            // territory associated with each real shard.
+            foreach (var area in physical.GroupBy(x => x.Territory))
             {
-                bool learned = IsUnlocked(shard.Id);
+                var areaItems = area.Where(x =>
+                    config.ShowUnlearned || DestinationAvailable(x));
 
-                if (!learned && !config.ShowUnlearned)
+                var visibleItems = areaItems.ToList();
+                if (visibleItems.Count == 0)
                     continue;
 
-                if (!learned)
-                    ImGui.BeginDisabled();
+                ImGui.TextDisabled(GetAreaName(area.Key));
+                ImGui.Separator();
 
-                string label = learned
-                    ? shard.Name
-                    : $"{shard.Name} (Not attuned)";
+                foreach (var shard in visibleItems)
+                    DrawDestination(shard);
 
-                if (ImGui.Button(
-                        $"{label}##{shard.Id}",
-                        new Vector2(-1f, 29f)) && learned)
-                {
-                    StartTravel(shard);
-                }
+                ImGui.Spacing();
+            }
 
-                if (!learned)
-                    ImGui.EndDisabled();
+            // The game marks exit gates, airship landings,
+            // and certain quest destinations as Invisible.
+            // They are real Aetheryte rows, not physical shards.
+            var extras = entries.Where(x =>
+                x.Invisible &&
+                (config.ShowUnlearned || DestinationAvailable(x)))
+                .ToList();
+
+            if (extras.Count > 0)
+            {
+                ImGui.TextDisabled("Other");
+                ImGui.Separator();
+
+                foreach (var shard in extras)
+                    DrawDestination(shard);
             }
         }
 

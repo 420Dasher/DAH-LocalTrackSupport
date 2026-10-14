@@ -1,4 +1,4 @@
-# AethernetAssist v0.0.5 DEV1 FIX4
+# AethernetAssist v0.0.6 DEV2
 
 Dalamud API 15 / .NET 10
 
@@ -25,3 +25,9 @@ housing, world visiting, and map-click features are added.
 The first automation implementation targets the English
 game client and validates the selected destination against
 the live Aethernet menu before sending its callback.
+DEV2 additions:
+- All physical Aethernet destinations from the game sheet.
+- Invisible Aethernet destinations, including gates and airship landings.
+- Territory-based city grouping and an Other section.
+- Disabled destinations when attunement or quest requirements are unmet.
+- Existing native teleport callback and diagnostics preserved.
