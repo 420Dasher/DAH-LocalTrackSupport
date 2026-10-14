@@ -940,6 +940,7 @@ public sealed unsafe partial class Plugin
             "Status: " + residentialStatus + "\n" +
             residentialMenuReadout +
             "\n\n" + BuildCosmicResearchReport() +
-            BuildCosmicAddonCaptureReport();
+            BuildCosmicAddonCaptureReport() +
+            BuildCosmicPlanetResearchReport();
     }
 }

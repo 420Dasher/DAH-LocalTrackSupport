@@ -84,3 +84,11 @@ Historical development notes remain available in Git history.
 - Planet selector not identified by standard addon checks.
 - Temporary read-only AddonLifecycle PostDraw capture added.
 - No Cosmic travel callbacks or movement enabled yet.
+## DEV4.2 Research 3 (v0.0.27)
+
+- Drivingway opens the confirmed addon WKSPlanetSelect.
+- WKSPlanetSelect reports 24 AtkValues.
+- Added on-demand AtkValue inspection.
+- Added native UI node ID, type and text inspection.
+- No selection callbacks or planet switching automated yet.
+- Purpose: identify current destination and confirmation controls.
