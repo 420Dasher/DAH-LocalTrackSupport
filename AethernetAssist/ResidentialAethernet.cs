@@ -43,6 +43,7 @@ public sealed unsafe partial class Plugin
     private DateTime residentialPhaseStarted;
     private DateTime residentialLastAction;
     private bool residentialSawLoading;
+    private int residentialCallbackAttempts;
 
     private string residentialStatus =
         "Approach a residential Aethernet shard.";
@@ -179,6 +180,7 @@ public sealed unsafe partial class Plugin
         residentialOriginTerritory = Client.TerritoryType;
         residentialOriginPosition = Objects.LocalPlayer.Position;
         residentialSawLoading = false;
+        residentialCallbackAttempts = 0;
         residentialLastAction = DateTime.MinValue;
 
         residentialMenuReadout =
@@ -232,6 +234,8 @@ public sealed unsafe partial class Plugin
                 residentialTarget = null;
                 residentialSourceAddress = nint.Zero;
                 residentialStatus = "Arrived: " + arrived;
+                autoWindowWasInRange = false;
+                resetDestinationScroll = true;
 
                 // Let proximity detection reopen the window
                 // if the arrival point is near another shard.
@@ -241,10 +245,26 @@ public sealed unsafe partial class Plugin
             double elapsed =
                 (now - residentialPhaseStarted).TotalSeconds;
 
-            if (menuOpen && !busy && elapsed > 6)
+            // The existing city transport may require two
+            // native callbacks. Re-enter destination selection
+            // only if the menu is still visible after attempt 1.
+            //
+            // Selection revalidates the destination name,
+            // type, state and callback ID before retrying.
+            if (menuOpen && !busy &&
+                residentialCallbackAttempts == 1 &&
+                (now - residentialLastAction)
+                    .TotalMilliseconds >= 180)
+            {
+                SetResidentialPhase(
+                    ResidentialPhase.SelectDestination);
+                return;
+            }
+
+            if (menuOpen && !busy && elapsed > 7)
             {
                 StopResidential(
-                    "Residential destination not accepted by native menu.");
+                    "Native menu rejected travel (2 attempts).");
                 return;
             }
 
@@ -452,6 +472,13 @@ public sealed unsafe partial class Plugin
             return;
         }
 
+        // No blind or unlimited callbacks.
+        if (residentialCallbackAttempts >= 2)
+        {
+            SetResidentialPhase(ResidentialPhase.WaitForArrival);
+            return;
+        }
+
         AtkValue* args = stackalloc AtkValue[2];
 
         args[0] = new AtkValue
@@ -468,6 +495,11 @@ public sealed unsafe partial class Plugin
 
         addon->FireCallback(2, args, true);
 
+        residentialCallbackAttempts++;
+
+        residentialMenuReadout +=
+            " | Attempt " + residentialCallbackAttempts + "/2";
+
         residentialStatus =
             "Teleporting to " + residentialTarget.Name + "...";
 
@@ -476,6 +508,66 @@ public sealed unsafe partial class Plugin
 
         residentialLastAction = now;
         SetResidentialPhase(ResidentialPhase.WaitForArrival);
+    }
+
+    private void DrawResidentialStop(ResidentialStop stop)
+    {
+        Vector2 pos = ImGui.GetCursorScreenPos();
+
+        Vector2 size = new(
+            MathF.Max(
+                100f,
+                ImGui.GetContentRegionAvail().X - 4f),
+            26f);
+
+        ImGui.InvisibleButton(
+            "##residential-destination-" + stop.Id,
+            size);
+
+        bool hovered = ImGui.IsItemHovered();
+        bool clicked = ImGui.IsItemClicked();
+
+        var draw = ImGui.GetWindowDrawList();
+
+        if (hovered)
+        {
+            draw.AddRectFilled(
+                pos,
+                pos + size,
+                ImGui.ColorConvertFloat4ToU32(
+                    ThemeColor(6)),
+                3f);
+        }
+
+        // Same diamond icon and text spacing as
+        // the existing city Aethernet destination rows.
+        ImGui.PushClipRect(pos, pos + size, true);
+
+        draw.AddText(
+            pos + new Vector2(10f, 5f),
+            ImGui.ColorConvertFloat4ToU32(
+                NavAccent),
+            "\u25C6");
+
+        draw.AddText(
+            pos + new Vector2(29f, 5f),
+            ImGui.ColorConvertFloat4ToU32(
+                ThemeColor(2)),
+            stop.Name);
+
+        if (hovered)
+        {
+            draw.AddText(
+                pos + new Vector2(size.X - 18f, 5f),
+                ImGui.ColorConvertFloat4ToU32(
+                    NavAccent),
+                ">");
+        }
+
+        ImGui.PopClipRect();
+
+        if (clicked)
+            StartResidentialTravel(stop);
     }
 
     private void DrawResidentialAethernetPage()
@@ -506,18 +598,27 @@ public sealed unsafe partial class Plugin
 
         ImGui.Spacing();
 
-        ImGui.TextDisabled(
-            "Native availability checked before travel.");
+        // Keep the same compact viewport behavior as
+        // our city destination list.
+        float rowHeight =
+            26f + ImGui.GetStyle().ItemSpacing.Y;
 
-        float viewport = Math.Min(
-            400f,
-            Math.Max(160f, stops.Count * 29f + 70f));
+        float viewport = Math.Clamp(
+            stops.Count * rowHeight + 75f,
+            140f,
+            310f);
 
         if (ImGui.BeginChild(
             "##ResidentialDestinations",
             new Vector2(0f, viewport),
             false))
         {
+            if (resetDestinationScroll)
+            {
+                ImGui.SetScrollY(0f);
+                resetDestinationScroll = false;
+            }
+
             foreach (bool sub in new[] { false, true })
             {
                 var group = stops
@@ -534,13 +635,7 @@ public sealed unsafe partial class Plugin
                 ImGui.Spacing();
 
                 foreach (var stop in group)
-                {
-                    if (ImGui.Selectable(
-                        stop.Name + "##res-" + stop.Id))
-                    {
-                        StartResidentialTravel(stop);
-                    }
-                }
+                    DrawResidentialStop(stop);
 
                 ImGui.Spacing();
             }

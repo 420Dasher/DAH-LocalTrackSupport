@@ -124,3 +124,15 @@ DEV4.1 TEST1 (v0.0.21):
 - Residential travel acceptance is pending live validation.
 - Main city, ward transfer, NPC, and gate logic unchanged.
 - Excluded ObjectKind.Pc from research object snapshots.
+DEV4.1 TEST2 (v0.0.22):
+- Residential destinations now use the city-style custom rows:
+  diamond icon, hover highlight, destination text, and arrow.
+- Residential list uses a compact 310px scrolling viewport.
+- Residential menu callbacks now allow a second attempt.
+- Retry occurs only if the native menu remains open.
+- Native name/type/state/callback validations run again.
+- Callback count limited to two; no unlimited retries.
+- Native callback rejection retains diagnostics.
+- Successful residential arrival resets proximity detection.
+- Previously working city, Housing, and gate code unchanged.
+- Residential callback retry requires in-game validation.
