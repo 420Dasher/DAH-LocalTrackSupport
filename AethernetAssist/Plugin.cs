@@ -152,7 +152,7 @@ public sealed unsafe class Plugin : IDalamudPlugin
         Pi.UiBuilder.OpenMainUi += Open;
         Pi.UiBuilder.OpenConfigUi += Open;
 
-        Log.Information("AethernetAssist v0.0.3 DEV1 FIX2 initialized.");
+        Log.Information("AethernetAssist v0.0.4 DEV1 FIX3 initialized.");
     }
 
     public void Dispose()
@@ -397,7 +397,7 @@ public sealed unsafe class Plugin : IDalamudPlugin
         activeGroup = resolvedGroup;
         activeTerritory = Client.TerritoryType;
 
-        status = "Ready";
+        if (changed) status = "Ready";
 
         if (changed && config.AutoOpen)
             windowOpen = true;
@@ -685,6 +685,12 @@ public sealed unsafe class Plugin : IDalamudPlugin
 
                 var callbackData = values[callbackIndex].UInt;
 
+                if (config.ShowDebug)
+                {
+                    Log.Information(
+                        $"Matched {destination.Name}: row {i}, callback {callbackData}");
+                }
+
                 if (callbackAttempts == 0 ||
                     (callbackAttempts == 1 &&
                      (DateTime.UtcNow - lastInteraction)
@@ -719,10 +725,12 @@ public sealed unsafe class Plugin : IDalamudPlugin
             }
 
             if ((DateTime.UtcNow - phaseStarted).TotalSeconds > 4)
+            {
                 Log.Warning(
                     $"Destination {destination.Name} not found. " +
                     $"Native menu: {string.Join(" | ", observed)}");
                 Cancel("Destination not found in the live Aethernet menu.");
+            }
         }
     }
 
@@ -741,6 +749,7 @@ public sealed unsafe class Plugin : IDalamudPlugin
         callbackAttempts = 0;
 
         status = message;
+        windowOpen = true;
 
         Log.Warning(message);
     }
@@ -789,7 +798,7 @@ public sealed unsafe class Plugin : IDalamudPlugin
 
         ImGui.TextColored(accent, "AETHERNET ASSIST");
         ImGui.SameLine();
-        ImGui.TextDisabled("v0.0.3 DEV1 FIX2");
+        ImGui.TextDisabled("v0.0.4 DEV1 FIX3");
 
         ImGui.Separator();
 
