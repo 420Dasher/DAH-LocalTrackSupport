@@ -51,6 +51,9 @@ public sealed unsafe partial class Plugin : IDalamudPlugin
     private static ICondition Conditions { get; set; } = null!;
 
     [PluginService]
+    private static IKeyState KeyState { get; set; } = null!;
+
+    [PluginService]
     private static IPluginLog Log { get; set; } = null!;
 
     private sealed record Shard(
@@ -158,11 +161,12 @@ public sealed unsafe partial class Plugin : IDalamudPlugin
         Pi.UiBuilder.OpenMainUi += Open;
         Pi.UiBuilder.OpenConfigUi += OpenConfig;
 
-        Log.Information("AethernetAssist v0.0.15 DEV4 FIX4 initialized.");
+        Log.Information("AethernetAssist v0.0.16 DEV4 FIX5 initialized.");
     }
 
     public void Dispose()
     {
+        StopHousingGateWalk();
         Framework.Update -= Update;
 
         Pi.UiBuilder.Draw -= Draw;
@@ -445,7 +449,10 @@ public sealed unsafe partial class Plugin : IDalamudPlugin
         catch (Exception ex)
         {
             Log.Error($"AethernetAssist: {ex}");
-            Cancel("Stopped after an internal error.");
+            if (housingPhase != HousingPhase.Idle)
+                StopHousing("Stopped after an internal error.");
+            else
+                Cancel("Stopped after an internal error.");
         }
     }
 
@@ -824,7 +831,7 @@ public sealed unsafe partial class Plugin : IDalamudPlugin
                     break;
 
                 if (nameValue.Type != AtkValueType.String &&
-                    nameValue.Type != AtkValueType.String8 &&
+                    nameValue.Type != AtkValueType.ConstString &&
                     nameValue.Type != AtkValueType.WideString &&
                     nameValue.Type != AtkValueType.ManagedString)
                 {
@@ -1330,7 +1337,7 @@ public sealed unsafe partial class Plugin : IDalamudPlugin
 
         ImGui.TextColored(NavAccent, "SETTINGS");
         ImGui.SameLine();
-        ImGui.TextDisabled("0.0.15");
+        ImGui.TextDisabled("0.0.16");
         ImGui.Separator();
 
         bool autoOpen = config.AutoOpen;
@@ -1343,6 +1350,15 @@ public sealed unsafe partial class Plugin : IDalamudPlugin
             Save();
         }
 
+        bool autoWalk = config.AutoWalkHousingGates;
+
+        if (ImGui.Checkbox(
+            "Auto-walk through housing gates (vnavmesh)",
+            ref autoWalk))
+        {
+            config.AutoWalkHousingGates = autoWalk;
+            Save();
+        }
         bool showUnlearned = config.ShowUnlearned;
 
         if (ImGui.Checkbox(
@@ -1462,7 +1478,7 @@ public sealed unsafe partial class Plugin : IDalamudPlugin
                 "Aetheryte ID: " +
                 (crystal == null
                     ? "none"
-                    : crystal.DataId.ToString())
+                    : crystal.BaseId.ToString())
             );
 
             ImGui.TextUnformatted(
@@ -1482,6 +1498,10 @@ public sealed unsafe partial class Plugin : IDalamudPlugin
 
             ImGui.TextUnformatted(
                 "Target ward: " + housingTargetWard
+            );
+
+            ImGui.TextUnformatted(
+                "Gate movement: " + housingGateWalkDiagnostic
             );
 
             ImGui.TextWrapped(
@@ -1551,7 +1571,7 @@ public sealed unsafe partial class Plugin : IDalamudPlugin
                 return;
             }
 
-            ImGui.TextDisabled("v0.0.15");
+            ImGui.TextDisabled("v0.0.16");
 
             ImGui.SameLine(ImGui.GetWindowWidth() - 87f);
 

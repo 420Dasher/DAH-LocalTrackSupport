@@ -49,6 +49,7 @@ public sealed unsafe partial class Plugin
     private bool housingSawLoading;
     private bool housingGateSource;
     private bool housingWasNearEntrance;
+    private bool housingAutoOpenedByEntrance;
 
     private bool TryGetResidentialDistrict(
         out HousingDistrict district)
@@ -97,10 +98,10 @@ public sealed unsafe partial class Plugin
                 return
                     Vector3.Distance(
                         player.Position,
-                        entrance.First) < 18f ||
+                        entrance.First) <= config.OpenRange ||
                     Vector3.Distance(
                         player.Position,
-                        entrance.Second) < 18f;
+                        entrance.Second) <= config.OpenRange;
             }
 
             float best = config.OpenRange + 1f;
@@ -142,22 +143,30 @@ public sealed unsafe partial class Plugin
 
     private void UpdateHousingEntranceProximity()
     {
-        bool near = TryFindWardEntrance(
-            out _,
-            out _,
-            out _
-        );
+        bool near = !IsBusy() &&
+            TryFindWardEntrance(out _, out _, out _);
 
-        if (near && !housingWasNearEntrance &&
-            config.AutoOpen)
+        if (near && !housingWasNearEntrance && config.AutoOpen)
         {
+            // Only close automatically if this detector
+            // opened a previously closed window.
+            housingAutoOpenedByEntrance = !windowOpen;
+
             currentPage = NavigationPage.Housing;
             windowOpen = true;
         }
 
+        if (!near && housingAutoOpenedByEntrance &&
+            housingPhase == HousingPhase.Idle)
+        {
+            if (currentPage == NavigationPage.Housing)
+                windowOpen = false;
+
+            housingAutoOpenedByEntrance = false;
+        }
+
         housingWasNearEntrance = near;
     }
-
     private void StartHousingExit()
     {
         if (!CanStartHousing() ||
@@ -176,6 +185,7 @@ public sealed unsafe partial class Plugin
         housingGateSource = gate;
         housingSawLoading = false;
         housingLastAction = DateTime.MinValue;
+        PrepareHousingGateWalk();
 
         housingDiagnostic =
             "Leave district requested: " + district.Name;
@@ -275,6 +285,7 @@ public sealed unsafe partial class Plugin
 
     private void CompleteHousingExit()
     {
+        StopHousingGateWalk();
         housingPhase = HousingPhase.Idle;
         housingStatus = "Left residential district.";
         housingDiagnostic += " | Exit confirmed.";

@@ -205,6 +205,7 @@ public sealed unsafe partial class Plugin
         housingGateSource = gate;
         housingSawLoading = false;
         housingLastAction = DateTime.MinValue;
+        PrepareHousingGateWalk();
 
         config.HousingWard = ward;
         Save();
@@ -225,6 +226,7 @@ public sealed unsafe partial class Plugin
 
     private void StopHousing(string message)
     {
+        StopHousingGateWalk();
         housingDiagnostic += " | " + message;
         housingStatus = message;
         housingPhase = HousingPhase.Idle;
@@ -237,6 +239,7 @@ public sealed unsafe partial class Plugin
 
     private void CompleteHousing()
     {
+        StopHousingGateWalk();
         housingPhase = HousingPhase.Idle;
 
         housingStatus =
@@ -349,6 +352,8 @@ public sealed unsafe partial class Plugin
             return;
 
         var player = Objects.LocalPlayer;
+
+        TickHousingGateWalk();
 
         if (housingPhase == HousingPhase.WaitForArrival)
         {
@@ -488,7 +493,7 @@ public sealed unsafe partial class Plugin
                     if (housingFromWard &&
                         !housingGateSource &&
                         (DateTime.UtcNow - housingLastAction)
-                            .TotalMilliseconds >= 700)
+                            .TotalMilliseconds >= 550)
                     {
                         talk->FireCallbackInt(0);
                         housingLastAction = DateTime.UtcNow;
@@ -501,7 +506,7 @@ public sealed unsafe partial class Plugin
                 }
 
                 if ((DateTime.UtcNow - housingLastAction)
-                    .TotalMilliseconds < 900)
+                    .TotalMilliseconds < 700)
                     return;
 
                 var obj = Objects.FirstOrDefault(x =>
@@ -559,7 +564,7 @@ public sealed unsafe partial class Plugin
                 }
 
                 if ((DateTime.UtcNow - housingLastAction)
-                    .TotalMilliseconds < 300)
+                    .TotalMilliseconds < 250)
                     return;
 
                 if (TrySelectHousingMenu(false))
@@ -591,7 +596,7 @@ public sealed unsafe partial class Plugin
                     return;
 
                 if ((DateTime.UtcNow - housingLastAction)
-                    .TotalMilliseconds < 300)
+                    .TotalMilliseconds < 250)
                     return;
 
                 if (housingTargetWard > 1)
@@ -635,7 +640,7 @@ public sealed unsafe partial class Plugin
                 }
 
                 if ((DateTime.UtcNow - housingLastAction)
-                    .TotalMilliseconds < 500)
+                    .TotalMilliseconds < 400)
                     return;
 
                 var addon = GetAddon("HousingSelectBlock");
@@ -670,7 +675,7 @@ public sealed unsafe partial class Plugin
                     return;
 
                 if ((DateTime.UtcNow - housingLastAction)
-                    .TotalMilliseconds < 300)
+                    .TotalMilliseconds < 250)
                     return;
 
                 string prompt = GetHousingYesNoPrompt(addon);
@@ -912,11 +917,12 @@ public sealed unsafe partial class Plugin
             "Detected: " + detected + "\n" +
             "Entrance: " + DescribeWardEntrance() + "\n" +
             "Aetheryte DataId: " +
-            (crystal == null ? "none" : crystal.DataId.ToString()) +
+            (crystal == null ? "none" : crystal.BaseId.ToString()) +
             "\n" +
             "Phase: " + housingPhase + "\n" +
             "Current ward: " + GetCurrentHousingWard() + "\n" +
             "Initial ward: " + housingInitialWard + "\n" +
+            "Gate movement: " + housingGateWalkDiagnostic + "\n" +
             "Target: " + housingTarget.Name +
             ", Ward " + housingTargetWard + "\n" +
             "Status: " + housingStatus + "\n" +

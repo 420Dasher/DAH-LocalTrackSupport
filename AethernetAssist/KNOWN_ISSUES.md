@@ -63,3 +63,15 @@ DEV4 FIX4 reliability changes:
 - Entrance NPC Talk dialogs advance automatically during plugin travel.
 - Already occupied ward is marked and cannot be reselected.
 - Verify both city-to-ward and same-territory ward-to-ward travel.
+DEV4 FIX5:
+- Gate detection now uses the configured 8-11.1-yalm range.
+- Proximity-opened Housing closes after leaving that range.
+- Manually opened windows are preserved.
+- Active Housing operations prevent premature auto-close.
+- Optional vnavmesh gate walk, started only by user action.
+- Stop movement on menu appearance, keyboard input, or timeout.
+- Manual gate travel remains available without vnavmesh.
+- Housing dialogue delays reduced conservatively.
+- Obsolete DataId/String8 references replaced.
+- Automatic gate movement pending in-game validation.
+- Flame Private NPC detection not yet implemented.
