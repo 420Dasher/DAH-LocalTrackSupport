@@ -364,6 +364,8 @@ public sealed unsafe partial class Plugin
         }
 
         result.AppendLine();
+        AppendResidentialObjectResearch(result);
+
         result.AppendLine("=== RESEARCH NOTES ===");
         result.AppendLine(
             "All native menus were READ ONLY.");

@@ -1,4 +1,4 @@
-# AethernetAssist v0.0.19 DEV4.1 RESEARCH 1
+# AethernetAssist v0.0.20 DEV4.1 RESEARCH 2
 
 Dalamud API 15 / .NET 10
 

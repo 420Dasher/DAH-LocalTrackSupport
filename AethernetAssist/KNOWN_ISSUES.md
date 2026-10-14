@@ -104,3 +104,11 @@ DEV4.1 RESEARCH 1 (v0.0.19):
 - All previously tested ward and gate automation preserved.
 - Next: verify row names/order against native housing menus,
   then implement residential shard teleportation.
+DEV4.1 RESEARCH 2 (v0.0.20):
+- Main and subdivision menus independently confirmed to
+  contain the same 18 native entries in Lavender Beds.
+- Added nearby unfiltered non-player object inspection.
+- Added pre-menu object snapshot caching.
+- Added native TelepotTown row type/state/callback inspection.
+- Residential transport callback remains disabled.
+- Known-working city and Housing navigation unchanged.
