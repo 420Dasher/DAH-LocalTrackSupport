@@ -158,7 +158,7 @@ public sealed unsafe class Plugin : IDalamudPlugin
         Pi.UiBuilder.OpenMainUi += Open;
         Pi.UiBuilder.OpenConfigUi += OpenConfig;
 
-        Log.Information("AethernetAssist v0.0.9 DEV3 FIX1 initialized.");
+        Log.Information("AethernetAssist v0.0.10 DEV3 FIX2 initialized.");
     }
 
     public void Dispose()
@@ -332,14 +332,14 @@ public sealed unsafe class Plugin : IDalamudPlugin
             draw.AddRectFilled(
                 pos, pos + size,
                 ImGui.ColorConvertFloat4ToU32(
-                    new Vector4(0.14f, 0.20f, 0.26f, 0.95f)),
+                    ThemeColor(6)),
                 3f);
         }
 
         Vector4 iconColor = locked ? NavMuted : NavAccent;
         Vector4 textColor = locked
-            ? new Vector4(0.46f, 0.51f, 0.55f, 1f)
-            : new Vector4(0.86f, 0.89f, 0.93f, 1f);
+            ? ThemeColor(3)
+            : ThemeColor(2);
 
         string label = locked
             ? $"{shard.Name}  (locked)"
@@ -972,14 +972,114 @@ public sealed unsafe class Plugin : IDalamudPlugin
             : null;
     }
 
-    private static readonly Vector4 NavAccent =
-        new(0.51f, 0.76f, 0.92f, 1f);
+    // 17 UI colors in a stable, serialized order.
+    // The default palette preserves our existing dark theme.
+    private static readonly Vector4[] DefaultColors =
+    {
+        new(0.065f, 0.080f, 0.105f, 0.97f), // 0 Window
+        new(0.077f, 0.095f, 0.120f, 0.95f), // 1 Child
+        new(0.86f, 0.89f, 0.93f, 1f),        // 2 Text
+        new(0.51f, 0.58f, 0.65f, 1f),        // 3 Muted
+        new(0.51f, 0.76f, 0.92f, 1f),        // 4 Accent
+        new(0.49f, 0.80f, 0.66f, 1f),        // 5 Ready
+        new(0.14f, 0.20f, 0.26f, 0.95f),     // 6 Hover
+        new(0.075f, 0.09f, 0.115f, 1f),      // 7 Scroll BG
+        new(0.26f, 0.34f, 0.42f, 0.9f),       // 8 Scroll grab
+        new(0.40f, 0.55f, 0.67f, 1f),        // 9 Scroll hover
+        new(0.10f, 0.14f, 0.18f, 1f),        // 10 Frame
+        new(0.18f, 0.25f, 0.32f, 1f),        // 11 Frame hover
+        new(0.11f, 0.16f, 0.20f, 1f),        // 12 Button
+        new(0.22f, 0.27f, 0.32f, 1f),        // 13 Border
+        new(0.18f, 0.26f, 0.32f, 1f),        // 14 Button active
+        new(0.055f, 0.065f, 0.085f, 1f),     // 15 Title
+        new(0.085f, 0.12f, 0.15f, 1f)        // 16 Active title
+    };
 
-    private static readonly Vector4 NavMuted =
-        new(0.51f, 0.58f, 0.65f, 1f);
+    private uint[] sampledClientColors = Array.Empty<uint>();
 
-    private static readonly Vector4 NavReady =
-        new(0.49f, 0.80f, 0.66f, 1f);
+    private Vector4 NavAccent => ThemeColor(4);
+    private Vector4 NavMuted => ThemeColor(3);
+    private Vector4 NavReady => ThemeColor(5);
+
+    private Vector4 ThemeColor(int index)
+    {
+        var colors = config.MatchedStyleColors;
+
+        if (!config.UseDalamudColors ||
+            colors == null ||
+            colors.Length != DefaultColors.Length)
+            return DefaultColors[index];
+
+        uint packed = colors[index];
+
+        // ImGui packs colors as ABGR.
+        return new Vector4(
+            (packed & 255u) / 255f,
+            ((packed >> 8) & 255u) / 255f,
+            ((packed >> 16) & 255u) / 255f,
+            ((packed >> 24) & 255u) / 255f);
+    }
+
+    private static uint[] CaptureDalamudColors()
+    {
+        // Always called before our own style overrides.
+        ImGuiCol[] sources =
+        {
+            ImGuiCol.WindowBg,
+            ImGuiCol.ChildBg,
+            ImGuiCol.Text,
+            ImGuiCol.TextDisabled,
+            ImGuiCol.CheckMark,
+            ImGuiCol.PlotHistogram,
+            ImGuiCol.HeaderHovered,
+            ImGuiCol.ScrollbarBg,
+            ImGuiCol.ScrollbarGrab,
+            ImGuiCol.ScrollbarGrabHovered,
+            ImGuiCol.FrameBg,
+            ImGuiCol.FrameBgHovered,
+            ImGuiCol.Button,
+            ImGuiCol.Border,
+            ImGuiCol.ButtonActive,
+            ImGuiCol.TitleBg,
+            ImGuiCol.TitleBgActive
+        };
+
+        var result = new uint[sources.Length];
+
+        for (int i = 0; i < sources.Length; i++)
+        {
+            result[i] = ImGui.ColorConvertFloat4ToU32(
+                *ImGui.GetStyleColorVec4(sources[i]));
+        }
+
+        return result;
+    }
+
+    private const int ThemePushCount = 19;
+
+    private void PushTheme()
+    {
+        // Only this plugins windows are affected.
+        ImGui.PushStyleColor(ImGuiCol.WindowBg, ThemeColor(0));
+        ImGui.PushStyleColor(ImGuiCol.ChildBg, ThemeColor(1));
+        ImGui.PushStyleColor(ImGuiCol.Text, ThemeColor(2));
+        ImGui.PushStyleColor(ImGuiCol.TextDisabled, ThemeColor(3));
+        ImGui.PushStyleColor(ImGuiCol.CheckMark, ThemeColor(4));
+        ImGui.PushStyleColor(ImGuiCol.Button, ThemeColor(12));
+        ImGui.PushStyleColor(ImGuiCol.ButtonHovered, ThemeColor(6));
+        ImGui.PushStyleColor(ImGuiCol.ButtonActive, ThemeColor(14));
+        ImGui.PushStyleColor(ImGuiCol.HeaderHovered, ThemeColor(6));
+        ImGui.PushStyleColor(ImGuiCol.FrameBg, ThemeColor(10));
+        ImGui.PushStyleColor(ImGuiCol.FrameBgHovered, ThemeColor(11));
+        ImGui.PushStyleColor(ImGuiCol.Border, ThemeColor(13));
+        ImGui.PushStyleColor(ImGuiCol.ScrollbarBg, ThemeColor(7));
+        ImGui.PushStyleColor(ImGuiCol.ScrollbarGrab, ThemeColor(8));
+        ImGui.PushStyleColor(ImGuiCol.ScrollbarGrabHovered, ThemeColor(9));
+        ImGui.PushStyleColor(ImGuiCol.SliderGrab, ThemeColor(4));
+        ImGui.PushStyleColor(ImGuiCol.SliderGrabActive, ThemeColor(4));
+        ImGui.PushStyleColor(ImGuiCol.TitleBg, ThemeColor(15));
+        ImGui.PushStyleColor(ImGuiCol.TitleBgActive, ThemeColor(16));
+    }
 
     private enum NavigationPage
     {
@@ -1046,7 +1146,7 @@ public sealed unsafe class Plugin : IDalamudPlugin
             draw.AddRectFilled(
                 pos, pos + size,
                 ImGui.ColorConvertFloat4ToU32(
-                    new Vector4(0.13f, 0.18f, 0.23f, 0.75f)),
+                    ThemeColor(6)),
                 3f);
         }
 
@@ -1193,8 +1293,12 @@ public sealed unsafe class Plugin : IDalamudPlugin
         if (!settingsWindowOpen)
             return;
 
+        PushTheme();
+
+        try
+        {
         ImGui.SetNextWindowSize(
-            new Vector2(355f, 235f),
+            new Vector2(380f, 320f),
             ImGuiCond.FirstUseEver);
 
         bool open = settingsWindowOpen;
@@ -1209,9 +1313,9 @@ public sealed unsafe class Plugin : IDalamudPlugin
             return;
         }
 
-        ImGui.TextUnformatted("SETTINGS");
+        ImGui.TextColored(NavAccent, "SETTINGS");
         ImGui.SameLine();
-        ImGui.TextDisabled("DEV3");
+        ImGui.TextDisabled("0.0.10");
         ImGui.Separator();
 
         bool autoOpen = config.AutoOpen;
@@ -1264,6 +1368,37 @@ public sealed unsafe class Plugin : IDalamudPlugin
             Save();
         }
 
+        ImGui.Spacing();
+        ImGui.Separator();
+        ImGui.TextColored(NavAccent, "APPEARANCE");
+
+        ImGui.TextDisabled(config.UseDalamudColors
+            ? "Using matched Dalamud colors"
+            : "Using default dark palette");
+
+        if (ImGui.Button("Match Dalamud colors"))
+        {
+            // Saved from the active client theme before
+            // either plugin window applies its own colors.
+            if (sampledClientColors.Length == DefaultColors.Length)
+            {
+                config.MatchedStyleColors =
+                    (uint[])sampledClientColors.Clone();
+
+                config.UseDalamudColors = true;
+                Save();
+            }
+        }
+
+        ImGui.SameLine();
+
+        if (ImGui.Button("Default dark"))
+        {
+            config.UseDalamudColors = false;
+            Save();
+        }
+
+        ImGui.Spacing();
         if (config.ShowDebug &&
             ImGui.CollapsingHeader("Diagnostics"))
         {
@@ -1294,10 +1429,21 @@ public sealed unsafe class Plugin : IDalamudPlugin
 
         ImGui.End();
         settingsWindowOpen = open;
+        }
+        finally
+        {
+            ImGui.PopStyleColor(ThemePushCount);
+        }
     }
 
     private void Draw()
     {
+        // Sample the real client palette BEFORE pushing our
+        // own style. This prevents matching our own colors.
+        sampledClientColors = settingsWindowOpen
+            ? CaptureDalamudColors()
+            : Array.Empty<uint>();
+
         // Settings are fully independent of navigation.
         DrawSettings();
 
@@ -1306,25 +1452,7 @@ public sealed unsafe class Plugin : IDalamudPlugin
 
         const float width = 386f;
 
-        ImGui.PushStyleColor(
-            ImGuiCol.WindowBg,
-            new Vector4(0.065f, 0.080f, 0.105f, 0.97f));
-
-        ImGui.PushStyleColor(
-            ImGuiCol.ChildBg,
-            new Vector4(0.077f, 0.095f, 0.120f, 0.95f));
-
-        ImGui.PushStyleColor(
-            ImGuiCol.ScrollbarBg,
-            new Vector4(0.075f, 0.090f, 0.115f, 1f));
-
-        ImGui.PushStyleColor(
-            ImGuiCol.ScrollbarGrab,
-            new Vector4(0.26f, 0.34f, 0.42f, 0.9f));
-
-        ImGui.PushStyleColor(
-            ImGuiCol.ScrollbarGrabHovered,
-            new Vector4(0.40f, 0.55f, 0.67f, 1f));
+        PushTheme();
 
         ImGui.PushStyleVar(
             ImGuiStyleVar.ItemSpacing,
@@ -1352,7 +1480,7 @@ public sealed unsafe class Plugin : IDalamudPlugin
                 return;
             }
 
-            ImGui.TextDisabled("v0.0.9");
+            ImGui.TextDisabled("v0.0.10");
 
             ImGui.SameLine(ImGui.GetWindowWidth() - 87f);
 
@@ -1360,10 +1488,10 @@ public sealed unsafe class Plugin : IDalamudPlugin
                 ImGuiCol.Button, new Vector4(0f, 0f, 0f, 0f));
             ImGui.PushStyleColor(
                 ImGuiCol.ButtonHovered,
-                new Vector4(0.16f, 0.23f, 0.30f, 0.9f));
+                ThemeColor(6));
             ImGui.PushStyleColor(
                 ImGuiCol.ButtonActive,
-                new Vector4(0.20f, 0.31f, 0.40f, 1f));
+                ThemeColor(14));
 
             if (ImGui.SmallButton("Settings"))
                 settingsWindowOpen = true;
@@ -1428,7 +1556,7 @@ public sealed unsafe class Plugin : IDalamudPlugin
         finally
         {
             ImGui.PopStyleVar(2);
-            ImGui.PopStyleColor(5);
+            ImGui.PopStyleColor(ThemePushCount);
         }
     }
 }

@@ -145,9 +145,9 @@
 {
     "Author":  "Dash + AI",
     "InternalName":  "AethernetAssist",
-    "Name":  "AethernetAssist [DEV3 FIX1]",
-    "AssemblyVersion":  "0.0.9.0",
-    "TestingAssemblyVersion":  "0.0.9.0",
+    "Name":  "AethernetAssist [DEV3 FIX2]",
+    "AssemblyVersion":  "0.0.10.0",
+    "TestingAssemblyVersion":  "0.0.10.0",
     "DalamudApiLevel":  15,
     "TestingDalamudApiLevel":  15,
     "ApplicableVersion":  "any",
@@ -160,7 +160,7 @@
     "IsTestingExclusive":  false,
     "Punchline":  "Aethernet travel without the clutter.",
     "Description":  "Contextual Aethernet window with real attunement checks and one-click travel.",
-    "Changelog":  "DEV3 FIX1: Minimal dark navigation UI, flat hoverable destination rows, subtle tab underlines, and a scroll viewport that initially shows city shards while keeping Other destinations below the fold.",
+    "Changelog":  "DEV3 FIX2: Unified navigation and Settings styling; one-click Dalamud client color matching with persisted palette, immediate application and default-theme reset.",
     "Tags":  [
                  "aethernet",
                  "aetheryte",
