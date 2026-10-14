@@ -168,7 +168,7 @@ public sealed unsafe partial class Plugin : IDalamudPlugin
         Pi.UiBuilder.OpenMainUi += Open;
         Pi.UiBuilder.OpenConfigUi += OpenConfig;
 
-        Log.Information("AethernetAssist v0.0.30 DEV4.2 TEST3 initialized.");
+        Log.Information("AethernetAssist v0.0.31 DEV4.2 LOCAL RESEARCH1 initialized.");
     }
 
     public void Dispose()
@@ -1381,7 +1381,7 @@ public sealed unsafe partial class Plugin : IDalamudPlugin
 
         ImGui.TextColored(NavAccent, "SETTINGS");
         ImGui.SameLine();
-        ImGui.TextDisabled("0.0.30");
+        ImGui.TextDisabled("0.0.31");
         ImGui.Separator();
 
         bool autoOpen = config.AutoOpen;
@@ -1577,7 +1577,7 @@ public sealed unsafe partial class Plugin : IDalamudPlugin
 
             ImGui.Spacing();
             ImGui.Separator();
-            ImGui.TextColored(NavMuted, "COSMIC UI RESEARCH");
+            ImGui.TextColored(NavMuted, "COSMIC SHARD RESEARCH");
 
             if (ImGui.Button(
                 cosmicCaptureActive
@@ -1655,7 +1655,7 @@ public sealed unsafe partial class Plugin : IDalamudPlugin
                 return;
             }
 
-            ImGui.TextDisabled("v0.0.30");
+            ImGui.TextDisabled("v0.0.31");
 
             ImGui.SameLine(ImGui.GetWindowWidth() - 87f);
 

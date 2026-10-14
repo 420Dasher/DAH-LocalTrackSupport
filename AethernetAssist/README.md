@@ -1,4 +1,4 @@
-# AethernetAssist v0.0.30 DEV4.2 TEST3
+# AethernetAssist v0.0.31 DEV4.2 LOCAL RESEARCH1
 
 Dalamud API 15 / .NET 10
 Development branch: testing
@@ -103,3 +103,26 @@ Safety:
 - Existing residential and city travel remains unchanged.
 
 vnavmesh is required when pathfinding is needed.
+## DEV4.2 LOCAL RESEARCH1
+
+Scope: local Aethernet shards ONLY. No Cosmoliners.
+
+The four Cosmic travel commands are already tested.
+This version does not modify those implementations.
+
+The Cosmic Exploration shard networks use the WKS
+sheets instead of the ordinary city Aethernet records.
+
+Research captures:
+- Nearby EventObj shard BaseIDs and targetability
+- Standard Aetheryte sheet membership
+- WKSAetheryte ID, name and placed EObj group IDs
+- WKSAethernet network metadata
+- WKSAetheryteList destination metadata
+- Native addon names during manual shard interaction
+
+In Settings > Diagnostics, start Cosmic capture, open a
+Cosmic Aethernet Shard manually, and copy diagnostics
+while its destination menu is open.
+
+No native callbacks are submitted by research code.

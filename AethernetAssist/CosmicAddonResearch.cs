@@ -52,7 +52,8 @@ public sealed unsafe partial class Plugin
         AddonArgs args)
     {
         if (!cosmicCaptureActive ||
-            Client.TerritoryType != 959 ||
+            (Client.TerritoryType != 959 &&
+             !IsCosmicTerritory(Client.TerritoryType)) ||
             cosmicCaptureTimeline.Count >= 200)
             return;
 

@@ -129,3 +129,15 @@ Historical development notes remain available in Git history.
 - Missing unlocks and unavailable IPC stop safely.
 - Arrival from distant starting zones pending live test.
 - Cosmic local Cosmoliner networks remain future work.
+## DEV4.2 LOCAL RESEARCH1 (v0.0.31)
+
+- Sinus Ardorum shard verified:
+  targetable EventObj BaseID 2015100.
+- Non-targetable overlapping BaseID 2015052 observed.
+- Existing ordinary shard detection doesn't recognize
+  the targetable Cosmic EventObj.
+- WKS sheet mapping is required for the network list.
+- Added read-only WKS records and addon discovery.
+- Destination callbacks remain unmodified and untested.
+- No Cosmoliner automation planned.
+- Working Cosmic journey and residential code preserved.

@@ -145,9 +145,9 @@
 {
     "Author":  "Dash + AI",
     "InternalName":  "AethernetAssist",
-    "Name":  "AethernetAssist [DEV4.2 TEST3]",
-    "AssemblyVersion":  "0.0.30.0",
-    "TestingAssemblyVersion":  "0.0.30.0",
+    "Name":  "AethernetAssist [DEV4.2 LOCAL RESEARCH1]",
+    "AssemblyVersion":  "0.0.31.0",
+    "TestingAssemblyVersion":  "0.0.31.0",
     "DalamudApiLevel":  15,
     "TestingDalamudApiLevel":  15,
     "ApplicableVersion":  "any",
@@ -160,7 +160,7 @@
     "IsTestingExclusive":  false,
     "Punchline":  "Aethernet travel without the clutter.",
     "Description":  "Contextual Aethernet window with real attunement checks and one-click travel.",
-    "Changelog":  "DEV4.2 TEST3: Adds automatic teleport to Bestways Burrow, vnavmesh pathfinding to Drivingway, movement cancellation, timeout handling and automatic continuation into verified Cosmic planet travel. Existing city and Housing travel preserved.",
+    "Changelog":  "DEV4.2 LOCAL RESEARCH1: Read-only WKS Aethernet shard diagnostics, WKSAetheryte object mapping, WKSAethernet and WKSAetheryteList research. Corrected WKS subrow enumeration. Existing Cosmic journey and residential travel unchanged.",
     "Tags":  [
                  "aethernet",
                  "aetheryte",
