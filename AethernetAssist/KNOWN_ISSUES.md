@@ -182,3 +182,14 @@ Historical development notes remain available in Git history.
 - Removed invalid assumption from menu verification.
 - Native destination identity and callback guards remain.
 - Phaenna, Oizys and Auxesia require live verification.
+## DEV4.2 UI POLISH (v0.0.36)
+
+- Cosmic local travel reported working in all four planets.
+- Temporary Cosmic research modules removed.
+- Context-sensitive Housing tab added.
+- Unimplemented DC Travel tab hidden.
+- DC Travel remains an unfinished feature.
+- Cosmic destination attunement UI remains pending
+  dedicated validation; native travel safeguards retained.
+- Further testing required before any stable release.
+- testing branch only. Do not push to main.

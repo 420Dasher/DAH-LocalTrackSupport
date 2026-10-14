@@ -1,4 +1,4 @@
-# AethernetAssist v0.0.35 DEV4.2 LOCAL TEST3
+# AethernetAssist v0.0.36 DEV4.2 UI POLISH
 
 Dalamud API 15 / .NET 10
 Development branch: testing
@@ -202,3 +202,26 @@ Previously working Cosmic journey, city, residential
 and housing implementations remain untouched.
 
 No Cosmoliner automation.
+## DEV4.2 UI POLISH (v0.0.36)
+
+Testing branch only. NOT a stable release.
+
+Navigation tabs are context-sensitive:
+- Aethernet remains available.
+- Housing appears near supported city Aetherytes
+  or residential ward entrances.
+- Housing stays available during active housing travel.
+- DC Travel is hidden until it is implemented.
+- Available tabs automatically fill the window width.
+- /anet housing observes the same availability rule.
+
+Cosmic cleanup:
+- Removed temporary addon capture.
+- Removed read-only WKS research panels.
+- Retained working local Cosmic subnet travel.
+- Retained Cosmic journey and local travel diagnostics.
+- No changes to native Cosmic teleport callbacks.
+
+Cosmic subnet testing completed across all four planets.
+
+DC Travel is still unfinished. Do not release to main.

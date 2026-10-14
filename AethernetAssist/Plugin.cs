@@ -169,14 +169,14 @@ public sealed unsafe partial class Plugin : IDalamudPlugin
         Pi.UiBuilder.OpenMainUi += Open;
         Pi.UiBuilder.OpenConfigUi += OpenConfig;
 
-        Log.Information("AethernetAssist v0.0.35 DEV4.2 LOCAL TEST3 initialized.");
+        Log.Information("AethernetAssist v0.0.36 DEV4.2 UI POLISH initialized.");
     }
 
     public void Dispose()
     {
         StopHousingGateWalk();
         StopCosmicPath();
-        StopCosmicUiCapture();
+        // Temporary native addon capture removed.
         cosmicPhase = CosmicPhase.Idle;
         Framework.Update -= Update;
 
@@ -417,7 +417,12 @@ public sealed unsafe partial class Plugin : IDalamudPlugin
                 break;
 
             case "housing":
-                currentPage = NavigationPage.Housing;
+                // Keep the command functional when nearby,
+                // but do not expose an unavailable page.
+                currentPage = HousingPageAvailable()
+                    ? NavigationPage.Housing
+                    : NavigationPage.Aethernet;
+
                 OpenWindowManually();
                 break;
 
@@ -1399,7 +1404,7 @@ public sealed unsafe partial class Plugin : IDalamudPlugin
 
         ImGui.TextColored(NavAccent, "SETTINGS");
         ImGui.SameLine();
-        ImGui.TextDisabled("0.0.35");
+        ImGui.TextDisabled("0.0.36");
         ImGui.Separator();
 
         bool autoOpen = config.AutoOpen;
@@ -1594,25 +1599,6 @@ public sealed unsafe partial class Plugin : IDalamudPlugin
             ImGui.TextWrapped(residentialMenuReadout);
 
             ImGui.Spacing();
-            ImGui.Separator();
-            ImGui.TextColored(NavMuted, "COSMIC SHARD RESEARCH");
-
-            if (ImGui.Button(
-                cosmicCaptureActive
-                    ? "Stop Cosmic capture"
-                    : "Start Cosmic capture"))
-            {
-                if (cosmicCaptureActive)
-                    StopCosmicUiCapture();
-                else
-                    StartCosmicUiCapture();
-            }
-
-            ImGui.TextDisabled(
-                cosmicCaptureTimeline.Count +
-                " addon names captured.");
-
-            ImGui.Spacing();
 
             if (ImGui.Button("Copy diagnostics"))
                 ImGui.SetClipboardText(
@@ -1627,6 +1613,15 @@ public sealed unsafe partial class Plugin : IDalamudPlugin
         {
             ImGui.PopStyleColor(ThemePushCount);
         }
+    }
+
+    // Only show Housing where a supported housing
+    // interaction is available, or while one is active.
+    private bool HousingPageAvailable()
+    {
+        return housingPhase != HousingPhase.Idle ||
+               TryFindHousingAetheryte(out _, out _) ||
+               TryFindWardEntrance(out _, out _, out _);
     }
 
     private void Draw()
@@ -1673,7 +1668,7 @@ public sealed unsafe partial class Plugin : IDalamudPlugin
                 return;
             }
 
-            ImGui.TextDisabled("v0.0.35");
+            ImGui.TextDisabled("v0.0.36");
 
             ImGui.SameLine(ImGui.GetWindowWidth() - 87f);
 
@@ -1692,21 +1687,60 @@ public sealed unsafe partial class Plugin : IDalamudPlugin
             ImGui.PopStyleColor(3);
             ImGui.Spacing();
 
-            float available = ImGui.GetContentRegionAvail().X;
-            float tabWidth = MathF.Max(85f, (available - 14f) / 3f);
+            // Housing is contextual, while DC Travel has
+            // no implemented backend yet.
+            bool housingAvailable = HousingPageAvailable();
+            const bool dcTravelAvailable = false;
+
+            // A previously selected tab must never leave
+            // the UI displaying an unavailable feature.
+            if ((!housingAvailable &&
+                 currentPage == NavigationPage.Housing) ||
+                (!dcTravelAvailable &&
+                 currentPage == NavigationPage.DcTravel))
+            {
+                currentPage = NavigationPage.Aethernet;
+                resetDestinationScroll = true;
+            }
+
+            const float tabGap = 7f;
+
+            int visibleTabs = 1 +
+                (housingAvailable ? 1 : 0) +
+                (dcTravelAvailable ? 1 : 0);
+
+            float available =
+                ImGui.GetContentRegionAvail().X;
+
+            float tabWidth = MathF.Max(
+                85f,
+                (available - (visibleTabs - 1) * tabGap) /
+                visibleTabs);
 
             DrawPageTab(
-                "Aethernet", NavigationPage.Aethernet, tabWidth);
+                "Aethernet",
+                NavigationPage.Aethernet,
+                tabWidth);
 
-            ImGui.SameLine(0f, 7f);
+            if (housingAvailable)
+            {
+                ImGui.SameLine(0f, tabGap);
 
-            DrawPageTab(
-                "Housing", NavigationPage.Housing, tabWidth);
+                DrawPageTab(
+                    "Housing",
+                    NavigationPage.Housing,
+                    tabWidth);
+            }
 
-            ImGui.SameLine(0f, 7f);
+            if (dcTravelAvailable)
+            {
+                ImGui.SameLine(0f, tabGap);
 
-            DrawPageTab(
-                "DC Travel", NavigationPage.DcTravel, tabWidth);
+                DrawPageTab(
+                    "DC Travel",
+                    NavigationPage.DcTravel,
+                    tabWidth);
+            }
 
             ImGui.Spacing();
 

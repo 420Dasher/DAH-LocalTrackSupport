@@ -15,6 +15,10 @@ namespace AethernetAssist;
 
 public sealed unsafe partial class Plugin
 {
+    private static bool IsCosmicTerritory(uint territory)
+    {
+        return territory is 1237 or 1291 or 1310 or 1319;
+    }
     private sealed record CosmicLocalStop(
         uint Id,
         uint Territory,
@@ -773,7 +777,7 @@ public sealed unsafe partial class Plugin
     private string BuildCosmicLocalTravelReport()
     {
         return
-            "\n=== COSMIC LOCAL AETHERNET TEST1 ===\n" +
+            "\n=== COSMIC LOCAL AETHERNET ===\n" +
             "Phase: " + cosmicLocalPhase + "\n" +
             "Territory: " + Client.TerritoryType + "\n" +
             "Source: " +
