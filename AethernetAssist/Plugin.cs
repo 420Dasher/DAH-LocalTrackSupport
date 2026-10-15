@@ -1695,6 +1695,32 @@ public sealed unsafe partial class Plugin : IDalamudPlugin
                TryFindWardEntrance(out _, out _, out _);
     }
 
+    // Bit 0: Aethernet, bit 1: Housing, bit 2: DC Travel.
+    private int AvailableNavigationTabsMask()
+    {
+        int mask = 1;
+
+        if (HousingPageAvailable())
+            mask |= 2;
+
+        if (WorldVisitPageAvailable() ||
+            worldVisitPhase != WorldVisitPhase.Idle)
+            mask |= 4;
+
+        return mask;
+    }
+
+    private bool SelectedNavigationPageUnavailable()
+    {
+        int mask = AvailableNavigationTabsMask();
+
+        return
+            (currentPage == NavigationPage.Housing &&
+             (mask & 2) == 0) ||
+            (currentPage == NavigationPage.DcTravel &&
+             (mask & 4) == 0);
+    }
+
     private void Draw()
     {
         // Sample the real client palette BEFORE pushing our
@@ -1707,6 +1733,15 @@ public sealed unsafe partial class Plugin : IDalamudPlugin
         DrawSettings();
 
         if (!windowOpen)
+            return;
+
+        // Avoid the one-frame fallback to Aethernet when
+        // tabs disappear before the next proximity scan.
+        // The proximity controller will either close this
+        // window or select another valid page.
+        if (autoWindowOwnsVisibility &&
+            (autoWindowConfirmedTabMask &
+             ~AvailableNavigationTabsMask()) != 0)
             return;
 
         const float width = 386f;
