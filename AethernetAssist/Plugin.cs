@@ -1029,18 +1029,16 @@ public sealed unsafe partial class Plugin : IDalamudPlugin
                     return;
                 }
 
-                if (nativeState.UInt != 0)
+                // Both 0 and 4 have been observed on usable
+                // city Aethernet destinations. In particular,
+                // the Ul'dah Aetheryte Plaza uses state 4.
+                // Attunement and destination-name checks above
+                // must still pass before submitting callbacks.
+                if (nativeState.UInt != 0 &&
+                    nativeState.UInt != 4)
                 {
-                    // The first callback may already have
-                    // initiated travel and changed native state.
-                    if (callbackAttempts > 0)
-                    {
-                        GoTo(TravelPhase.WaitForArrival);
-                        return;
-                    }
-
                     Cancel(
-                        $"Destination is unavailable (native state {nativeState.UInt}).");
+                        $"Unrecognized native destination state {nativeState.UInt}. Travel blocked.");
                     return;
                 }
 

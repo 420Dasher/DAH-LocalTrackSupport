@@ -147,7 +147,7 @@
     "InternalName":  "AethernetAssist",
     "Name":  "AethernetAssist",
     "AssemblyVersion":  "0.1.0.0",
-    "TestingAssemblyVersion":  "0.1.6.0",
+    "TestingAssemblyVersion":  "0.1.7.0",
     "DalamudApiLevel":  15,
     "TestingDalamudApiLevel":  15,
     "ApplicableVersion":  "any",
@@ -160,7 +160,7 @@
     "IsTestingExclusive":  false,
     "Punchline":  "Aethernet travel without the clutter.",
     "Description":  "Contextual Aethernet window with real attunement checks and one-click travel.",
-    "Changelog":  "DEV6 RC5 v0.1.6: Wait for stable native Aethernet destination data before the first callback pair and allow one validated automatic retry if travel is not acknowledged. Retains tab memory, proximity fixes and existing travel systems.",
+    "Changelog":  "DEV6 RC6 v0.1.7: Fix city Aethernet destinations using native state 4, including Ul'dah Aetheryte Plaza. Retains menu-readiness validation, controlled retry, tab memory and proximity fixes.",
     "Tags":  [
                  "aethernet",
                  "aetheryte",
