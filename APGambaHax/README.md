@@ -2,16 +2,23 @@
 
 Modular Aetherphone Gamba companion.
 
-## DEV1 / TEST1
+## DEV2 TEST1 - v0.1.1.0
 
 - Dalamud API 15 / .NET 10
-- /apgamba plus page commands
+- Native Dalamud testing channel
+- Compact AethernetAssist-style UI
 - Six configurable modules
-- AethernetAssist-style palette and Dalamud color matching
-- Rewards information and manual timed-claim reminder
-- Barkeep payout estimator
+- Default dark and matched Dalamud colors
+- Read-only Aetherphone reflection bridge
+- Casino bankroll and level snapshots
+- Bonus eligibility and cooldown display
+- Daily-spin cached status
+- Barkeep shift progress
+- Manual reminder and payout estimator
 
-No live Aetherphone access, authentication handling, or
-automated game actions are implemented in this version.
+The bridge uses Aetherphone's internal objects via reflection.
+It does not access account tokens, send network requests,
+modify shift grades, claim rewards or initiate wagers.
 
-Testing-exclusive plugin for Dashs-Plugins.
+Unverified integration against future Aetherphone releases may
+stop working. DEV2 TEST1 tests the read-only connection first.

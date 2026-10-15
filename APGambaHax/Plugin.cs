@@ -32,7 +32,11 @@ public sealed class Plugin : IDalamudPlugin
         "Originals", "Blackjack", "Challenges"
     };
 
+    [PluginService]
+    private static IFramework Framework { get; set; } = null!;
+
     private readonly Configuration cfg;
+    private readonly AetherphoneBridge bridge = new();
     private bool mainOpen;
     private bool settingsOpen;
     private Page page = Page.Overview;
@@ -60,12 +64,38 @@ public sealed class Plugin : IDalamudPlugin
             HelpMessage = "Open APGambaHax. Subcommands: rewards, barkeep, missions, originals, blackjack, challenges, settings."
         });
 
+        Framework.Update += OnFrameworkUpdate;
         Pi.UiBuilder.Draw += Draw;
         Pi.UiBuilder.OpenMainUi += Open;
         Pi.UiBuilder.OpenConfigUi += OpenSettings;
     }
 
     private void Save() => Pi.SavePluginConfig(cfg);
+
+    private void OnFrameworkUpdate(IFramework framework)
+    {
+        if (cfg.ModulesEnabled[0] || cfg.ModulesEnabled[1])
+            bridge.Tick();
+        else
+            bridge.Clear();
+    }
+
+    private static string TimeUntil(long unix)
+    {
+        if (unix <= 0)
+            return "unknown";
+
+        var remaining = DateTimeOffset.FromUnixTimeSeconds(unix)
+            - DateTimeOffset.UtcNow;
+
+        if (remaining <= TimeSpan.Zero)
+            return "available now";
+
+        if (remaining.TotalHours >= 1)
+            return $"{Math.Ceiling(remaining.TotalHours)}h";
+
+        return $"{Math.Ceiling(remaining.TotalMinutes)}m";
+    }
 
     private void Open() => mainOpen = true;
     private void OpenSettings() => settingsOpen = true;
@@ -93,6 +123,7 @@ public sealed class Plugin : IDalamudPlugin
 
     public void Dispose()
     {
+        Framework.Update -= OnFrameworkUpdate;
         Pi.UiBuilder.Draw -= Draw;
         Pi.UiBuilder.OpenMainUi -= Open;
         Pi.UiBuilder.OpenConfigUi -= OpenSettings;
@@ -186,7 +217,7 @@ public sealed class Plugin : IDalamudPlugin
 
                 ImGui.Spacing();
                 ImGui.Separator();
-                ImGui.TextDisabled("Local companion - no live Aetherphone connection");
+                ImGui.TextDisabled("Aetherphone: " + bridge.Status + " | read-only bridge");
             }
 
             ImGui.End();
@@ -205,28 +236,85 @@ public sealed class Plugin : IDalamudPlugin
     private void DrawOverview()
     {
         Heading("OVERVIEW");
-        ImGui.TextWrapped(
-            "APGambaHax DEV1: modular companion tools for Aetherphone's Gamba casino.");
+
+        ImGui.TextUnformatted("Aetherphone: " + bridge.Status);
+
+        if (bridge.HasCasinoState)
+        {
+            if (bridge.Chips.HasValue)
+                ImGui.TextUnformatted($"Bankroll: {bridge.Chips.Value:N0} chips");
+            else
+                ImGui.TextDisabled("Bankroll: no active sitting");
+
+            if (bridge.Level.HasValue)
+                ImGui.TextUnformatted("Casino level: " + bridge.Level.Value);
+
+            if (bridge.StakesPaused == true)
+                ImGui.TextDisabled("Wagers are currently paused by Aetherphone.");
+        }
 
         ImGui.Spacing();
         ImGui.TextUnformatted("Currency: 1 coin = 1,000 chips");
-        ImGui.TextUnformatted("Enabled modules: " +
-            cfg.ModulesEnabled.Count(x => x) + " / 6");
+        ImGui.TextUnformatted(
+            $"Enabled modules: {cfg.ModulesEnabled.Count(x => x)} / 6");
 
         ImGui.Spacing();
-        ImGui.TextDisabled(
-            "Live bankroll, claims and casino controls require a verified integration.");
+        ImGui.TextDisabled("DEV2 TEST1 - live read-only bridge.");
+        ImGui.TextDisabled("No automated wagers or reward claims.");
     }
 
     private void DrawRewards()
     {
         Heading("REWARDS");
-        ImGui.TextUnformatted("Daily spin: pays wallet coins, not chips.");
-        ImGui.TextUnformatted("Timed chips: 5,000 chips per eligible claim.");
-        ImGui.TextUnformatted("Check daily streak, welcome and other bonuses.");
 
-        ImGui.Spacing();
-        ImGui.TextDisabled("Manual 3-hour reminder (not server status)");
+        if (bridge.HasCasinoState)
+        {
+            if (bridge.DailySpinClaimed.HasValue)
+            {
+                ImGui.TextUnformatted(
+                    "Daily spin: " +
+                    (bridge.DailySpinClaimed.Value ? "claimed" : "unclaimed"));
+
+                if (bridge.DailySpinNextAtUnix > 0)
+                    ImGui.TextDisabled(
+                        "Next spin: " +
+                        TimeUntil(bridge.DailySpinNextAtUnix.Value));
+            }
+            else
+            {
+                ImGui.TextDisabled("Daily spin status not loaded yet.");
+            }
+
+            ImGui.Spacing();
+
+            if (bridge.Bonuses.Count == 0)
+                ImGui.TextDisabled("No bonus data in Aetherphone's cache.");
+
+            foreach (var bonus in bridge.Bonuses)
+            {
+                var name = bonus.Kind.Length == 0 ? "Bonus" : bonus.Kind;
+                var ready = bonus.Ready && bonus.Eligible;
+
+                var status = ready ? "READY"
+                    : bonus.NextAtUnix > 0
+                        ? TimeUntil(bonus.NextAtUnix)
+                        : "not ready";
+
+                ImGui.TextWrapped(
+                    $"{name}: {bonus.Amount:N0} chips - {status}");
+            }
+
+            ImGui.Spacing();
+            ImGui.TextDisabled("Statuses come from Aetherphone's cached state.");
+        }
+        else
+        {
+            ImGui.TextDisabled("Open Gamba in Aetherphone to load live rewards.");
+            ImGui.TextUnformatted("Timed claim: 5,000 chips per 3h.");
+        }
+
+        ImGui.Separator();
+        ImGui.TextDisabled("Manual fallback reminder");
 
         if (cfg.LastTimedClaimUtc == DateTime.MinValue)
         {
@@ -234,7 +322,7 @@ public sealed class Plugin : IDalamudPlugin
         }
         else
         {
-            TimeSpan remaining =
+            var remaining =
                 cfg.LastTimedClaimUtc.AddHours(3) - DateTime.UtcNow;
 
             ImGui.TextUnformatted(remaining > TimeSpan.Zero
@@ -242,7 +330,7 @@ public sealed class Plugin : IDalamudPlugin
                 : "Reminder elapsed - check Aetherphone.");
         }
 
-        if (ImGui.Button("Mark timed claim now"))
+        if (ImGui.SmallButton("Mark claim now"))
         {
             cfg.LastTimedClaimUtc = DateTime.UtcNow;
             Save();
@@ -250,7 +338,7 @@ public sealed class Plugin : IDalamudPlugin
 
         ImGui.SameLine();
 
-        if (ImGui.Button("Clear reminder"))
+        if (ImGui.SmallButton("Clear reminder"))
         {
             cfg.LastTimedClaimUtc = DateTime.MinValue;
             Save();
@@ -260,11 +348,23 @@ public sealed class Plugin : IDalamudPlugin
     private void DrawBarkeep()
     {
         Heading("BARKEEP");
-        ImGui.TextUnformatted("Entry cost: 2,000 chips");
-        ImGui.TextUnformatted("Maximum payout: 4,000 chips");
-        ImGui.TextUnformatted("Daily net-win cap: 20,000 chips");
+
+        ImGui.TextUnformatted("Aetherphone: " + bridge.BarkeepStatus);
+
+        if (bridge.BarkeepPatrons.HasValue &&
+            bridge.BarkeepCompleted.HasValue)
+        {
+            ImGui.TextUnformatted(
+                $"Patrons: {bridge.BarkeepCompleted.Value}/{bridge.BarkeepPatrons.Value}");
+
+            if (bridge.BarkeepScore.HasValue)
+                ImGui.TextUnformatted(
+                    $"Current score: {bridge.BarkeepScore.Value:N0}");
+        }
 
         ImGui.Spacing();
+        ImGui.TextUnformatted("Entry: 2,000 | Top payout: 4,000 chips");
+        ImGui.TextUnformatted("Daily net-win cap: 20,000 chips");
 
         ImGui.SliderInt("Accuracy (%)", ref barkeepScore, 0, 100);
 
@@ -275,21 +375,23 @@ public sealed class Plugin : IDalamudPlugin
 
         int net = payout - 2000;
 
-        ImGui.TextUnformatted($"Estimated payout: {payout:N0} chips");
+        ImGui.TextUnformatted(
+            $"Estimated payout: {payout:N0} chips");
+
         ImGui.TextColored(
             net >= 0 ? Theme.Get(cfg, 5) : Theme.Get(cfg, 3),
             $"Estimated net: {net:+#,0;-#,0;0} chips");
 
         ImGui.Spacing();
-        ImGui.TextWrapped(
-            "Local estimate only. Minimum finish time is 60 seconds. Actual results and limits are enforced by Aetherphone's server.");
+        ImGui.TextDisabled(
+            "Read-only shift tracking. No grade injection or automatic wagers.");
     }
 
     private void DrawPlaceholder(string name)
     {
         Heading(name);
         ImGui.TextWrapped(
-            "Module foundation ready. Live controls and data integration are not implemented in DEV1.");
+            "Module foundation ready. Additional game automation is not implemented in DEV2 TEST1.");
 
         if (name == "ORIGINALS")
             ImGui.TextDisabled(
@@ -364,7 +466,9 @@ public sealed class Plugin : IDalamudPlugin
                 }
 
                 ImGui.Spacing();
-                ImGui.TextDisabled("APGambaHax " + VersionText + " - DEV1");
+                ImGui.TextDisabled("APGambaHax " + VersionText + " - DEV2 TEST1");
+                ImGui.TextDisabled("Bridge: " + bridge.Status);
+                ImGui.TextDisabled("Aetherphone assembly: " + bridge.Version);
             }
 
             ImGui.End();
