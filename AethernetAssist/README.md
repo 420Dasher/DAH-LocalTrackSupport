@@ -1,4 +1,4 @@
-# AethernetAssist v0.1.0
+# AethernetAssist v0.2.0
 
 Dalamud API 15 / .NET 10
 
@@ -61,13 +61,29 @@ same-data-center World Visit.
 - Unknown or localized confirmation prompts require
   manual player confirmation.
 
-## Release
+## Stable release - v0.2.0
 
-v0.1.0 is the initial stable release, based on the
-regression-tested v0.0.42 DEV4.4 implementation.
+First feature-complete stable milestone.
 
-The Aethernet, Housing, Cosmic and World Visit
-features passed in-game regression testing.
+Includes:
+- City and residential Aethernet travel
+- Housing ward travel and supported gate navigation
+- Cosmic Exploration planet and local Aethernet travel
+- Same-data-center World Visit
+- Remembered navigation tabs
+- Context-sensitive auto-open and auto-close
+- Guarded native destination selection and retries
 
-Development history and diagnostic notes are kept
-in Git history and KNOWN_ISSUES.md.
+The native travel implementation is carried forward
+from the verified v0.1.7 testing release.
+
+## Planned features
+
+- Regular overworld Aetheryte travel
+- Map marker integration
+- Automatic multi-stage Aethernet routing
+
+These features are not part of v0.2.0.
+
+Historical development notes are kept in
+KNOWN_ISSUES.md and Git history.

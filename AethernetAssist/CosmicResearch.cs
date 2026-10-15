@@ -25,7 +25,7 @@ public sealed unsafe partial class Plugin
         var output = new StringBuilder();
 
         output.AppendLine(
-            "=== AETHERNETASSIST DEV4.2 COSMIC RESEARCH ===");
+            "=== AETHERNETASSIST " + UiVersion + " COSMIC RESEARCH ===");
 
         output.AppendLine(
             "UTC: " + DateTime.UtcNow.ToString("O"));

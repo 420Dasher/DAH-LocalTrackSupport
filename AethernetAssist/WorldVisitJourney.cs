@@ -276,6 +276,8 @@ public sealed unsafe partial class Plugin
             return;
         }
 
+        RememberNavigationPage(NavigationPage.DcTravel);
+
         worldVisitTarget = choice;
         worldVisitOriginWorld = from.RowId;
         worldVisitOriginTerritory = Client.TerritoryType;

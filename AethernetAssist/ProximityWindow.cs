@@ -11,8 +11,14 @@ public sealed unsafe partial class Plugin
     private uint autoWindowTerritory;
     private string autoWindowSource = "None";
 
+    // Tab availability from the last confirmed proximity scan.
+    private int autoWindowConfirmedTabMask;
+
     private void OpenWindowManually()
     {
+        if (!windowOpen)
+            RestoreNavigationPage();
+
         autoWindowOwnsVisibility = false;
         windowOpen = true;
     }
@@ -95,13 +101,22 @@ public sealed unsafe partial class Plugin
             config.AutoOpen &&
             !windowOpen)
         {
-            currentPage = nearHousingEntrance ||
-                (!nearAethernet && nearCityAetheryte)
-                    ? NavigationPage.Housing
-                    : NavigationPage.Aethernet;
+            RestoreNavigationPage();
 
             windowOpen = true;
             autoWindowOwnsVisibility = true;
+        }
+
+        // Only change the displayed tab after confirming that
+        // a supported proximity source is still available.
+        // Do not overwrite the user's saved tab preference.
+        if (autoWindowOwnsVisibility && windowOpen)
+        {
+            if (SelectedNavigationPageUnavailable())
+                RestoreNavigationPage();
+
+            autoWindowConfirmedTabMask =
+                AvailableNavigationTabsMask();
         }
 
         // If the user closes the window while still nearby,

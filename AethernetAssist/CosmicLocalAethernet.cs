@@ -291,6 +291,8 @@ public sealed unsafe partial class Plugin
                 source.Position) > config.OpenRange + 1f)
             return;
 
+        RememberNavigationPage(NavigationPage.Aethernet);
+
         cosmicLocalTarget = stop;
         cosmicLocalSourceAddress = source.Address;
         cosmicLocalOriginTerritory = Client.TerritoryType;

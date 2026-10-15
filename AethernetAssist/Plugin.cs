@@ -127,6 +127,13 @@ public sealed unsafe partial class Plugin : IDalamudPlugin
     private int callbackAttempts;
     private bool sawLoading;
 
+    // Wait until the native destination entry has remained
+    // stable before submitting the first callback.
+    private DateTime nativeDestinationReadySince = DateTime.MinValue;
+    private int nativeDestinationReadyRow = -1;
+    private uint nativeDestinationReadyCallback;
+    private bool nativeAutomaticRetryUsed;
+
     private IGameObject? nearby;
     private nint nearbyAddress;
     private uint activeGroup;
@@ -169,7 +176,7 @@ public sealed unsafe partial class Plugin : IDalamudPlugin
         Pi.UiBuilder.OpenMainUi += Open;
         Pi.UiBuilder.OpenConfigUi += OpenConfig;
 
-        Log.Information("AethernetAssist v0.1.0 stable initialized.");
+        Log.Information("AethernetAssist " + UiVersion + " initialized.");
     }
 
     public void Dispose()
@@ -193,6 +200,13 @@ public sealed unsafe partial class Plugin : IDalamudPlugin
     {
         foreach (var row in Data.GetExcelSheet<AetheryteSheet>())
         {
+            // The Aetheryte object kind also includes small
+            // Aethernet shards. Use the game's sheet flag.
+            if (row.IsAetheryte &&
+                HousingDistricts.Any(d =>
+                    d.CityTerritory == row.Territory.Value.RowId))
+                housingMainAetheryteIds.Add(row.RowId);
+
             if (row.AethernetGroup == 0)
                 continue;
 
@@ -417,13 +431,15 @@ public sealed unsafe partial class Plugin : IDalamudPlugin
                 break;
 
             case "housing":
-                // Keep the command functional when nearby,
-                // but do not expose an unavailable page.
+                OpenWindowManually();
+
                 currentPage = HousingPageAvailable()
                     ? NavigationPage.Housing
                     : NavigationPage.Aethernet;
 
-                OpenWindowManually();
+                if (currentPage == NavigationPage.Housing)
+                    RememberNavigationPage(NavigationPage.Housing);
+
                 break;
 
             case "sinus":
@@ -644,6 +660,8 @@ public sealed unsafe partial class Plugin : IDalamudPlugin
             ) > config.OpenRange + 1f)
             return;
 
+        RememberNavigationPage(NavigationPage.Aethernet);
+
         destination = chosen;
         originAddress = nearby.Address;
         originTerritory = Client.TerritoryType;
@@ -651,6 +669,9 @@ public sealed unsafe partial class Plugin : IDalamudPlugin
 
         callbackAttempts = 0;
         sawLoading = false;
+        nativeAutomaticRetryUsed = false;
+        nativeDestinationReadySince = DateTime.MinValue;
+        nativeDestinationReadyRow = -1;
 
         lastInteraction = DateTime.MinValue;
 
@@ -664,6 +685,13 @@ public sealed unsafe partial class Plugin : IDalamudPlugin
 
     private void GoTo(TravelPhase next)
     {
+        if (next == TravelPhase.SelectDestination &&
+            phase != TravelPhase.SelectDestination)
+        {
+            nativeDestinationReadySince = DateTime.MinValue;
+            nativeDestinationReadyRow = -1;
+        }
+
         phase = next;
         phaseStarted = DateTime.UtcNow;
     }
@@ -705,6 +733,27 @@ public sealed unsafe partial class Plugin : IDalamudPlugin
 
             double elapsed =
                 (DateTime.UtcNow - phaseStarted).TotalSeconds;
+
+            // If the first validated callback pair was ignored,
+            // give the fully opened native menu one more chance.
+            // Never retry once loading or travel has begun.
+            if (menuOpen && !busy && !territoryChanged &&
+                !sawLoading && !nativeAutomaticRetryUsed &&
+                elapsed > 2.75)
+            {
+                nativeAutomaticRetryUsed = true;
+                callbackAttempts = 0;
+
+                status =
+                    $"Native menu still open; retrying {destination.Name}...";
+
+                Log.Warning(
+                    "AethernetAssist: first native callback pair " +
+                    "was not acknowledged; retrying once.");
+
+                GoTo(TravelPhase.SelectDestination);
+                return;
+            }
 
             // A visible native menu after two callbacks means
             // that destination selection was not acknowledged.
@@ -831,7 +880,7 @@ public sealed unsafe partial class Plugin : IDalamudPlugin
                 var name = Marshal.PtrToStringUTF8(
                     (nint)namePtr) ?? "";
 
-                // DEV1 recognizes the English client menu.
+                // The native selector currently uses the English Aethernet menu label.
                 if (!name.Contains(
                     "Aethernet",
                     StringComparison.OrdinalIgnoreCase))
@@ -970,9 +1019,53 @@ public sealed unsafe partial class Plugin : IDalamudPlugin
                     $"State={nativeState.UInt} ({nativeState.Type}); " +
                     $"AtkValuesCount={valueCount}.";
 
-                if (callbackAttempts == 0 ||
-                    (callbackAttempts == 1 &&
-                     (DateTime.UtcNow - lastInteraction).TotalMilliseconds > 120))
+                // Only real destination entries may receive
+                // native callbacks.
+                if (nativeType.Type != AtkValueType.UInt ||
+                    nativeState.Type != AtkValueType.UInt ||
+                    nativeType.UInt != 0)
+                {
+                    Cancel("Unexpected native Aethernet destination state.");
+                    return;
+                }
+
+                // Both 0 and 4 have been observed on usable
+                // city Aethernet destinations. In particular,
+                // the Ul'dah Aetheryte Plaza uses state 4.
+                // Attunement and destination-name checks above
+                // must still pass before submitting callbacks.
+                if (nativeState.UInt != 0 &&
+                    nativeState.UInt != 4)
+                {
+                    Cancel(
+                        $"Unrecognized native destination state {nativeState.UInt}. Travel blocked.");
+                    return;
+                }
+
+                // At least 300ms with the same validated
+                // destination row and callback ID.
+                // The second callback still follows on the
+                // next framework update, preserving verified callback timing.
+                if (callbackAttempts == 0)
+                {
+                    DateTime now = DateTime.UtcNow;
+
+                    if (nativeDestinationReadySince == DateTime.MinValue ||
+                        nativeDestinationReadyRow != i ||
+                        nativeDestinationReadyCallback != callbackData)
+                    {
+                        nativeDestinationReadySince = now;
+                        nativeDestinationReadyRow = i;
+                        nativeDestinationReadyCallback = callbackData;
+                        return;
+                    }
+
+                    if ((now - nativeDestinationReadySince)
+                        .TotalMilliseconds < 300)
+                        return;
+                }
+
+                if (callbackAttempts < 2)
                 {
                     AtkValue* args = stackalloc AtkValue[2];
 
@@ -988,10 +1081,15 @@ public sealed unsafe partial class Plugin : IDalamudPlugin
                         UInt = callbackData
                     };
 
-                    addon->FireCallback(2, args, true);
+                    bool dispatchResult = addon->FireCallback(2, args, true);
 
                     lastInteraction = DateTime.UtcNow;
                     callbackAttempts++;
+                    lastMenuReadout +=
+                        $" | Pass={(nativeAutomaticRetryUsed ? "retry" : "initial")}" +
+                        $" | Callback {callbackAttempts}/2" +
+                        $" | handlerReturn={dispatchResult}";
+
 
                     status = $"Teleporting to {destination.Name}...";
 
@@ -1176,6 +1274,60 @@ public sealed unsafe partial class Plugin : IDalamudPlugin
     }
 
     private NavigationPage currentPage = NavigationPage.Aethernet;
+
+    private static string UiVersion =>
+        "v" + (typeof(Plugin).Assembly.GetName().Version?.ToString(3)
+               ?? "Unknown");
+
+    private void RememberNavigationPage(NavigationPage page)
+    {
+        int value = (int)page;
+
+        if (config.LastSelectedNavigationPage == value)
+            return;
+
+        config.LastSelectedNavigationPage = value;
+        Save();
+    }
+
+    private void RestoreNavigationPage()
+    {
+        bool housingAvailable = HousingPageAvailable();
+
+        bool dcTravelAvailable =
+            WorldVisitPageAvailable() ||
+            worldVisitPhase != WorldVisitPhase.Idle;
+
+        bool aethernetAvailable =
+            nearby != null ||
+            TryFindResidentialShard(out _) ||
+            cosmicLocalNearby != null;
+
+        NavigationPage remembered =
+            (NavigationPage)config.LastSelectedNavigationPage;
+
+        NavigationPage next =
+            housingAvailable && !aethernetAvailable
+                ? NavigationPage.Housing
+                : remembered switch
+                {
+                    NavigationPage.Housing when housingAvailable
+                        => NavigationPage.Housing,
+
+                    NavigationPage.DcTravel when dcTravelAvailable
+                        => NavigationPage.DcTravel,
+
+                    NavigationPage.Aethernet
+                        => NavigationPage.Aethernet,
+
+                    _ => NavigationPage.Aethernet
+                };
+
+        currentPage = next;
+
+        if (next == NavigationPage.Aethernet)
+            resetDestinationScroll = true;
+    }
     private bool settingsWindowOpen;
     private bool resetDestinationScroll = true;
 
@@ -1215,7 +1367,8 @@ public sealed unsafe partial class Plugin : IDalamudPlugin
     private void DrawPageTab(
         string label,
         NavigationPage target,
-        float width)
+        float width,
+        bool rememberSelection)
     {
         Vector2 pos = ImGui.GetCursorScreenPos();
         Vector2 size = new(width, 30f);
@@ -1257,6 +1410,9 @@ public sealed unsafe partial class Plugin : IDalamudPlugin
         if (ImGui.IsItemClicked() && !selected)
         {
             currentPage = target;
+
+            if (rememberSelection)
+                RememberNavigationPage(target);
 
             if (target == NavigationPage.Aethernet)
                 resetDestinationScroll = true;
@@ -1414,7 +1570,7 @@ public sealed unsafe partial class Plugin : IDalamudPlugin
 
         ImGui.TextColored(NavAccent, "SETTINGS");
         ImGui.SameLine();
-        ImGui.TextDisabled("0.1.0");
+        ImGui.TextDisabled(UiVersion);
         ImGui.Separator();
 
         bool autoOpen = config.AutoOpen;
@@ -1634,6 +1790,32 @@ public sealed unsafe partial class Plugin : IDalamudPlugin
                TryFindWardEntrance(out _, out _, out _);
     }
 
+    // Bit 0: Aethernet, bit 1: Housing, bit 2: DC Travel.
+    private int AvailableNavigationTabsMask()
+    {
+        int mask = 1;
+
+        if (HousingPageAvailable())
+            mask |= 2;
+
+        if (WorldVisitPageAvailable() ||
+            worldVisitPhase != WorldVisitPhase.Idle)
+            mask |= 4;
+
+        return mask;
+    }
+
+    private bool SelectedNavigationPageUnavailable()
+    {
+        int mask = AvailableNavigationTabsMask();
+
+        return
+            (currentPage == NavigationPage.Housing &&
+             (mask & 2) == 0) ||
+            (currentPage == NavigationPage.DcTravel &&
+             (mask & 4) == 0);
+    }
+
     private void Draw()
     {
         // Sample the real client palette BEFORE pushing our
@@ -1646,6 +1828,15 @@ public sealed unsafe partial class Plugin : IDalamudPlugin
         DrawSettings();
 
         if (!windowOpen)
+            return;
+
+        // Avoid the one-frame fallback to Aethernet when
+        // tabs disappear before the next proximity scan.
+        // The proximity controller will either close this
+        // window or select another valid page.
+        if (autoWindowOwnsVisibility &&
+            (autoWindowConfirmedTabMask &
+             ~AvailableNavigationTabsMask()) != 0)
             return;
 
         const float width = 386f;
@@ -1678,7 +1869,7 @@ public sealed unsafe partial class Plugin : IDalamudPlugin
                 return;
             }
 
-            ImGui.TextDisabled("v0.1.0");
+            ImGui.TextDisabled(UiVersion);
 
             ImGui.SameLine(ImGui.GetWindowWidth() - 87f);
 
@@ -1732,7 +1923,8 @@ public sealed unsafe partial class Plugin : IDalamudPlugin
             DrawPageTab(
                 "Aethernet",
                 NavigationPage.Aethernet,
-                tabWidth);
+                tabWidth,
+                visibleTabs > 1);
 
             if (housingAvailable)
             {
@@ -1741,7 +1933,8 @@ public sealed unsafe partial class Plugin : IDalamudPlugin
                 DrawPageTab(
                     "Housing",
                     NavigationPage.Housing,
-                    tabWidth);
+                    tabWidth,
+                    visibleTabs > 1);
             }
 
             if (dcTravelAvailable)
@@ -1751,7 +1944,8 @@ public sealed unsafe partial class Plugin : IDalamudPlugin
                 DrawPageTab(
                     "DC Travel",
                     NavigationPage.DcTravel,
-                    tabWidth);
+                    tabWidth,
+                    visibleTabs > 1);
             }
 
             ImGui.Spacing();

@@ -175,6 +175,8 @@ public sealed unsafe partial class Plugin
             return;
         }
 
+        RememberNavigationPage(NavigationPage.Aethernet);
+
         residentialTarget = stop;
         residentialSourceAddress = source.Address;
         residentialOriginTerritory = Client.TerritoryType;
@@ -251,15 +253,6 @@ public sealed unsafe partial class Plugin
             //
             // Selection revalidates the destination name,
             // type, state and callback ID before retrying.
-            if (menuOpen && !busy &&
-                residentialCallbackAttempts == 1 &&
-                (now - residentialLastAction)
-                    .TotalMilliseconds >= 180)
-            {
-                SetResidentialPhase(
-                    ResidentialPhase.SelectDestination);
-                return;
-            }
 
             if (menuOpen && !busy && elapsed > 7)
             {
@@ -279,6 +272,13 @@ public sealed unsafe partial class Plugin
             if (elapsed > 35)
                 StopResidential("Residential travel timed out.");
 
+            return;
+        }
+
+        if (residentialCallbackAttempts > 0 &&
+            (IsBusy() || GetAddon("TelepotTown") == null))
+        {
+            SetResidentialPhase(ResidentialPhase.WaitForArrival);
             return;
         }
 
@@ -493,12 +493,14 @@ public sealed unsafe partial class Plugin
             UInt = callback.UInt
         };
 
-        addon->FireCallback(2, args, true);
+        bool dispatchResult = addon->FireCallback(2, args, true);
 
         residentialCallbackAttempts++;
 
         residentialMenuReadout +=
-            " | Attempt " + residentialCallbackAttempts + "/2";
+            " | Callback " + residentialCallbackAttempts + "/2" +
+            " handlerReturn=" + dispatchResult;
+
 
         residentialStatus =
             "Teleporting to " + residentialTarget.Name + "...";
@@ -507,7 +509,8 @@ public sealed unsafe partial class Plugin
             Log.Information(residentialMenuReadout);
 
         residentialLastAction = now;
-        SetResidentialPhase(ResidentialPhase.WaitForArrival);
+        if (residentialCallbackAttempts >= 2)
+            SetResidentialPhase(ResidentialPhase.WaitForArrival);
     }
 
     private void DrawResidentialStop(ResidentialStop stop)

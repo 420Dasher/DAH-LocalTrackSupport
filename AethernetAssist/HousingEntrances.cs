@@ -148,6 +148,8 @@ public sealed unsafe partial class Plugin
                 out bool gate))
             return;
 
+        RememberNavigationPage(NavigationPage.Housing);
+
         housingTarget = district;
         housingTargetWard = 0;
         housingOriginAddress = npc?.Address ?? nint.Zero;
