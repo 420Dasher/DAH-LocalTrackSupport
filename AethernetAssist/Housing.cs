@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Numerics;
 using System.Runtime.InteropServices;
@@ -63,6 +64,9 @@ public sealed unsafe partial class Plugin
     private string housingDiagnostic =
         "No housing travel attempted yet.";
 
+    // Main-city crystal IDs sourced from the Aetheryte sheet.
+    private readonly HashSet<uint> housingMainAetheryteIds = new();
+
     // Aethernet shards and main Aetherytes are different objects.
     // Housing only accepts an actual main-city Aetheryte.
     private bool TryFindHousingAetheryte(
@@ -95,7 +99,8 @@ public sealed unsafe partial class Plugin
         {
             if (obj == null ||
                 !obj.IsTargetable ||
-                obj.ObjectKind != Dalamud.Game.ClientState.Objects.Enums.ObjectKind.Aetheryte)
+                obj.ObjectKind != Dalamud.Game.ClientState.Objects.Enums.ObjectKind.Aetheryte ||
+                !housingMainAetheryteIds.Contains(obj.BaseId))
                 continue;
 
             float distance = Vector3.Distance(

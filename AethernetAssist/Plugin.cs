@@ -193,6 +193,13 @@ public sealed unsafe partial class Plugin : IDalamudPlugin
     {
         foreach (var row in Data.GetExcelSheet<AetheryteSheet>())
         {
+            // The Aetheryte object kind also includes small
+            // Aethernet shards. Use the game's sheet flag.
+            if (row.IsAetheryte &&
+                HousingDistricts.Any(d =>
+                    d.CityTerritory == row.Territory.Value.RowId))
+                housingMainAetheryteIds.Add(row.RowId);
+
             if (row.AethernetGroup == 0)
                 continue;
 

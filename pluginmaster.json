@@ -147,7 +147,7 @@
     "InternalName":  "AethernetAssist",
     "Name":  "AethernetAssist",
     "AssemblyVersion":  "0.1.0.0",
-    "TestingAssemblyVersion":  "0.1.3.0",
+    "TestingAssemblyVersion":  "0.1.4.0",
     "DalamudApiLevel":  15,
     "TestingDalamudApiLevel":  15,
     "ApplicableVersion":  "any",
@@ -160,7 +160,7 @@
     "IsTestingExclusive":  false,
     "Punchline":  "Aethernet travel without the clutter.",
     "Description":  "Contextual Aethernet window with real attunement checks and one-click travel.",
-    "Changelog":  "DEV6 RC2 v0.1.3: Fix proximity window tab flicker and preserve selected tab until context is confirmed. Includes tab memory, dynamic versions and the verified callback fix.",
+    "Changelog":  "DEV6 RC3 v0.1.4: Correctly distinguish main Aetherytes from ordinary shards for Housing and DC Travel tab availability. Preserves tab memory, flicker fix and working travel logic.",
     "Tags":  [
                  "aethernet",
                  "aetheryte",
