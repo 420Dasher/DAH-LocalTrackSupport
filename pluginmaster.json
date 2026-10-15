@@ -147,7 +147,7 @@
     "InternalName":  "AethernetAssist",
     "Name":  "AethernetAssist",
     "AssemblyVersion":  "0.1.0.0",
-    "TestingAssemblyVersion":  "0.1.1.0",
+    "TestingAssemblyVersion":  "0.1.2.0",
     "DalamudApiLevel":  15,
     "TestingDalamudApiLevel":  15,
     "ApplicableVersion":  "any",
@@ -160,7 +160,7 @@
     "IsTestingExclusive":  false,
     "Punchline":  "Aethernet travel without the clutter.",
     "Description":  "Contextual Aethernet window with real attunement checks and one-click travel.",
-    "Changelog":  "DEV5 TEST v0.1.1: consecutive-update Aethernet callbacks and dispatch diagnostics. v0.1.0 initial stable release. Includes city Aethernet, housing, residential and Cosmic travel, plus automated same-DC World Visit. All core features regression-tested.",
+    "Changelog":  "DEV6 RC1 v0.1.2: Persistent tab preference, dynamic version labels, diagnostic cleanup, and verified Aethernet callback timing fix.",
     "Tags":  [
                  "aethernet",
                  "aetheryte",

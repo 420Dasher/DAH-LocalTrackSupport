@@ -496,9 +496,9 @@ public sealed unsafe partial class Plugin
         residentialCallbackAttempts++;
 
         residentialMenuReadout +=
-            " | DEV5 attempt " + residentialCallbackAttempts + "/2" +
-            " dispatch=" + dispatchResult;
-        Log.Information("AethernetAssist RESIDENTIAL DEV5: " + residentialMenuReadout);
+            " | Callback " + residentialCallbackAttempts + "/2" +
+            " handlerReturn=" + dispatchResult;
+
 
         residentialStatus =
             "Teleporting to " + residentialTarget.Name + "...";

@@ -169,7 +169,7 @@ public sealed unsafe partial class Plugin : IDalamudPlugin
         Pi.UiBuilder.OpenMainUi += Open;
         Pi.UiBuilder.OpenConfigUi += OpenConfig;
 
-        Log.Information("AethernetAssist v0.1.0 stable initialized.");
+        Log.Information("AethernetAssist " + UiVersion + " initialized.");
     }
 
     public void Dispose()
@@ -417,13 +417,15 @@ public sealed unsafe partial class Plugin : IDalamudPlugin
                 break;
 
             case "housing":
-                // Keep the command functional when nearby,
-                // but do not expose an unavailable page.
+                OpenWindowManually();
+
                 currentPage = HousingPageAvailable()
                     ? NavigationPage.Housing
                     : NavigationPage.Aethernet;
 
-                OpenWindowManually();
+                if (currentPage == NavigationPage.Housing)
+                    RememberNavigationPage(NavigationPage.Housing);
+
                 break;
 
             case "sinus":
@@ -991,8 +993,8 @@ public sealed unsafe partial class Plugin : IDalamudPlugin
                     lastInteraction = DateTime.UtcNow;
                     callbackAttempts++;
                     lastMenuReadout +=
-                        $" | DEV5 dispatch {callbackAttempts}/2 result={dispatchResult}";
-                    Log.Information("AethernetAssist CITY DEV5: " + lastMenuReadout);
+                        $" | Callback {callbackAttempts}/2 handlerReturn={dispatchResult}";
+
 
                     status = $"Teleporting to {destination.Name}...";
 
@@ -1177,6 +1179,60 @@ public sealed unsafe partial class Plugin : IDalamudPlugin
     }
 
     private NavigationPage currentPage = NavigationPage.Aethernet;
+
+    private static string UiVersion =>
+        "v" + (typeof(Plugin).Assembly.GetName().Version?.ToString(3)
+               ?? "Unknown");
+
+    private void RememberNavigationPage(NavigationPage page)
+    {
+        int value = (int)page;
+
+        if (config.LastSelectedNavigationPage == value)
+            return;
+
+        config.LastSelectedNavigationPage = value;
+        Save();
+    }
+
+    private void RestoreNavigationPage()
+    {
+        bool housingAvailable = HousingPageAvailable();
+
+        bool dcTravelAvailable =
+            WorldVisitPageAvailable() ||
+            worldVisitPhase != WorldVisitPhase.Idle;
+
+        bool aethernetAvailable =
+            nearby != null ||
+            TryFindResidentialShard(out _) ||
+            cosmicLocalNearby != null;
+
+        NavigationPage remembered =
+            (NavigationPage)config.LastSelectedNavigationPage;
+
+        NavigationPage next =
+            housingAvailable && !aethernetAvailable
+                ? NavigationPage.Housing
+                : remembered switch
+                {
+                    NavigationPage.Housing when housingAvailable
+                        => NavigationPage.Housing,
+
+                    NavigationPage.DcTravel when dcTravelAvailable
+                        => NavigationPage.DcTravel,
+
+                    NavigationPage.Aethernet
+                        => NavigationPage.Aethernet,
+
+                    _ => NavigationPage.Aethernet
+                };
+
+        currentPage = next;
+
+        if (next == NavigationPage.Aethernet)
+            resetDestinationScroll = true;
+    }
     private bool settingsWindowOpen;
     private bool resetDestinationScroll = true;
 
@@ -1216,7 +1272,8 @@ public sealed unsafe partial class Plugin : IDalamudPlugin
     private void DrawPageTab(
         string label,
         NavigationPage target,
-        float width)
+        float width,
+        bool rememberSelection)
     {
         Vector2 pos = ImGui.GetCursorScreenPos();
         Vector2 size = new(width, 30f);
@@ -1258,6 +1315,9 @@ public sealed unsafe partial class Plugin : IDalamudPlugin
         if (ImGui.IsItemClicked() && !selected)
         {
             currentPage = target;
+
+            if (rememberSelection)
+                RememberNavigationPage(target);
 
             if (target == NavigationPage.Aethernet)
                 resetDestinationScroll = true;
@@ -1415,7 +1475,7 @@ public sealed unsafe partial class Plugin : IDalamudPlugin
 
         ImGui.TextColored(NavAccent, "SETTINGS");
         ImGui.SameLine();
-        ImGui.TextDisabled("0.1.0");
+        ImGui.TextDisabled(UiVersion);
         ImGui.Separator();
 
         bool autoOpen = config.AutoOpen;
@@ -1679,7 +1739,7 @@ public sealed unsafe partial class Plugin : IDalamudPlugin
                 return;
             }
 
-            ImGui.TextDisabled("v0.1.0");
+            ImGui.TextDisabled(UiVersion);
 
             ImGui.SameLine(ImGui.GetWindowWidth() - 87f);
 
@@ -1733,7 +1793,8 @@ public sealed unsafe partial class Plugin : IDalamudPlugin
             DrawPageTab(
                 "Aethernet",
                 NavigationPage.Aethernet,
-                tabWidth);
+                tabWidth,
+                visibleTabs > 1);
 
             if (housingAvailable)
             {
@@ -1742,7 +1803,8 @@ public sealed unsafe partial class Plugin : IDalamudPlugin
                 DrawPageTab(
                     "Housing",
                     NavigationPage.Housing,
-                    tabWidth);
+                    tabWidth,
+                    visibleTabs > 1);
             }
 
             if (dcTravelAvailable)
@@ -1752,7 +1814,8 @@ public sealed unsafe partial class Plugin : IDalamudPlugin
                 DrawPageTab(
                     "DC Travel",
                     NavigationPage.DcTravel,
-                    tabWidth);
+                    tabWidth,
+                    visibleTabs > 1);
             }
 
             ImGui.Spacing();

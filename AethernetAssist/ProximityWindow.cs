@@ -13,6 +13,9 @@ public sealed unsafe partial class Plugin
 
     private void OpenWindowManually()
     {
+        if (!windowOpen)
+            RestoreNavigationPage();
+
         autoWindowOwnsVisibility = false;
         windowOpen = true;
     }
@@ -95,10 +98,7 @@ public sealed unsafe partial class Plugin
             config.AutoOpen &&
             !windowOpen)
         {
-            currentPage = nearHousingEntrance ||
-                (!nearAethernet && nearCityAetheryte)
-                    ? NavigationPage.Housing
-                    : NavigationPage.Aethernet;
+            RestoreNavigationPage();
 
             windowOpen = true;
             autoWindowOwnsVisibility = true;
