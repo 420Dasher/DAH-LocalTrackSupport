@@ -112,5 +112,35 @@
         "DownloadLinkUpdate":  "https://raw.githubusercontent.com/420Dasher/Dashs-Plugins/main/plugins/AethernetAssist/latest.zip",
         "DownloadLinkTesting":  "https://raw.githubusercontent.com/420Dasher/Dashs-Plugins/testing/plugins/AethernetAssist/latest.zip",
         "IconUrl":  "https://raw.githubusercontent.com/420Dasher/Dashs-Plugins/main/plugins/AethernetAssist/icon.png"
+    },
+    {
+        "Author":  "Dash + AI",
+        "Name":  "APGambaHax",
+        "InternalName":  "APGambaHax",
+        "AssemblyVersion":  "0.0.0.0",
+        "TestingAssemblyVersion":  "0.1.0.0",
+        "Description":  "Modular companion tools for Aetherphone Gamba. DEV1 includes module configuration, a manual rewards reminder, Barkeep payout estimates and theme matching. Live integration is not yet available.",
+        "Punchline":  "Make sense of the Gamba floor.",
+        "Changelog":  "DEV1 TEST1: Initial modular UI, appearance settings, manual rewards reminder and Barkeep estimator.",
+        "TestingChangelog":  "DEV1 TEST1: Initial testing-exclusive build.",
+        "ApplicableVersion":  "any",
+        "Tags":  [
+                     "aetherphone",
+                     "gamba",
+                     "utility"
+                 ],
+        "DalamudApiLevel":  15,
+        "TestingDalamudApiLevel":  15,
+        "LoadRequiredState":  0,
+        "LoadSync":  false,
+        "CanUnloadAsync":  false,
+        "LoadPriority":  0,
+        "AcceptsFeedback":  false,
+        "IsHide":  false,
+        "IsTestingExclusive":  true,
+        "DownloadLinkInstall":  "https://raw.githubusercontent.com/420Dasher/Dashs-Plugins/testing/plugins/APGambaHax/latest.zip",
+        "DownloadLinkUpdate":  "https://raw.githubusercontent.com/420Dasher/Dashs-Plugins/testing/plugins/APGambaHax/latest.zip",
+        "DownloadLinkTesting":  "https://raw.githubusercontent.com/420Dasher/Dashs-Plugins/testing/plugins/APGambaHax/latest.zip",
+        "LastUpdate":  1792107171
     }
 ]

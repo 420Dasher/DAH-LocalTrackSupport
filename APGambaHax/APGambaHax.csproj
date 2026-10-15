@@ -1,0 +1,19 @@
+<Project Sdk="Dalamud.NET.Sdk/15.0.0">
+  <PropertyGroup>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <Version>0.1.0.0</Version>
+    <AssemblyVersion>0.1.0.0</AssemblyVersion>
+    <FileVersion>0.1.0.0</FileVersion>
+    <AssemblyName>APGambaHax</AssemblyName>
+    <RootNamespace>APGambaHax</RootNamespace>
+    <Name>APGambaHax</Name>
+    <Author>Dash + AI</Author>
+    <Description>Modular companion tools for Aetherphone Gamba.</Description>
+    <Punchline>Make sense of the Gamba floor.</Punchline>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <IsPackable>false</IsPackable>
+    <DalamudApiLevel>15</DalamudApiLevel>
+  </PropertyGroup>
+</Project>

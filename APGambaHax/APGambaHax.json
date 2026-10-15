@@ -1,0 +1,15 @@
+{
+  "Author": "Dash + AI",
+  "Name": "APGambaHax",
+  "InternalName": "APGambaHax",
+  "AssemblyVersion": "0.1.0.0",
+  "DalamudApiLevel": 15,
+  "ApplicableVersion": "any",
+  "LoadRequiredState": 0,
+  "LoadSync": false,
+  "CanUnloadAsync": false,
+  "LoadPriority": 0,
+  "Punchline": "Make sense of the Gamba floor.",
+  "Description": "Modular companion tools for Aetherphone Gamba. DEV1 provides local rewards reminders, a Barkeep payout estimator, module controls and a theme-matched interface.",
+  "Tags": ["aetherphone", "gamba", "utility"]
+}
