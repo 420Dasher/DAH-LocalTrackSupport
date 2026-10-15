@@ -880,7 +880,7 @@ public sealed unsafe partial class Plugin : IDalamudPlugin
                 var name = Marshal.PtrToStringUTF8(
                     (nint)namePtr) ?? "";
 
-                // DEV1 recognizes the English client menu.
+                // The native selector currently uses the English Aethernet menu label.
                 if (!name.Contains(
                     "Aethernet",
                     StringComparison.OrdinalIgnoreCase))
@@ -1045,7 +1045,7 @@ public sealed unsafe partial class Plugin : IDalamudPlugin
                 // At least 300ms with the same validated
                 // destination row and callback ID.
                 // The second callback still follows on the
-                // next framework update, as in DEV5.
+                // next framework update, preserving verified callback timing.
                 if (callbackAttempts == 0)
                 {
                     DateTime now = DateTime.UtcNow;

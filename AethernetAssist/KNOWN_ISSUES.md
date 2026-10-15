@@ -1,4 +1,23 @@
-# AethernetAssist - Known Issues
+# AethernetAssist - Known Issues and Development History
+
+## Stable v0.2.0 status
+
+This document preserves historical development notes.
+Older statements about unimplemented features or pending
+tests may no longer reflect the stable release.
+
+City, residential, housing, Cosmic Exploration and
+same-DC World Visit travel were validated during testing.
+
+Native callback readiness and retry handling were
+improved through v0.1.7. Intermittent native-menu
+non-acknowledgment remains worth monitoring.
+
+Regular overworld Aetheryte support and map-click
+routing are planned for later versions.
+
+## Historical development notes
+
 
 ## Intermittent TelepotTown callback non-acknowledgment
 

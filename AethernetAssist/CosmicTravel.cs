@@ -704,7 +704,7 @@ public sealed unsafe partial class Plugin
     private string BuildCosmicTravelReport()
     {
         return
-            "\n=== COSMIC TRAVEL TEST1 ===\n" +
+            "\n=== COSMIC TRAVEL ===\n" +
             "Phase: " + cosmicPhase + "\n" +
             "Target: " +
             (cosmicTargetIndex >= 0
