@@ -13,7 +13,7 @@
                      "honorific",
                      "music"
                  ],
-        "IconUrl":  "https://raw.githubusercontent.com/420Dasher/DAH-LocalTrackSupport/main/SpotifyTrackHonorific/images/icon.png",
+        "IconUrl":  "https://raw.githubusercontent.com/420Dasher/Dashs-Plugins/main/SpotifyTrackHonorific/images/icon.png",
         "DalamudApiLevel":  15,
         "TestingDalamudApiLevel":  15,
         "LoadRequiredState":  0,
@@ -23,40 +23,11 @@
         "Punchline":  "Show your Spotify track as an Honorific title.",
         "Changelog":  "SpotifyTrackHonorific 1.0.18 improves retained-title recovery so Keep previous title and keep-title-while-stopped behavior survive territory changes, combat auto-hide, and other temporary Honorific hand-offs without exposing filtered track metadata.",
         "AcceptsFeedback":  false,
-        "DownloadLinkInstall":  "https://raw.githubusercontent.com/420Dasher/DAH-LocalTrackSupport/main/plugins/SpotifyTrackHonorific/latest.zip",
+        "DownloadLinkInstall":  "https://raw.githubusercontent.com/420Dasher/Dashs-Plugins/main/plugins/SpotifyTrackHonorific/latest.zip",
         "IsHide":  false,
         "IsTestingExclusive":  false,
-        "DownloadLinkTesting":  "https://raw.githubusercontent.com/420Dasher/DAH-LocalTrackSupport/testing/plugins/SpotifyTrackHonorific/latest.zip",
-        "DownloadLinkUpdate":  "https://raw.githubusercontent.com/420Dasher/DAH-LocalTrackSupport/main/plugins/SpotifyTrackHonorific/latest.zip"
-    },
-    {
-        "Author":  "Dash + AI",
-        "InternalName":  "DAH-LocalSpotifySupport",
-        "AssemblyVersion":  "0.1.0.0",
-        "ApplicableVersion":  "any",
-        "RepoUrl":  "https://github.com/420Dasher/DAH-LocalTrackSupport",
-        "Tags":  [
-                     "discord",
-                     "spotify",
-                     "local-files",
-                     "activity",
-                     "honorific"
-                 ],
-        "DalamudApiLevel":  15,
-        "LoadRequiredState":  0,
-        "LoadSync":  false,
-        "CanUnloadAsync":  false,
-        "LoadPriority":  0,
-        "AcceptsFeedback":  false,
-        "DownloadLinkInstall":  "https://raw.githubusercontent.com/420Dasher/DAH-LocalTrackSupport/main/plugins/DAH-LocalSpotifySupport/latest.zip",
-        "IsTestingExclusive":  false,
-        "DownloadLinkTesting":  "https://raw.githubusercontent.com/420Dasher/DAH-LocalTrackSupport/main/plugins/DAH-LocalSpotifySupport/latest.zip",
-        "DownloadLinkUpdate":  "https://raw.githubusercontent.com/420Dasher/DAH-LocalTrackSupport/main/plugins/DAH-LocalSpotifySupport/latest.zip",
-        "Name":  "[Discontinued] DAH-LocalSpotifySupport",
-        "Description":  "Discontinued legacy DiscordActivityHonorific fork. Replaced by the standalone SpotifyTrackHonorific plugin.",
-        "Punchline":  "Discontinued - replaced by SpotifyTrackHonorific.",
-        "Changelog":  "This legacy DAH-based fork is discontinued. Use SpotifyTrackHonorific instead.",
-        "IsHide":  false
+        "DownloadLinkTesting":  "https://raw.githubusercontent.com/420Dasher/Dashs-Plugins/testing/plugins/SpotifyTrackHonorific/latest.zip",
+        "DownloadLinkUpdate":  "https://raw.githubusercontent.com/420Dasher/Dashs-Plugins/main/plugins/SpotifyTrackHonorific/latest.zip"
     },
     {
         "Author":  "Dash + AI",
@@ -70,7 +41,7 @@
                      "market board",
                      "utility"
                  ],
-        "IconUrl":  "https://raw.githubusercontent.com/420Dasher/DAH-LocalTrackSupport/main/plugins/RetainerUndercut/icon.png",
+        "IconUrl":  "https://raw.githubusercontent.com/420Dasher/Dashs-Plugins/main/plugins/RetainerUndercut/icon.png",
         "DalamudApiLevel":  15,
         "LoadRequiredState":  0,
         "LoadSync":  false,
@@ -79,11 +50,11 @@
         "Punchline":  "Fast, safe retainer repricing with preview-first automation.",
         "Changelog":  "Retainer Undercut 0.1.3 introduces a simplified Preview, Review, and Apply interface, clearer end-user wording, and responsive quick controls that follow the Adjust Price dialog on smaller resolutions.",
         "AcceptsFeedback":  false,
-        "DownloadLinkInstall":  "https://raw.githubusercontent.com/420Dasher/DAH-LocalTrackSupport/main/plugins/RetainerUndercut/latest.zip",
+        "DownloadLinkInstall":  "https://raw.githubusercontent.com/420Dasher/Dashs-Plugins/main/plugins/RetainerUndercut/latest.zip",
         "IsHide":  false,
         "IsTestingExclusive":  false,
-        "DownloadLinkUpdate":  "https://raw.githubusercontent.com/420Dasher/DAH-LocalTrackSupport/main/plugins/RetainerUndercut/latest.zip",
-        "DownloadLinkTesting":  "https://raw.githubusercontent.com/420Dasher/DAH-LocalTrackSupport/main/plugins/RetainerUndercut/latest.zip"
+        "DownloadLinkUpdate":  "https://raw.githubusercontent.com/420Dasher/Dashs-Plugins/main/plugins/RetainerUndercut/latest.zip",
+        "DownloadLinkTesting":  "https://raw.githubusercontent.com/420Dasher/Dashs-Plugins/main/plugins/RetainerUndercut/latest.zip"
     },
     {
         "Author":  "Dash + AI",
@@ -109,37 +80,38 @@
         "AcceptsFeedback":  false,
         "IsHide":  false,
         "IsTestingExclusive":  false,
-        "DownloadLinkInstall":  "https://raw.githubusercontent.com/420Dasher/DAH-LocalTrackSupport/main/plugins/QuickSynthSpam/latest.zip",
-        "DownloadLinkUpdate":  "https://raw.githubusercontent.com/420Dasher/DAH-LocalTrackSupport/main/plugins/QuickSynthSpam/latest.zip",
-        "DownloadLinkTesting":  "https://raw.githubusercontent.com/420Dasher/DAH-LocalTrackSupport/main/plugins/QuickSynthSpam/latest.zip"
-    ,"IconUrl":"https://raw.githubusercontent.com/420Dasher/DAH-LocalTrackSupport/main/plugins/QuickSynthSpam/icon.png"},
-{
-    "Author":  "Dash + AI",
-    "InternalName":  "AethernetAssist",
-    "Name":  "AethernetAssist",
-    "AssemblyVersion":  "0.2.0.0",
-    "TestingAssemblyVersion":  "0.2.1.0",
-    "DalamudApiLevel":  15,
-    "TestingDalamudApiLevel":  15,
-    "ApplicableVersion":  "any",
-    "LoadRequiredState":  0,
-    "LoadSync":  false,
-    "CanUnloadAsync":  false,
-    "LoadPriority":  0,
-    "AcceptsFeedback":  false,
-    "IsHide":  false,
-    "IsTestingExclusive":  false,
-    "Punchline":  "Aethernet travel without the clutter.",
-    "Description":  "Context-sensitive travel for city and residential Aethernet, housing wards, Cosmic Exploration and same-DC World Visit.",
-    "Changelog":  "DEV7 TEST1 v0.2.1: Dynamic overworld Aetheryte destinations for zones with multiple crystals, live unlock/cost checks and single-request teleport with same-territory arrival checks. Stable remains v0.2.0.",
-    "Tags":  [
-                 "aethernet",
-                 "aetheryte",
-                 "teleport"
-             ],
-    "DownloadLinkInstall":  "https://raw.githubusercontent.com/420Dasher/DAH-LocalTrackSupport/main/plugins/AethernetAssist/latest.zip",
-    "DownloadLinkUpdate":  "https://raw.githubusercontent.com/420Dasher/DAH-LocalTrackSupport/main/plugins/AethernetAssist/latest.zip",
-    "DownloadLinkTesting":  "https://raw.githubusercontent.com/420Dasher/DAH-LocalTrackSupport/testing/plugins/AethernetAssist/latest.zip",
-    "IconUrl": "https://raw.githubusercontent.com/420Dasher/DAH-LocalTrackSupport/main/plugins/AethernetAssist/icon.png"
-}
+        "DownloadLinkInstall":  "https://raw.githubusercontent.com/420Dasher/Dashs-Plugins/main/plugins/QuickSynthSpam/latest.zip",
+        "DownloadLinkUpdate":  "https://raw.githubusercontent.com/420Dasher/Dashs-Plugins/main/plugins/QuickSynthSpam/latest.zip",
+        "DownloadLinkTesting":  "https://raw.githubusercontent.com/420Dasher/Dashs-Plugins/main/plugins/QuickSynthSpam/latest.zip",
+        "IconUrl":  "https://raw.githubusercontent.com/420Dasher/Dashs-Plugins/main/plugins/QuickSynthSpam/icon.png"
+    },
+    {
+        "Author":  "Dash + AI",
+        "InternalName":  "AethernetAssist",
+        "Name":  "AethernetAssist",
+        "AssemblyVersion":  "0.2.0.0",
+        "TestingAssemblyVersion":  "0.2.1.0",
+        "DalamudApiLevel":  15,
+        "TestingDalamudApiLevel":  15,
+        "ApplicableVersion":  "any",
+        "LoadRequiredState":  0,
+        "LoadSync":  false,
+        "CanUnloadAsync":  false,
+        "LoadPriority":  0,
+        "AcceptsFeedback":  false,
+        "IsHide":  false,
+        "IsTestingExclusive":  false,
+        "Punchline":  "Aethernet travel without the clutter.",
+        "Description":  "Context-sensitive travel for city and residential Aethernet, housing wards, Cosmic Exploration and same-DC World Visit.",
+        "Changelog":  "DEV7 TEST1 v0.2.1: Dynamic overworld Aetheryte destinations for zones with multiple crystals, live unlock/cost checks and single-request teleport with same-territory arrival checks. Stable remains v0.2.0.",
+        "Tags":  [
+                     "aethernet",
+                     "aetheryte",
+                     "teleport"
+                 ],
+        "DownloadLinkInstall":  "https://raw.githubusercontent.com/420Dasher/Dashs-Plugins/main/plugins/AethernetAssist/latest.zip",
+        "DownloadLinkUpdate":  "https://raw.githubusercontent.com/420Dasher/Dashs-Plugins/main/plugins/AethernetAssist/latest.zip",
+        "DownloadLinkTesting":  "https://raw.githubusercontent.com/420Dasher/Dashs-Plugins/testing/plugins/AethernetAssist/latest.zip",
+        "IconUrl":  "https://raw.githubusercontent.com/420Dasher/Dashs-Plugins/main/plugins/AethernetAssist/icon.png"
+    }
 ]

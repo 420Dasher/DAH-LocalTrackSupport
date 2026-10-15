@@ -6,7 +6,7 @@ Only plugin metadata/assets were changed:
 - <IconUrl> added to SpotifyTrackHonorific.csproj
 
 Canonical icon URL expected by the dev/release manifest:
-https://raw.githubusercontent.com/420Dasher/DAH-LocalTrackSupport/main/SpotifyTrackHonorific/images/icon.png
+https://raw.githubusercontent.com/420Dasher/Dashs-Plugins/main/SpotifyTrackHonorific/images/icon.png
 
 IMPORTANT:
 The image must exist at SpotifyTrackHonorific/images/icon.png in the GitHub repo before Dalamud can load the remote icon.

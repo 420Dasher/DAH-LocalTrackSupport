@@ -1,4 +1,16 @@
-# SpotifyTrackHonorific
+# Dash's Plugins
+
+Custom Dalamud plugin repository maintained by Dash + AI.
+
+Active plugins:
+- SpotifyTrackHonorific
+- RetainerUndercut
+- QuickSynthSpam
+- AethernetAssist
+
+Stable releases use the main branch. Development releases use Dalamud's native testing-version option.
+
+## SpotifyTrackHonorific
 
 Show your currently playing Spotify track as an Honorific title in Final Fantasy XIV.
 
@@ -17,7 +29,7 @@ In FFXIV, open:
 
 Add this repository URL:
 
-`https://raw.githubusercontent.com/420Dasher/DAH-LocalTrackSupport/main/pluginmaster.json`
+`https://raw.githubusercontent.com/420Dasher/Dashs-Plugins/main/pluginmaster.json`
 
 Save the settings, then open:
 

@@ -26,8 +26,8 @@ For v1.0.1 the expected package is:
 
 The target custom repository is:
 
-`420Dasher/DAH-LocalTrackSupport`
+`420Dasher/Dashs-Plugins`
 
-It remains a multi-plugin repository. `DAH-LocalSpotifySupport` stays available as a discontinued legacy entry while `SpotifyTrackHonorific` is the active plugin.
+This is a multi-plugin repository. Stable builds are published through main, while testing builds use the native Dalamud testing channel.
 
-Use the multi-plugin repository publisher already present in the repository root. It preserves unrelated existing manifest entries, marks the old DAH fork discontinued, builds SpotifyTrackHonorific, copies its `latest.zip`, and writes `pluginmaster.json` as a JSON array.
+DAH-LocalSpotifySupport and BlunderNav are retired and must not be republished.

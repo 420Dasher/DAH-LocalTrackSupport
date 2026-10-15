@@ -12,11 +12,7 @@ $required = @(
     'SpotifyTrackHonorific',
     'SpotifyTrackHonorific\images\icon.png',
     'plugins\SpotifyTrackHonorific\latest.zip',
-    'plugins\DAH-LocalSpotifySupport\latest.zip',
-    'legacy\DAH-LocalSpotifySupport\source',
-    'legacy\DAH-LocalSpotifySupport\overlay',
     'dev\tools\publish.ps1',
-    'dev\tools\publish-legacy-dah.ps1',
     'dev\tools\verify-release.ps1'
 )
 foreach ($rel in $required) {
@@ -29,6 +25,10 @@ Write-Host '[2/4] Checking old root clutter is gone...'
 $forbidden = @(
     'publish.ps1',
     'publish-legacy-dah.ps1',
+    'dev\tools\publish-legacy-dah.ps1',
+    'plugins\DAH-LocalSpotifySupport\latest.zip',
+    'plugins\BlunderNav\latest.zip',
+    'BlunderNav',
     'VERIFY_V1.0.4.ps1',
     'REPO_UPDATE_STEPS.md',
     'V1.0.4_RELEASE_NOTES.txt',
@@ -50,7 +50,7 @@ Write-Host '[3/4] Checking runtime URLs stayed stable...'
 $manifest = Get-Content -LiteralPath (Join-Path $Root 'pluginmaster.json') -Raw | ConvertFrom-Json
 $active = $manifest | Where-Object { $_.InternalName -eq 'SpotifyTrackHonorific' } | Select-Object -First 1
 if (-not $active) { throw 'SpotifyTrackHonorific missing from pluginmaster.json.' }
-$rawBase = 'https://raw.githubusercontent.com/420Dasher/DAH-LocalTrackSupport/main'
+$rawBase = 'https://raw.githubusercontent.com/420Dasher/Dashs-Plugins/main'
 if ([string]$active.DownloadLinkInstall -ne "$rawBase/plugins/SpotifyTrackHonorific/latest.zip") {
     throw 'SpotifyTrackHonorific download URL changed during cleanup.'
 }
