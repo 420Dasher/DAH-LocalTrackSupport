@@ -147,7 +147,7 @@
     "InternalName":  "AethernetAssist",
     "Name":  "AethernetAssist",
     "AssemblyVersion":  "0.1.0.0",
-    "TestingAssemblyVersion":  "0.1.5.0",
+    "TestingAssemblyVersion":  "0.1.6.0",
     "DalamudApiLevel":  15,
     "TestingDalamudApiLevel":  15,
     "ApplicableVersion":  "any",
@@ -160,7 +160,7 @@
     "IsTestingExclusive":  false,
     "Punchline":  "Aethernet travel without the clutter.",
     "Description":  "Contextual Aethernet window with real attunement checks and one-click travel.",
-    "Changelog":  "DEV6 RC4 v0.1.5: Remember the last actively used travel feature, even when only one navigation tab is available. Covers city, residential and Cosmic Aethernet, Housing and Same-DC World Visit. Retains the previous tab and proximity fixes.",
+    "Changelog":  "DEV6 RC5 v0.1.6: Wait for stable native Aethernet destination data before the first callback pair and allow one validated automatic retry if travel is not acknowledged. Retains tab memory, proximity fixes and existing travel systems.",
     "Tags":  [
                  "aethernet",
                  "aetheryte",

@@ -127,6 +127,13 @@ public sealed unsafe partial class Plugin : IDalamudPlugin
     private int callbackAttempts;
     private bool sawLoading;
 
+    // Wait until the native destination entry has remained
+    // stable before submitting the first callback.
+    private DateTime nativeDestinationReadySince = DateTime.MinValue;
+    private int nativeDestinationReadyRow = -1;
+    private uint nativeDestinationReadyCallback;
+    private bool nativeAutomaticRetryUsed;
+
     private IGameObject? nearby;
     private nint nearbyAddress;
     private uint activeGroup;
@@ -662,6 +669,9 @@ public sealed unsafe partial class Plugin : IDalamudPlugin
 
         callbackAttempts = 0;
         sawLoading = false;
+        nativeAutomaticRetryUsed = false;
+        nativeDestinationReadySince = DateTime.MinValue;
+        nativeDestinationReadyRow = -1;
 
         lastInteraction = DateTime.MinValue;
 
@@ -675,6 +685,13 @@ public sealed unsafe partial class Plugin : IDalamudPlugin
 
     private void GoTo(TravelPhase next)
     {
+        if (next == TravelPhase.SelectDestination &&
+            phase != TravelPhase.SelectDestination)
+        {
+            nativeDestinationReadySince = DateTime.MinValue;
+            nativeDestinationReadyRow = -1;
+        }
+
         phase = next;
         phaseStarted = DateTime.UtcNow;
     }
@@ -716,6 +733,27 @@ public sealed unsafe partial class Plugin : IDalamudPlugin
 
             double elapsed =
                 (DateTime.UtcNow - phaseStarted).TotalSeconds;
+
+            // If the first validated callback pair was ignored,
+            // give the fully opened native menu one more chance.
+            // Never retry once loading or travel has begun.
+            if (menuOpen && !busy && !territoryChanged &&
+                !sawLoading && !nativeAutomaticRetryUsed &&
+                elapsed > 2.75)
+            {
+                nativeAutomaticRetryUsed = true;
+                callbackAttempts = 0;
+
+                status =
+                    $"Native menu still open; retrying {destination.Name}...";
+
+                Log.Warning(
+                    "AethernetAssist: first native callback pair " +
+                    "was not acknowledged; retrying once.");
+
+                GoTo(TravelPhase.SelectDestination);
+                return;
+            }
 
             // A visible native menu after two callbacks means
             // that destination selection was not acknowledged.
@@ -981,6 +1019,54 @@ public sealed unsafe partial class Plugin : IDalamudPlugin
                     $"State={nativeState.UInt} ({nativeState.Type}); " +
                     $"AtkValuesCount={valueCount}.";
 
+                // Only real destination entries may receive
+                // native callbacks.
+                if (nativeType.Type != AtkValueType.UInt ||
+                    nativeState.Type != AtkValueType.UInt ||
+                    nativeType.UInt != 0)
+                {
+                    Cancel("Unexpected native Aethernet destination state.");
+                    return;
+                }
+
+                if (nativeState.UInt != 0)
+                {
+                    // The first callback may already have
+                    // initiated travel and changed native state.
+                    if (callbackAttempts > 0)
+                    {
+                        GoTo(TravelPhase.WaitForArrival);
+                        return;
+                    }
+
+                    Cancel(
+                        $"Destination is unavailable (native state {nativeState.UInt}).");
+                    return;
+                }
+
+                // At least 300ms with the same validated
+                // destination row and callback ID.
+                // The second callback still follows on the
+                // next framework update, as in DEV5.
+                if (callbackAttempts == 0)
+                {
+                    DateTime now = DateTime.UtcNow;
+
+                    if (nativeDestinationReadySince == DateTime.MinValue ||
+                        nativeDestinationReadyRow != i ||
+                        nativeDestinationReadyCallback != callbackData)
+                    {
+                        nativeDestinationReadySince = now;
+                        nativeDestinationReadyRow = i;
+                        nativeDestinationReadyCallback = callbackData;
+                        return;
+                    }
+
+                    if ((now - nativeDestinationReadySince)
+                        .TotalMilliseconds < 300)
+                        return;
+                }
+
                 if (callbackAttempts < 2)
                 {
                     AtkValue* args = stackalloc AtkValue[2];
@@ -1002,7 +1088,9 @@ public sealed unsafe partial class Plugin : IDalamudPlugin
                     lastInteraction = DateTime.UtcNow;
                     callbackAttempts++;
                     lastMenuReadout +=
-                        $" | Callback {callbackAttempts}/2 handlerReturn={dispatchResult}";
+                        $" | Pass={(nativeAutomaticRetryUsed ? "retry" : "initial")}" +
+                        $" | Callback {callbackAttempts}/2" +
+                        $" | handlerReturn={dispatchResult}";
 
 
                     status = $"Teleporting to {destination.Name}...";
