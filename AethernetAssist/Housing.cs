@@ -198,6 +198,8 @@ public sealed unsafe partial class Plugin
             return;
         }
 
+        RememberNavigationPage(NavigationPage.Housing);
+
         housingTarget = district;
         housingTargetWard = ward;
         housingInitialWard = fromCity

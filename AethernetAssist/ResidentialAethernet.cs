@@ -175,6 +175,8 @@ public sealed unsafe partial class Plugin
             return;
         }
 
+        RememberNavigationPage(NavigationPage.Aethernet);
+
         residentialTarget = stop;
         residentialSourceAddress = source.Address;
         residentialOriginTerritory = Client.TerritoryType;

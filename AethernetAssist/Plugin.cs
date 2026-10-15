@@ -653,6 +653,8 @@ public sealed unsafe partial class Plugin : IDalamudPlugin
             ) > config.OpenRange + 1f)
             return;
 
+        RememberNavigationPage(NavigationPage.Aethernet);
+
         destination = chosen;
         originAddress = nearby.Address;
         originTerritory = Client.TerritoryType;
