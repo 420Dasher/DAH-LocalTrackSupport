@@ -6,7 +6,6 @@ Everything in this directory exists for development, release preparation, verifi
 
 - `publish.ps1` — build the active SpotifyTrackHonorific source, copy the package to `plugins/SpotifyTrackHonorific/latest.zip`, update the manifest, and run release verification.
 - `verify-release.ps1` — version-independent release consistency check.
-- `publish-legacy-dah.ps1` — legacy-only rebuild helper for the discontinued DAH fork.
 - `verify-layout.ps1` — checks that the repository remains in the organized layout and runtime URLs are unchanged.
 
 ## docs

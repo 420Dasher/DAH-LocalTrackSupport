@@ -19,7 +19,7 @@
 
 The normal repository remains:
 
-`https://raw.githubusercontent.com/420Dasher/DAH-LocalTrackSupport/main/pluginmaster.json`
+`https://raw.githubusercontent.com/420Dasher/Dashs-Plugins/main/pluginmaster.json`
 
 Do not add the `testing` branch as a second custom repository.
 

@@ -1,6 +1,6 @@
 param(
     [string]$GitHubUser = '420Dasher',
-    [string]$RepoName = 'DAH-LocalTrackSupport'
+    [string]$RepoName = 'Dashs-Plugins'
 )
 
 $ErrorActionPreference = 'Stop'
@@ -73,6 +73,7 @@ $displayVersion = $fullVersion -replace '\.0$', ''
 $repoUrl = "https://github.com/$GitHubUser/$RepoName"
 $rawBase = "https://raw.githubusercontent.com/$GitHubUser/$RepoName/main"
 $download = "$rawBase/plugins/SpotifyTrackHonorific/latest.zip"
+$testingDownload = "https://raw.githubusercontent.com/$GitHubUser/$RepoName/testing/plugins/SpotifyTrackHonorific/latest.zip"
 
 Write-Host "[1/5] Building SpotifyTrackHonorific $displayVersion..."
 & $BuildRelease
@@ -92,56 +93,11 @@ $utf8NoBom = New-Object System.Text.UTF8Encoding($false)
 Write-Host '[3/5] Updating multi-plugin repository manifest...'
 $entries = @(Read-ManifestEntries -Path $Manifest)
 
-$legacy = $entries | Where-Object {
-    $internalName = Get-EntryString $_ 'InternalName'
-    $name = Get-EntryString $_ 'Name'
-    $internalName -eq 'DAH-LocalSpotifySupport' -or
-    $name -eq 'DAH-LocalSpotifySupport' -or
-    $name -eq '[Discontinued] DAH-LocalSpotifySupport'
-} | Select-Object -First 1
-
-if (-not $legacy) {
-    Write-Warning 'Legacy manifest entry was not present locally. Reconstructing the known discontinued DAH entry.'
-    $legacy = [pscustomobject][ordered]@{
-        Author = 'Dash + AI'
-        InternalName = 'DAH-LocalSpotifySupport'
-        AssemblyVersion = '0.1.0.0'
-        ApplicableVersion = 'any'
-        RepoUrl = $repoUrl
-        Tags = @('discord','spotify','local-files','activity','honorific')
-        DalamudApiLevel = 15
-        LoadRequiredState = 0
-        LoadSync = $false
-        CanUnloadAsync = $false
-        LoadPriority = 0
-        AcceptsFeedback = $false
-        DownloadLinkInstall = "$rawBase/plugins/DAH-LocalSpotifySupport/latest.zip"
-        IsTestingExclusive = $false
-        DownloadLinkTesting = "$rawBase/plugins/DAH-LocalSpotifySupport/latest.zip"
-        DownloadLinkUpdate = "$rawBase/plugins/DAH-LocalSpotifySupport/latest.zip"
-        Name = '[Discontinued] DAH-LocalSpotifySupport'
-        Description = 'Discontinued legacy DiscordActivityHonorific fork. Replaced by the standalone SpotifyTrackHonorific plugin.'
-        Punchline = 'Discontinued - replaced by SpotifyTrackHonorific.'
-        Changelog = 'This legacy DAH-based fork is discontinued. Use SpotifyTrackHonorific instead.'
-        IsHide = $false
-    }
-}
-else {
-    Set-JsonProperty $legacy 'Name' '[Discontinued] DAH-LocalSpotifySupport'
-    Set-JsonProperty $legacy 'Description' 'Discontinued legacy DiscordActivityHonorific fork. Replaced by the standalone SpotifyTrackHonorific plugin.'
-    Set-JsonProperty $legacy 'Punchline' 'Discontinued - replaced by SpotifyTrackHonorific.'
-    Set-JsonProperty $legacy 'Changelog' 'This legacy DAH-based fork is discontinued. Use SpotifyTrackHonorific instead.'
-    Set-JsonProperty $legacy 'IsHide' $false
-}
-
 $otherEntries = @($entries | Where-Object {
     $internalName = Get-EntryString $_ 'InternalName'
     $name = Get-EntryString $_ 'Name'
-    $isActive = $internalName -eq 'SpotifyTrackHonorific' -or $name -eq 'SpotifyTrackHonorific'
-    $isLegacy = $internalName -eq 'DAH-LocalSpotifySupport' -or
-                $name -eq 'DAH-LocalSpotifySupport' -or
-                $name -eq '[Discontinued] DAH-LocalSpotifySupport'
-    -not $isActive -and -not $isLegacy
+    $internalName -notin @('SpotifyTrackHonorific', 'DAH-LocalSpotifySupport', 'BlunderNav') -and
+    $name -ne 'SpotifyTrackHonorific'
 })
 
 $newEntry = [pscustomobject][ordered]@{
@@ -151,7 +107,6 @@ $newEntry = [pscustomobject][ordered]@{
     AssemblyVersion = $fullVersion
     Description = 'Shows your current Spotify track as an Honorific title, including local files, formatting, cleanup, styling, supporter effects, reliability handling, content filtering, saved profiles, portable settings, and optional combat auto-hide.'
     ApplicableVersion = 'any'
-    RepoUrl = $repoUrl
     Tags = @('spotify','local-files','honorific','music')
     IconUrl = "$rawBase/SpotifyTrackHonorific/images/icon.png"
     DalamudApiLevel = 15
@@ -165,20 +120,18 @@ $newEntry = [pscustomobject][ordered]@{
     DownloadLinkInstall = $download
     IsHide = $false
     IsTestingExclusive = $false
-    DownloadLinkTesting = $download
+    DownloadLinkTesting = $testingDownload
     DownloadLinkUpdate = $download
 }
 
-$finalEntries = @($newEntry) + @($legacy) + @($otherEntries)
+$finalEntries = @($newEntry) + @($otherEntries)
 $manifestJson = ConvertTo-Json -InputObject $finalEntries -Depth 15
 if (-not $manifestJson.TrimStart().StartsWith('[')) { $manifestJson = "[`r`n$manifestJson`r`n]" }
 [System.IO.File]::WriteAllText($Manifest, $manifestJson + [Environment]::NewLine, $utf8NoBom)
 
 $validatedEntries = @(Read-ManifestEntries -Path $Manifest)
 $activeCheck = $validatedEntries | Where-Object { (Get-EntryString $_ 'InternalName') -eq 'SpotifyTrackHonorific' } | Select-Object -First 1
-$legacyCheck = $validatedEntries | Where-Object { (Get-EntryString $_ 'InternalName') -eq 'DAH-LocalSpotifySupport' } | Select-Object -First 1
 if (-not $activeCheck) { throw 'Generated manifest does not contain SpotifyTrackHonorific.' }
-if (-not $legacyCheck) { throw 'Generated manifest does not contain the discontinued DAH-LocalSpotifySupport entry.' }
 
 Write-Host '[4/5] Verifying release package...'
 & $Verifier

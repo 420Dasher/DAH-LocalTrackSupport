@@ -19,7 +19,7 @@ The publisher:
 - copies the release ZIP to `plugins/SpotifyTrackHonorific/latest.zip`;
 - writes `latest.zip.sha256.txt`;
 - updates only the active SpotifyTrackHonorific entry in `pluginmaster.json`;
-- preserves the discontinued legacy entry and all other manifest entries;
+- preserves unrelated active manifest entries without restoring retired plugins;
 - runs the generic release verifier.
 
 Review before committing:
@@ -53,13 +53,3 @@ After GitHub shows the commit:
 3. Confirm the new version is offered from the custom repository.
 4. Install/update it.
 5. Confirm settings migrate, icon loads, Spotify connects, title formatting works, and `/sth status` is healthy.
-
-## Legacy publisher
-
-Only use this if the discontinued DAH fork ever genuinely needs rebuilding:
-
-```powershell
-.\dev\tools\publish-legacy-dah.ps1 -GitHubUser 420Dasher
-```
-
-Its source/overlay material lives under `legacy/DAH-LocalSpotifySupport/`.

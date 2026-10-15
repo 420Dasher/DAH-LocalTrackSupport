@@ -70,17 +70,14 @@ if ((Get-EntryString $active 'AssemblyVersion') -ne $expectedVersion) {
     throw "pluginmaster AssemblyVersion is $(Get-EntryString $active 'AssemblyVersion'), expected $expectedVersion"
 }
 
-$legacy = $repo | Where-Object {
-    (Get-EntryString $_ 'InternalName') -eq 'DAH-LocalSpotifySupport'
-} | Select-Object -First 1
-if (-not $legacy) { throw 'Legacy DAH-LocalSpotifySupport entry is missing from pluginmaster.json' }
-
-$legacyName = Get-EntryString $legacy 'Name'
-if (-not $legacyName.StartsWith('[Discontinued]')) {
-    throw 'Legacy plugin entry is present but is not marked discontinued'
+$retired = $repo | Where-Object {
+    (Get-EntryString $_ 'InternalName') -in @('DAH-LocalSpotifySupport', 'BlunderNav')
+}
+if ($retired) {
+    throw 'A retired plugin was reintroduced into the manifest.'
 }
 
-$expectedRawBase = 'https://raw.githubusercontent.com/420Dasher/DAH-LocalTrackSupport/main'
+$expectedRawBase = 'https://raw.githubusercontent.com/420Dasher/Dashs-Plugins/main'
 $expectedDownload = "$expectedRawBase/plugins/SpotifyTrackHonorific/latest.zip"
 $expectedIcon = "$expectedRawBase/SpotifyTrackHonorific/images/icon.png"
 if ((Get-EntryString $active 'DownloadLinkInstall') -ne $expectedDownload) {

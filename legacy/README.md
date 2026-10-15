@@ -1,11 +1,7 @@
-# Legacy DAH-LocalSpotifySupport material
+# Historical DAH-LocalSpotifySupport source
 
-This directory contains source/overlay material for the discontinued `DAH-LocalSpotifySupport` fork.
+DAH-LocalSpotifySupport has been removed from the active Dalamud repository and its release package has been retired.
 
-The legacy plugin remains present in the custom repository for compatibility, but new development belongs in `SpotifyTrackHonorific/`.
+The corresponding historical source and overlay remain available for license compliance and attribution.
 
-The corresponding compiled package remains at:
-
-`plugins/DAH-LocalSpotifySupport/latest.zip`
-
-License/attribution information remains visible at the repository root in `LICENSE_NOTICE.md`.
+See LICENSE_NOTICE.md at the repository root.

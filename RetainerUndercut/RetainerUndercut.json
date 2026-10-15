@@ -1,4 +1,4 @@
-﻿{
+{
     "Author":  "Dash + AI",
     "Name":  "Retainer Undercut",
     "Punchline":  "Fast, safe retainer repricing with preview-first automation.",
@@ -10,5 +10,5 @@
                  "market board",
                  "utility"
              ],
-    "IconUrl":  "https://raw.githubusercontent.com/420Dasher/DAH-LocalTrackSupport/main/plugins/RetainerUndercut/icon.png"
+    "IconUrl":  "https://raw.githubusercontent.com/420Dasher/Dashs-Plugins/main/plugins/RetainerUndercut/icon.png"
 }
