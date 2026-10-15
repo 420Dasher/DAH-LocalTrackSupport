@@ -45,6 +45,9 @@ public sealed unsafe partial class Plugin : IDalamudPlugin
     private static IDataManager Data { get; set; } = null!;
 
     [PluginService]
+    private static IAetheryteList Aetherytes { get; set; } = null!;
+
+    [PluginService]
     private static IGameGui Gui { get; set; } = null!;
 
     [PluginService]
@@ -162,6 +165,7 @@ public sealed unsafe partial class Plugin : IDalamudPlugin
         LoadNetworks();
         LoadResidentialNetworks();
         LoadCosmicLocalNetworks();
+        LoadOverworldAetherytes();
 
         Commands.AddHandler("/anet", new CommandInfo(OnCommand)
         {
@@ -519,18 +523,27 @@ public sealed unsafe partial class Plugin : IDalamudPlugin
                 return;
             }
 
+            if (overworldPhase != OverworldPhase.Idle)
+            {
+                TickOverworldTeleport();
+                return;
+            }
+
             if ((DateTime.UtcNow - lastScan).TotalMilliseconds < 200)
                 return;
 
             lastScan = DateTime.UtcNow;
             ScanNearby();
             ScanCosmicLocalNearby();
+            ScanOverworldNearby();
             UpdateProximityWindow();
         }
         catch (Exception ex)
         {
             Log.Error($"AethernetAssist: {ex}");
-            if (worldVisitPhase != WorldVisitPhase.Idle)
+            if (overworldPhase != OverworldPhase.Idle)
+                StopOverworldTeleport("Stopped after an internal error.", false);
+            else if (worldVisitPhase != WorldVisitPhase.Idle)
                 StopWorldVisit("Stopped after an internal error.");
             else if (cosmicLocalPhase != CosmicLocalPhase.Idle)
                 StopCosmicLocal("Stopped after an internal error.");
@@ -1301,7 +1314,8 @@ public sealed unsafe partial class Plugin : IDalamudPlugin
         bool aethernetAvailable =
             nearby != null ||
             TryFindResidentialShard(out _) ||
-            cosmicLocalNearby != null;
+            cosmicLocalNearby != null ||
+            overworldNearby != null;
 
         NavigationPage remembered =
             (NavigationPage)config.LastSelectedNavigationPage;
@@ -1430,6 +1444,12 @@ public sealed unsafe partial class Plugin : IDalamudPlugin
         if (TryFindResidentialShard(out _))
         {
             DrawResidentialAethernetPage();
+            return;
+        }
+
+        if (nearby == null && overworldNearby != null)
+        {
+            DrawOverworldPage();
             return;
         }
 
@@ -1683,6 +1703,10 @@ public sealed unsafe partial class Plugin : IDalamudPlugin
             ImGui.TextUnformatted(
                 "Travel phase: " + phase
             );
+
+            ImGui.TextUnformatted("Overworld: " + overworldPhase +
+                " | " + (overworldNearby?.Name.ToString() ?? "No source"));
+            ImGui.TextWrapped(overworldStatus);
 
             ImGui.TextUnformatted(
                 "Callbacks: " + callbackAttempts + "/2"

@@ -32,6 +32,7 @@ public sealed unsafe partial class Plugin
             if (autoWindowOwnsVisibility &&
                 housingPhase == HousingPhase.Idle &&
                 phase == TravelPhase.Idle &&
+                overworldPhase == OverworldPhase.Idle &&
                 worldVisitPhase == WorldVisitPhase.Idle)
             {
                 windowOpen = false;
@@ -49,7 +50,7 @@ public sealed unsafe partial class Plugin
 
         bool nearAethernet =
             nearby != null || nearResidentialShard ||
-            nearCosmicShard;
+            nearCosmicShard || overworldNearby != null;
 
         bool nearHousingEntrance = TryFindWardEntrance(
             out _,
@@ -75,6 +76,8 @@ public sealed unsafe partial class Plugin
                 ? "Cosmic Aethernet shard"
             : nearResidentialShard
                 ? "Residential Aethernet shard"
+            : overworldNearby != null
+                ? "Overworld Aetheryte"
             : nearAethernet
                 ? "Aethernet shard / Aetheryte"
                 : nearCityAetheryte
@@ -87,6 +90,7 @@ public sealed unsafe partial class Plugin
             if (autoWindowOwnsVisibility &&
                 housingPhase == HousingPhase.Idle &&
                 phase == TravelPhase.Idle &&
+                overworldPhase == OverworldPhase.Idle &&
                 worldVisitPhase == WorldVisitPhase.Idle)
             {
                 windowOpen = false;
