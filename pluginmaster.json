@@ -119,11 +119,11 @@
         "Name":  "APGambaHax",
         "InternalName":  "APGambaHax",
         "AssemblyVersion":  "0.0.0.0",
-        "TestingAssemblyVersion":  "0.1.12.0",
+        "TestingAssemblyVersion":  "0.1.13.0",
         "Description":  "Modular Aetherphone Gamba companion with live rewards, Barkeep automation, guarded batches, profit tracking and theme matching.",
         "Punchline":  "Make sense of the Gamba floor.",
         "Changelog":  "DEV1 TEST1: Initial modular UI, appearance settings, manual rewards reminder and Barkeep estimator.",
-        "TestingChangelog":  "Missions DEV1: Live mission dashboard, progress bars, manual claiming, opt-in auto claim and per-account safeguards.",
+        "TestingChangelog":  "Universal RoundTracker DEV1: live Blackjack tracking, shared round observations, deduplication and session statistics.",
         "ApplicableVersion":  "any",
         "Tags":  [
                      "aetherphone",
@@ -142,7 +142,7 @@
         "DownloadLinkInstall":  "https://raw.githubusercontent.com/420Dasher/Dashs-Plugins/testing/plugins/APGambaHax/latest.zip",
         "DownloadLinkUpdate":  "https://raw.githubusercontent.com/420Dasher/Dashs-Plugins/testing/plugins/APGambaHax/latest.zip",
         "DownloadLinkTesting":  "https://raw.githubusercontent.com/420Dasher/Dashs-Plugins/testing/plugins/APGambaHax/latest.zip",
-        "LastUpdate":  1792125884,
+        "LastUpdate":  1792129891,
         "IconUrl":  "https://raw.githubusercontent.com/420Dasher/Dashs-Plugins/main/plugins/APGambaHax/icon.png"
     }
 ]
