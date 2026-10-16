@@ -298,7 +298,7 @@ public sealed class Plugin : IDalamudPlugin
             $"Enabled modules: {cfg.ModulesEnabled.Count(x => x)} / 6");
 
         ImGui.Spacing();
-        ImGui.TextDisabled("DEV2 TEST4 FIX1 - unified Barkeep automation.");
+        ImGui.TextDisabled("DEV2 TEST4 FIX2 - unified Barkeep automation.");
         ImGui.TextDisabled("Wager automation is disabled by default.");
     }
 
@@ -401,7 +401,28 @@ public sealed class Plugin : IDalamudPlugin
 
         // No BeginChild: the main Dalamud window is the only scroll region.
         ImGui.TextUnformatted("Aetherphone: " + bridge.BarkeepStatus);
-        ImGui.TextDisabled("Automation: " + automation.Status);
+        string automationLabel = automation.Status;
+
+        if (!automation.HasError &&
+            !automation.BatchArmed &&
+            !automation.ManagingWager &&
+            automation.LastStopReason.Length == 0)
+        {
+            bool waiting =
+                automationLabel == "Idle" ||
+                automationLabel == "Automation disabled" ||
+                automationLabel == "Practice automation disabled";
+
+            if (waiting)
+            {
+                if (cfg.WagerAutomationEnabled)
+                    automationLabel = "Ready - waiting for wager or batch";
+                else if (cfg.PracticeAutomationEnabled)
+                    automationLabel = "Ready - waiting for practice";
+            }
+        }
+
+        ImGui.TextDisabled("Automation: " + automationLabel);
 
         if (automation.LastStopReason.Length > 0)
             ImGui.TextDisabled("Last stop: " + automation.LastStopReason);
@@ -563,48 +584,86 @@ public sealed class Plugin : IDalamudPlugin
                     Save();
                 }
 
-                int count = cfg.WagerStopAfter;
-                ImGui.SetNextItemWidth(130f);
+                ImGui.Spacing();
 
-                if (ImGui.InputInt("Shift limit", ref count))
+                if (ImGui.BeginTable(
+                    "##BarkeepBatchGrid",
+                    2,
+                    ImGuiTableFlags.SizingStretchSame))
                 {
-                    cfg.WagerStopAfter = Math.Clamp(count, 1, 9999);
-                    Save();
-                }
+                    try
+                    {
+                        ImGui.TableNextColumn();
 
-                int profit = cfg.WagerStopAtProfit;
-                ImGui.SetNextItemWidth(130f);
+                        ImGui.TextDisabled("Shift limit");
 
-                if (ImGui.InputInt(
-                    "Stop at profit (chips)", ref profit, 100, 1000))
-                {
-                    cfg.WagerStopAtProfit = Math.Clamp(
-                        profit, 0, 1000000);
-                    Save();
-                }
+                        int count = cfg.WagerStopAfter;
 
-                int loss = cfg.WagerStopAtLoss;
-                ImGui.SetNextItemWidth(130f);
+                        ImGui.SetNextItemWidth(-1f);
 
-                if (ImGui.InputInt(
-                    "Stop at loss (chips)", ref loss, 100, 1000))
-                {
-                    cfg.WagerStopAtLoss = Math.Clamp(
-                        loss, 0, 1000000);
-                    Save();
-                }
+                        if (ImGui.InputInt(
+                            "##BarkeepShiftLimit", ref count, 1, 10))
+                        {
+                            cfg.WagerStopAfter = Math.Clamp(
+                                count, 1, 9999);
+                            Save();
+                        }
 
-                int delay = cfg.WagerDelaySeconds;
-                ImGui.SetNextItemWidth(130f);
+                        ImGui.TableNextColumn();
 
-                if (ImGui.InputInt("Batch delay (seconds)", ref delay))
-                {
-                    cfg.WagerDelaySeconds = Math.Clamp(delay, 1, 60);
-                    Save();
+                        ImGui.TextDisabled("Delay (seconds)");
+
+                        int delay = cfg.WagerDelaySeconds;
+
+                        ImGui.SetNextItemWidth(-1f);
+
+                        if (ImGui.InputInt(
+                            "##BarkeepDelay", ref delay, 1, 10))
+                        {
+                            cfg.WagerDelaySeconds = Math.Clamp(
+                                delay, 1, 60);
+                            Save();
+                        }
+
+                        ImGui.TableNextColumn();
+
+                        ImGui.TextDisabled("Profit stop (chips)");
+
+                        int profit = cfg.WagerStopAtProfit;
+
+                        ImGui.SetNextItemWidth(-1f);
+
+                        if (ImGui.InputInt(
+                            "##BarkeepProfitStop", ref profit, 100, 1000))
+                        {
+                            cfg.WagerStopAtProfit = Math.Clamp(
+                                profit, 0, 1000000);
+                            Save();
+                        }
+
+                        ImGui.TableNextColumn();
+
+                        ImGui.TextDisabled("Loss stop (chips)");
+
+                        int loss = cfg.WagerStopAtLoss;
+
+                        ImGui.SetNextItemWidth(-1f);
+
+                        if (ImGui.InputInt(
+                            "##BarkeepLossStop", ref loss, 100, 1000))
+                        {
+                            cfg.WagerStopAtLoss = Math.Clamp(
+                                loss, 0, 1000000);
+                            Save();
+                        }
+                    }
+                    finally {
+                        ImGui.EndTable();
+                    }
                 }
 
                 ImGui.TextDisabled(
-                    "Zero profit/loss limit means disabled.");
+                    "Profit/loss stop: 0 = disabled.");
             }
         }
 
@@ -622,7 +681,7 @@ public sealed class Plugin : IDalamudPlugin
     {
         Heading(name);
         ImGui.TextWrapped(
-            "Module foundation ready. Additional game automation is not implemented in DEV2 TEST4 FIX1.");
+            "Module foundation ready. Additional game automation is not implemented in DEV2 TEST4 FIX2.");
 
         if (name == "ORIGINALS")
             ImGui.TextDisabled(
@@ -697,7 +756,7 @@ public sealed class Plugin : IDalamudPlugin
                 }
 
                 ImGui.Spacing();
-                ImGui.TextDisabled("APGambaHax " + VersionText + " - DEV2 TEST4 FIX1");
+                ImGui.TextDisabled("APGambaHax " + VersionText + " - DEV2 TEST4 FIX2");
                 ImGui.TextDisabled("Bridge: " + bridge.Status);
                 ImGui.TextDisabled("Aetherphone assembly: " + bridge.Version);
             }
