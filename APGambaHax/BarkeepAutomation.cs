@@ -47,27 +47,44 @@ internal sealed class BarkeepAutomation
     public long? NetWinToday { get; private set; }
     public bool Capped { get; private set; }
 
+    private long historyPositiveNet;
+    private bool historyLoaded;
+    private bool observedLiveUnsettled;
+
+    public string FreshSettlementRoundId { get; private set; } = "";
+
+    public bool HistoryLoaded => historyLoaded;
+    public long HistoryPositiveNet => historyPositiveNet;
+    public bool DailyNetConfirmed => NetWinToday.HasValue;
+
     public bool DailyCapReached =>
         CasinoProfitLimits.DailyLimitReached(
-            "Barkeep", NetWinToday, Capped);
+            "Barkeep", NetWinToday, Capped) ||
+        (historyLoaded &&
+         historyPositiveNet >= CasinoProfitLimits.BarkeepDailyNetCap);
+
+    public bool CanStartBatch =>
+        DailyNetConfirmed && !DailyCapReached;
 
     public int DailyShiftsRemaining =>
-        CasinoProfitLimits.BarkeepRemainingPerfectShifts(NetWinToday);
+        !CanStartBatch ? 0 :
+        CasinoProfitLimits.BarkeepRemainingPerfectShifts(
+            Math.Max(NetWinToday!.Value, historyPositiveNet));
 
-    public int MaximumNewBatchShifts =>
-        DailyCapReached ? 0 : DailyShiftsRemaining;
+    public int MaximumNewBatchShifts => DailyShiftsRemaining;
 
     public int BatchEffectiveLimit => batchEffectiveLimit;
 
     public int EffectiveBatchLimit(int configured)
     {
+        if (!CanStartBatch)
+            return 0;
+
         int completed = batchArmed
             ? Wagers - batchStartWagers
             : 0;
 
-        int dailyBound = NetWinToday.HasValue
-            ? completed + DailyShiftsRemaining
-            : CasinoProfitLimits.MaximumFreshPerfectShifts;
+        int dailyBound = completed + DailyShiftsRemaining;
 
         return Math.Min(
             Math.Clamp(configured, 1, 9999),
@@ -75,6 +92,39 @@ internal sealed class BarkeepAutomation
                 dailyBound,
                 0,
                 CasinoProfitLimits.MaximumFreshPerfectShifts));
+    }
+
+    public void RestoreDailySnapshot(long? net, bool capped)
+    {
+        if (batchArmed)
+        {
+            StopBatch();
+            DisableWagersRequested = true;
+        }
+
+        NetWinToday = net;
+        Capped = capped && net.HasValue;
+        historyPositiveNet = 0;
+        historyLoaded = false;
+        observedLiveUnsettled = false;
+        FreshSettlementRoundId = "";
+        observedDailyNetUtcDate = net.HasValue
+            ? DateTime.UtcNow.Date
+            : DateTime.MinValue;
+    }
+
+    public void SetHistoryObservation(bool loaded, long positiveNet)
+    {
+        historyLoaded = loaded;
+        historyPositiveNet = loaded
+            ? Math.Clamp(
+                positiveNet,
+                0L,
+                CasinoProfitLimits.BarkeepDailyNetCap)
+            : 0L;
+
+        if (batchArmed && DailyCapReached)
+            Fail("Daily Barkeep cap detected from history");
     }
 
     private void ExpirePreviousDaySnapshot()
@@ -188,6 +238,12 @@ internal sealed class BarkeepAutomation
             return;
         }
 
+        if (!DailyNetConfirmed)
+        {
+            Status = "Daily net unconfirmed - batch blocked";
+            return;
+        }
+
         batchEffectiveLimit = EffectiveBatchLimit(requestedLimit);
 
         if (batchEffectiveLimit <= 0)
@@ -221,6 +277,14 @@ internal sealed class BarkeepAutomation
     public void Resume()
     {
         if (!batchArmed || faulted) return;
+
+        if (!CanStartBatch)
+        {
+            Fail(DailyCapReached
+                ? "Daily Barkeep cap reached"
+                : "Daily net unconfirmed");
+            return;
+        }
 
         paused = false;
 
@@ -266,9 +330,11 @@ internal sealed class BarkeepAutomation
         if (!batchArmed || paused || faulted || startPending || managingWager)
             return;
 
-        if (DailyCapReached)
+        if (DailyCapReached || !DailyNetConfirmed)
         {
-            Fail("Daily Barkeep cap reached");
+            Fail(DailyCapReached
+                ? "Daily Barkeep cap reached"
+                : "Daily net unconfirmed");
             return;
         }
 
@@ -438,6 +504,9 @@ internal sealed class BarkeepAutomation
         Wagers++;
         SessionNet += net;
 
+        if (observedLiveUnsettled)
+            FreshSettlementRoundId = roundId;
+
         if (trackedShift is not null &&
             Int(trackedShift, "Score") == Int(trackedShift, "MaxScore"))
             PerfectWagers++;
@@ -600,12 +669,28 @@ internal sealed class BarkeepAutomation
                     roundId = activeId;
                     managingWager = true;
                     startPending = false;
+                    observedLiveUnsettled = false;
                     afterEntryKnown = Stack(candidate) is long;
                     afterEntry = Stack(candidate) ?? 0;
                 }
 
                 if (settle is not null)
                 {
+                    // An already-settled round visible after reload
+                    // is not evidence of a new daily settlement.
+                    if (!observedLiveUnsettled)
+                    {
+                        managingWager = false;
+                        startPending = false;
+                        Status = "Previous wager result";
+
+                        if (batchArmed && !paused &&
+                            DateTime.UtcNow >= nextStartAt)
+                            TryStart(candidate, true);
+
+                        return;
+                    }
+
                     HandleSettlement(candidate, settle, shiftLimit,
                         profitLimit, lossLimit, autoContinue, delay);
 
@@ -619,6 +704,7 @@ internal sealed class BarkeepAutomation
                     return;
                 }
 
+                observedLiveUnsettled = true;
                 PerfectOrder(candidate, shift, "Wager");
                 return;
             }

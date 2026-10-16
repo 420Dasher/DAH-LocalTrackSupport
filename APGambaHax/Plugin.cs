@@ -38,6 +38,11 @@ public sealed class Plugin : IDalamudPlugin
     private readonly Configuration cfg;
     private readonly AetherphoneBridge bridge = new();
     private readonly BarkeepAutomation automation = new();
+
+    private string currentDailyAccount = "";
+    private DateTime currentDailyDate = DateTime.MinValue;
+    private string lastSavedDailyRound = "";
+
     private bool mainOpen;
     private bool settingsOpen;
     private Page page = Page.Overview;
@@ -85,6 +90,73 @@ public sealed class Plugin : IDalamudPlugin
 
     private void Save() => Pi.SavePluginConfig(cfg);
 
+    private void RestoreDailyIfNeeded()
+    {
+        string account = bridge.AccountKey;
+        DateTime day = DateTime.UtcNow.Date;
+
+        if (account != currentDailyAccount || day != currentDailyDate)
+        {
+            currentDailyAccount = account;
+            currentDailyDate = day;
+            lastSavedDailyRound = "";
+
+            cfg.BarkeepDailyRecords ??=
+                new Dictionary<string, BarkeepDailyRecord>();
+
+            long? restoredNet = null;
+            bool restoredCap = false;
+
+            long todayStart =
+                new DateTimeOffset(
+                    day,
+                    TimeSpan.Zero).ToUnixTimeSeconds();
+
+            long now = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+
+            if (account.Length > 0 &&
+                cfg.BarkeepDailyRecords.TryGetValue(
+                    account, out var record) &&
+                record.ObservedAtUnix >= todayStart &&
+                record.ObservedAtUnix <= now)
+            {
+                restoredNet = record.NetWinToday;
+                restoredCap = record.Capped;
+            }
+
+            automation.RestoreDailySnapshot(restoredNet, restoredCap);
+        }
+
+        automation.SetHistoryObservation(
+            bridge.BarkeepHistoryLoaded,
+            bridge.BarkeepHistoryPositiveNet);
+    }
+
+    private void SaveFreshDailySettlement()
+    {
+        string fresh = automation.FreshSettlementRoundId;
+
+        if (currentDailyAccount.Length == 0 ||
+            fresh.Length == 0 ||
+            string.Equals(fresh, lastSavedDailyRound,
+                StringComparison.Ordinal) ||
+            automation.NetWinToday is not long net)
+            return;
+
+        lastSavedDailyRound = fresh;
+
+        cfg.BarkeepDailyRecords[currentDailyAccount] =
+            new BarkeepDailyRecord
+            {
+                NetWinToday = net,
+                Capped = automation.Capped,
+                ObservedAtUnix =
+                    DateTimeOffset.UtcNow.ToUnixTimeSeconds()
+            };
+
+        Save();
+    }
+
     private void OnFrameworkUpdate(IFramework framework)
     {
         if (cfg.ModulesEnabled[0] || cfg.ModulesEnabled[1] ||
@@ -92,6 +164,8 @@ public sealed class Plugin : IDalamudPlugin
             bridge.Tick();
         else
             bridge.Clear();
+
+        RestoreDailyIfNeeded();
 
         if (cfg.ModulesEnabled[1] ||
             automation.ManagingWager || automation.BatchArmed)
@@ -106,6 +180,8 @@ public sealed class Plugin : IDalamudPlugin
                 Math.Clamp(cfg.WagerStopAtLoss, 0, 1000000),
                 Math.Clamp(cfg.WagerDelaySeconds, 1, 60));
         }
+
+        SaveFreshDailySettlement();
 
         if (automation.DisableWagersRequested)
         {
@@ -316,7 +392,7 @@ public sealed class Plugin : IDalamudPlugin
             $"Enabled modules: {cfg.ModulesEnabled.Count(x => x)} / 6");
 
         ImGui.Spacing();
-        ImGui.TextDisabled("DEV2 TEST5 - unified Barkeep automation.");
+        ImGui.TextDisabled("DEV2 TEST5 FIX1 - unified Barkeep automation.");
         ImGui.TextDisabled("Wager automation is disabled by default.");
     }
 
@@ -441,6 +517,18 @@ public sealed class Plugin : IDalamudPlugin
             }
         }
 
+        if (cfg.WagerAutomationEnabled &&
+            !automation.ManagingWager &&
+            !automation.BatchArmed &&
+            !automation.HasError &&
+            automation.LastStopReason.Length == 0)
+        {
+            if (automation.DailyCapReached)
+                automationLabel = "Daily Barkeep cap reached";
+            else if (!automation.DailyNetConfirmed)
+                automationLabel = "Daily net unconfirmed - batch locked";
+        }
+
         ImGui.TextDisabled("Automation: " + automationLabel);
 
         if (automation.LastStopReason.Length > 0)
@@ -536,7 +624,22 @@ public sealed class Plugin : IDalamudPlugin
         else
         {
             ImGui.TextDisabled(
-                "Daily net unknown until a new Barkeep settlement.");
+                "Server daily net: unconfirmed.");
+        }
+
+        if (automation.HistoryLoaded)
+        {
+            ImGui.TextDisabled(
+                $"History positive winnings today: " +
+                $"{automation.HistoryPositiveNet:N0} chips");
+
+            ImGui.TextDisabled(
+                "History is a partial recovery estimate.");
+        }
+        else
+        {
+            ImGui.TextDisabled(
+                "Waiting for Aetherphone history.");
         }
 
         if (automation.DailyCapReached)
@@ -579,6 +682,13 @@ public sealed class Plugin : IDalamudPlugin
                 {
                     ImGui.TextDisabled(
                         "Start unavailable: daily Barkeep cap reached.");
+                }
+                else if (!automation.CanStartBatch)
+                {
+                    ImGui.TextDisabled(
+                        "Start locked: daily net not confirmed.");
+                    ImGui.TextDisabled(
+                        "A fresh server settlement is required.");
                 }
                 else if (ImGui.Button("Start batch"))
                 {
@@ -638,10 +748,14 @@ public sealed class Plugin : IDalamudPlugin
                         int maximum = Math.Max(
                             1, automation.MaximumNewBatchShifts);
 
-                        int count = Math.Min(
-                            cfg.WagerStopAfter, maximum);
+                        int count = automation.CanStartBatch
+                            ? Math.Min(cfg.WagerStopAfter, maximum)
+                            : cfg.WagerStopAfter;
 
                         ImGui.SetNextItemWidth(-1f);
+
+                        if (!automation.CanStartBatch)
+                            ImGui.BeginDisabled();
 
                         if (ImGui.InputInt(
                             "##BarkeepShiftLimit", ref count, 1, 10))
@@ -650,6 +764,9 @@ public sealed class Plugin : IDalamudPlugin
                                 count, 1, maximum);
                             Save();
                         }
+
+                        if (!automation.CanStartBatch)
+                            ImGui.EndDisabled();
 
                         ImGui.TableNextColumn();
 
@@ -723,7 +840,7 @@ public sealed class Plugin : IDalamudPlugin
     {
         Heading(name);
         ImGui.TextWrapped(
-            "Module foundation ready. Additional game automation is not implemented in DEV2 TEST5.");
+            "Module foundation ready. Additional game automation is not implemented in DEV2 TEST5 FIX1.");
 
         if (name == "ORIGINALS")
             ImGui.TextDisabled(
@@ -798,7 +915,7 @@ public sealed class Plugin : IDalamudPlugin
                 }
 
                 ImGui.Spacing();
-                ImGui.TextDisabled("APGambaHax " + VersionText + " - DEV2 TEST5");
+                ImGui.TextDisabled("APGambaHax " + VersionText + " - DEV2 TEST5 FIX1");
                 ImGui.TextDisabled("Bridge: " + bridge.Status);
                 ImGui.TextDisabled("Aetherphone assembly: " + bridge.Version);
             }

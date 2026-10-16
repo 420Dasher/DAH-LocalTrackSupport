@@ -2,6 +2,8 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Reflection;
+using System.Security.Cryptography;
+using System.Text;
 
 namespace APGambaHax;
 
@@ -27,6 +29,10 @@ internal sealed class AetherphoneBridge
     public string Status { get; private set; } = "Waiting for Aetherphone";
     public string Version { get; private set; } = "--";
     public bool HasCasinoState { get; private set; }
+
+    public string AccountKey { get; private set; } = "";
+    public bool BarkeepHistoryLoaded { get; private set; }
+    public long BarkeepHistoryPositiveNet { get; private set; }
     public object? BarkeepCabinet { get; private set; }
     public long? Chips { get; private set; }
     public int? Level { get; private set; }
@@ -72,6 +78,9 @@ internal sealed class AetherphoneBridge
     {
         HasCasinoState = false;
         BarkeepCabinet = null;
+        AccountKey = "";
+        BarkeepHistoryLoaded = false;
+        BarkeepHistoryPositiveNet = 0;
         Chips = null;
         Level = null;
         MaxWinPerBet = null;
@@ -177,6 +186,90 @@ internal sealed class AetherphoneBridge
 
             HasCasinoState = true;
             Status = "Connected";
+
+            // Bind cached daily observations to the authenticated
+            // Aetherphone account, not to a shared plugin config.
+            var session = Member(app, "session");
+
+            var userId = Member(
+                Member(session, "CurrentUser"), "Id") as string;
+
+            if (Member(session, "IsSignedIn") is true &&
+                !string.IsNullOrWhiteSpace(userId))
+            {
+                AccountKey = Convert.ToHexString(
+                    SHA256.HashData(Encoding.UTF8.GetBytes(userId)));
+            }
+
+            // Aetherphone owns the history requests and caching.
+            // This is a read of its existing history store.
+            try
+            {
+                if (AccountKey.Length > 0)
+                {
+                    var history = Member(app, "history");
+
+                    if (history is not null)
+                    {
+                        history.GetType().GetMethod(
+                            "EnsureFresh", InstanceFlags)?.Invoke(
+                                history, null);
+
+                        BarkeepHistoryLoaded =
+                            Member(history, "Loaded") is true;
+
+                        if (BarkeepHistoryLoaded &&
+                            Member(history, "Rounds") is IEnumerable rounds)
+                        {
+                            long dayStart =
+                                new DateTimeOffset(
+                                    DateTime.UtcNow.Date,
+                                    TimeSpan.Zero).ToUnixTimeSeconds();
+
+                            long dayEnd = dayStart + 86400L;
+
+                            foreach (var round in rounds)
+                            {
+                                if (round is null ||
+                                    Member(round, "GameKind") as string
+                                        != "casino.bartender" ||
+                                    Member(round, "State") is not int stateCode ||
+                                    stateCode != 1)
+                                    continue;
+
+                                long created = Number(
+                                    Member(round, "CreatedAtUnix")) ?? 0;
+
+                                long settled = Number(
+                                    Member(round, "SettledAtUnix")) ?? created;
+
+                                if (settled < dayStart || settled >= dayEnd)
+                                    continue;
+
+                                long stake = Number(
+                                    Member(round, "Stake")) ?? 0;
+
+                                long payout = Number(
+                                    Member(round, "Payout")) ?? 0;
+
+                                long positiveNet = Math.Max(
+                                    0L, payout - stake);
+
+                                BarkeepHistoryPositiveNet = Math.Min(
+                                    20_000L,
+                                    BarkeepHistoryPositiveNet + positiveNet);
+                            }
+                        }
+                    }
+                }
+            }
+            catch
+            {
+                // History recovery is optional; failure must not
+                // break the otherwise working casino bridge.
+                BarkeepHistoryLoaded = false;
+                BarkeepHistoryPositiveNet = 0;
+            }
 
             var sitting = Member(state, "Sitting");
             Chips = Number(Member(sitting, "Stack"));

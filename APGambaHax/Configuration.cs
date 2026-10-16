@@ -14,6 +14,11 @@ public sealed class Configuration : IPluginConfiguration
     public int WagerStopAtLoss { get; set; } = 0;
     public int WagerDelaySeconds { get; set; } = 3;
 
+    // Keyed by SHA256 of the authenticated Aetherphone account ID.
+    // Never stores the account ID itself.
+    public Dictionary<string, BarkeepDailyRecord> BarkeepDailyRecords
+        { get; set; } = new();
+
     public bool UseDalamudColors { get; set; }
     public uint[] MatchedStyleColors { get; set; } = Array.Empty<uint>();
 
@@ -23,4 +28,11 @@ public sealed class Configuration : IPluginConfiguration
 
     // Manual local reminder only, not server claim state.
     public DateTime LastTimedClaimUtc { get; set; } = DateTime.MinValue;
+}
+
+public sealed class BarkeepDailyRecord
+{
+    public long NetWinToday { get; set; }
+    public bool Capped { get; set; }
+    public long ObservedAtUnix { get; set; }
 }
