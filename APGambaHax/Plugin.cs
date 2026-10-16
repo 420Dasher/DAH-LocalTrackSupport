@@ -40,6 +40,7 @@ public sealed class Plugin : IDalamudPlugin
     private readonly BarkeepAutomation automation = new();
     private readonly RewardsAutomation rewardAutomation = new();
     private readonly MissionsAutomation missionAutomation = new();
+    private readonly UniversalRoundTracker roundTracker = new();
 
     private string currentDailyAccount = "";
     private DateTime currentDailyDate = DateTime.MinValue;
@@ -174,13 +175,16 @@ public sealed class Plugin : IDalamudPlugin
     private void OnFrameworkUpdate(IFramework framework)
     {
         if (cfg.ModulesEnabled[0] || cfg.ModulesEnabled[1] ||
-            cfg.ModulesEnabled[2] ||
+            cfg.ModulesEnabled[2] || cfg.ModulesEnabled[4] ||
             automation.ManagingWager || automation.BatchArmed)
-            bridge.Tick(cfg.ModulesEnabled[2]);
+            bridge.Tick(cfg.ModulesEnabled[2], true);
         else
             bridge.Clear();
 
         RestoreDailyIfNeeded();
+
+        // Observe settled rounds without changing wager logic.
+        roundTracker.Tick(bridge);
 
         // Reward claiming is independent of the Barkeep module.
         rewardAutomation.Tick(
@@ -351,7 +355,7 @@ public sealed class Plugin : IDalamudPlugin
                     case Page.Barkeep: DrawBarkeep(); break;
                     case Page.Missions: DrawMissions(); break;
                     case Page.Originals: DrawPlaceholder("ORIGINALS"); break;
-                    case Page.Blackjack: DrawPlaceholder("BLACKJACK"); break;
+                    case Page.Blackjack: DrawBlackjack(); break;
                     case Page.Challenges: DrawPlaceholder("CHALLENGES"); break;
                 }
 
@@ -417,7 +421,15 @@ public sealed class Plugin : IDalamudPlugin
             $"Enabled modules: {cfg.ModulesEnabled.Count(x => x)} / 6");
 
         ImGui.Spacing();
-        ImGui.TextDisabled("MISSIONS DEV1 - unified Barkeep automation.");
+        ImGui.Spacing();
+        Heading("ROUNDTRACKER - CURRENT SESSION");
+
+        ImGui.TextDisabled(roundTracker.Status);
+        DrawRoundStats("");
+
+        ImGui.Spacing();
+        ImGui.TextDisabled(
+            "Observed settled rounds only; not a lifetime ledger.");
         ImGui.TextDisabled("Wager automation is disabled by default.");
     }
 
@@ -977,6 +989,13 @@ public sealed class Plugin : IDalamudPlugin
             $"Completed: {completed}/{bridge.Missions.Count}" +
             $" | Claimed: {claimed}");
 
+        ImGui.TextDisabled(
+            "Local Blackjack rounds observed this session: " +
+            roundTracker.Totals("casino.blackjack").Rounds);
+
+        ImGui.TextDisabled(
+            "Local observations are not server mission progress.");
+
         if (bridge.MissionsResetsAtUnix > 0)
         {
             ImGui.TextDisabled(
@@ -1067,6 +1086,71 @@ public sealed class Plugin : IDalamudPlugin
             "Claim requests are not confirmed payouts.");
     }
 
+    private void DrawRoundStats(string gameKind)
+    {
+        var stats = roundTracker.Totals(gameKind);
+
+        ImGui.TextUnformatted(
+            $"Rounds: {stats.Rounds:N0}  |  " +
+            $"Wins: {stats.Wins:N0}  |  " +
+            $"Losses: {stats.Losses:N0}  |  " +
+            $"Pushes: {stats.Pushes:N0}");
+
+        if (stats.Rounds > 0)
+        {
+            float winRate = stats.Wins * 100f / stats.Rounds;
+            ImGui.TextUnformatted($"Win rate: {winRate:F1}%");
+        }
+
+        ImGui.TextUnformatted(
+            $"Net result: {stats.Net:+#,0;-#,0;0} chips");
+
+        if (stats.AmountsKnown > 0)
+        {
+            ImGui.TextUnformatted(
+                $"Known stakes: {stats.Staked:N0} chips");
+
+            ImGui.TextUnformatted(
+                $"Known payouts: {stats.Returned:N0} chips");
+        }
+
+        if (stats.AmountsKnown < stats.Rounds)
+        {
+            ImGui.TextDisabled(
+                "Some rounds have net-only history records; " +
+                "stake/payout totals are partial.");
+        }
+    }
+
+    private void DrawBlackjack()
+    {
+        Heading("BLACKJACK - ROUNDTRACKER DEV1");
+
+        ImGui.TextUnformatted(
+            "Tracker: " + roundTracker.Status);
+
+        ImGui.Spacing();
+        Heading("CHIP GAME SESSION");
+
+        DrawRoundStats("casino.blackjack");
+
+        ImGui.Spacing();
+        ImGui.Separator();
+
+        ImGui.TextDisabled(
+            "Tracks live settled Blackjack hands and hosted " +
+            "chip-table history.");
+
+        ImGui.TextDisabled(
+            "Practice and gil tables are excluded.");
+
+        ImGui.TextDisabled(
+            "Statistics begin when this plugin session starts.");
+
+        ImGui.TextDisabled(
+            "No betting or Blackjack strategy automation yet.");
+    }
+
     private void DrawPlaceholder(string name)
     {
         Heading(name);
@@ -1146,7 +1230,7 @@ public sealed class Plugin : IDalamudPlugin
                 }
 
                 ImGui.Spacing();
-                ImGui.TextDisabled("APGambaHax " + VersionText + " - MISSIONS DEV1");
+                ImGui.TextDisabled("APGambaHax " + VersionText + " - ROUNDTRACKER DEV1");
                 ImGui.TextDisabled("Bridge: " + bridge.Status);
                 ImGui.TextDisabled("Aetherphone assembly: " + bridge.Version);
             }

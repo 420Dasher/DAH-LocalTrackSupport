@@ -40,6 +40,7 @@ internal sealed class AetherphoneBridge
     private object? casinoStore;
     private object? missionStore;
     private readonly List<LiveMission> missions = new();
+    private readonly List<RoundObservation> roundObservations = new();
 
     public string Status { get; private set; } = "Waiting for Aetherphone";
     public string Version { get; private set; } = "--";
@@ -64,6 +65,8 @@ internal sealed class AetherphoneBridge
     public int? BarkeepScore { get; private set; }
 
     public IReadOnlyList<LiveBonus> Bonuses => bonuses;
+    public IReadOnlyList<RoundObservation> RoundObservations =>
+        roundObservations;
     public IReadOnlyList<LiveMission> Missions => missions;
 
     public bool MissionsLoaded { get; private set; }
@@ -292,6 +295,7 @@ internal sealed class AetherphoneBridge
         BarkeepPatrons = null;
         BarkeepScore = null;
         bonuses.Clear();
+        roundObservations.Clear();
     }
 
     public void Clear()
@@ -355,7 +359,134 @@ internal sealed class AetherphoneBridge
         return bestApp;
     }
 
-    public void Tick(bool includeMissions = false)
+    private static string BlackjackKey(
+        string roomId,
+        long index,
+        long unix)
+    {
+        string date = DateTimeOffset.FromUnixTimeSeconds(unix)
+            .UtcDateTime.ToString("yyyyMMdd");
+
+        return "blackjack:" + roomId + "#" + index + ":" + date;
+    }
+
+    private void CollectRoundObservations(object app)
+    {
+        var history = Member(app, "history");
+
+        // Settled rounds from Aetherphone's own cached history.
+        // Never forces pagination or invalidation of this store.
+        if (Member(history, "Rounds") is IEnumerable historyRounds)
+        {
+            foreach (var item in historyRounds)
+            {
+                if (item is null ||
+                    Number(Member(item, "State")) != 1)
+                    continue;
+
+                string id = Member(item, "RoundId") as string ?? "";
+                string game = Member(item, "GameKind") as string ?? "";
+
+                if (id.Length == 0 || game.Length == 0 ||
+                    game == "casino.blackjack")
+                    continue;
+
+                long stake = Number(Member(item, "Stake")) ?? 0;
+                long payout = Number(Member(item, "Payout")) ?? 0;
+                long settled =
+                    Number(Member(item, "SettledAtUnix")) ??
+                    Number(Member(item, "CreatedAtUnix")) ?? 0;
+
+                if (settled <= 0 || stake <= 0)
+                    continue;
+
+                roundObservations.Add(new RoundObservation(
+                    "round:" + id,
+                    game,
+                    "Aetherphone round history",
+                    stake,
+                    payout,
+                    payout - stake,
+                    settled,
+                    true));
+            }
+        }
+
+        // Hosted Blackjack history uses room + hand index as
+        // identity. It has net but no exact stake/payout.
+        if (Member(history, "TableHands") is IEnumerable tableHands)
+        {
+            foreach (var item in tableHands)
+            {
+                if (item is null ||
+                    Number(Member(item, "Currency")) != 0)
+                    continue;
+
+                string room = Member(item, "RoomId") as string ?? "";
+                long index = Number(Member(item, "HandIndex")) ?? -1;
+                long millis =
+                    Number(Member(item, "SettledAtUnixMs")) ?? 0;
+                long unix = millis / 1000;
+
+                if (room.Length == 0 || index < 0 || unix <= 0)
+                    continue;
+
+                roundObservations.Add(new RoundObservation(
+                    BlackjackKey(room, index, unix),
+                    "casino.blackjack",
+                    "Hosted table history",
+                    0,
+                    0,
+                    Number(Member(item, "Net")) ?? 0,
+                    unix,
+                    false));
+            }
+        }
+
+        // The live Blackjack ring buffer contains the last ten
+        // settled hands, even before the missions API refreshes.
+        var blackjack = Member(app, "blackjack");
+        var handLog = Member(blackjack, "handLog");
+        string roomId = Member(handLog, "roomId") as string ?? "";
+
+        if (roomId.Length == 0 ||
+            Number(Member(blackjack, "Currency")) != 0 ||
+            Member(handLog, "entries") is not IEnumerable hands)
+            return;
+
+        foreach (var entry in hands)
+        {
+            if (entry is null)
+                continue;
+
+            long sequence = Number(Member(entry, "Sequence")) ?? 0;
+            long index = Number(Member(entry, "HandIndex")) ?? -1;
+            long unix =
+                Number(Member(entry, "PlayedAtUnixSeconds")) ?? 0;
+            long net = Number(Member(entry, "Net")) ?? 0;
+
+            var recap = Member(entry, "Recap");
+            long stake = Number(Member(recap, "Staked")) ?? 0;
+
+            if (sequence <= 0 || index < 0 ||
+                unix <= 0 || stake <= 0)
+                continue;
+
+            roundObservations.Add(new RoundObservation(
+                BlackjackKey(roomId, index, unix),
+                "casino.blackjack",
+                "Live Blackjack settlement",
+                stake,
+                Math.Max(0, stake + net),
+                net,
+                unix,
+                true));
+        }
+    }
+
+    public void Tick(
+        bool includeMissions = false,
+        bool includeRounds = false)
     {
         if (DateTime.UtcNow < nextReadUtc)
             return;
@@ -624,6 +755,20 @@ internal sealed class AetherphoneBridge
                     missionStore = null;
                     missions.Clear();
                     MissionsLoaded = false;
+                }
+            }
+
+            if (includeRounds && AccountKey.Length > 0)
+            {
+                try
+                {
+                    CollectRoundObservations(app);
+                }
+                catch
+                {
+                    // Observational tracking must not interrupt
+                    // the existing casino, Rewards or Barkeep code.
+                    roundObservations.Clear();
                 }
             }
 
