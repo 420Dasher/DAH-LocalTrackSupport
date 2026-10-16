@@ -127,10 +127,13 @@ public sealed class Plugin : IDalamudPlugin
         if (remaining <= TimeSpan.Zero)
             return "available now";
 
-        if (remaining.TotalHours >= 1)
-            return $"{Math.Ceiling(remaining.TotalHours)}h";
+        if (remaining.TotalDays >= 1)
+            return $"{(int)remaining.TotalDays}d {remaining.Hours}h";
 
-        return $"{Math.Ceiling(remaining.TotalMinutes)}m";
+        if (remaining.TotalHours >= 1)
+            return $"{(int)remaining.TotalHours}h {remaining.Minutes}m";
+
+        return $"{Math.Max(1, (int)Math.Ceiling(remaining.TotalMinutes))}m";
     }
 
     private void Open() => mainOpen = true;
@@ -295,9 +298,22 @@ public sealed class Plugin : IDalamudPlugin
             $"Enabled modules: {cfg.ModulesEnabled.Count(x => x)} / 6");
 
         ImGui.Spacing();
-        ImGui.TextDisabled("DEV2 TEST3 - unified Barkeep automation.");
+        ImGui.TextDisabled("DEV2 TEST4 - unified Barkeep automation.");
         ImGui.TextDisabled("Wager automation is disabled by default.");
     }
+
+    private static string BonusLabel(string kind) =>
+        kind.Trim().ToLowerInvariant() switch
+        {
+            "welcome" => "Welcome bonus",
+            "timed" => "Timed bonus",
+            "reload" => "Reload bonus",
+            "streak" => "Daily streak",
+            "levelup" => "Level-up bonus",
+            "broke" => "Broke bonus",
+            "rebate" => "Rebate",
+            _ => string.IsNullOrWhiteSpace(kind) ? "Bonus" : kind
+        };
 
     private void DrawRewards()
     {
@@ -309,48 +325,46 @@ public sealed class Plugin : IDalamudPlugin
             {
                 ImGui.TextUnformatted(
                     "Daily spin: " +
-                    (bridge.DailySpinClaimed.Value ? "claimed" : "unclaimed"));
+                    (bridge.DailySpinClaimed.Value ? "Claimed" : "Available"));
 
-                if (bridge.DailySpinNextAtUnix > 0)
-                    ImGui.TextDisabled(
-                        "Next spin: " +
-                        TimeUntil(bridge.DailySpinNextAtUnix.Value));
+                if (bridge.DailySpinNextAtUnix is long nextSpin && nextSpin > 0)
+                    ImGui.TextDisabled("Next spin: " + TimeUntil(nextSpin));
             }
             else
             {
-                ImGui.TextDisabled("Daily spin status not loaded yet.");
+                ImGui.TextDisabled("Daily spin data not loaded.");
             }
 
             ImGui.Spacing();
 
             if (bridge.Bonuses.Count == 0)
-                ImGui.TextDisabled("No bonus data in Aetherphone's cache.");
+                ImGui.TextDisabled("No live bonus data in Aetherphone's cache.");
 
             foreach (var bonus in bridge.Bonuses)
             {
-                var name = bonus.Kind.Length == 0 ? "Bonus" : bonus.Kind;
-                var ready = bonus.Ready && bonus.Eligible;
-
-                var status = ready ? "READY"
-                    : bonus.NextAtUnix > 0
-                        ? TimeUntil(bonus.NextAtUnix)
-                        : "not ready";
+                string status =
+                    bonus.Ready && bonus.Eligible ? "READY" :
+                    bonus.Ready && !bonus.Eligible ? "Not eligible" :
+                    bonus.NextAtUnix > 0 ? TimeUntil(bonus.NextAtUnix) :
+                    "Not ready";
 
                 ImGui.TextWrapped(
-                    $"{name}: {bonus.Amount:N0} chips - {status}");
+                    $"{BonusLabel(bonus.Kind)}: {bonus.Amount:N0} chips - {status}");
             }
 
             ImGui.Spacing();
-            ImGui.TextDisabled("Statuses come from Aetherphone's cached state.");
-        }
-        else
-        {
-            ImGui.TextDisabled("Open Gamba in Aetherphone to load live rewards.");
-            ImGui.TextUnformatted("Timed claim: 5,000 chips per 3h.");
+            ImGui.TextDisabled("Live cached data from Aetherphone.");
+            ImGui.TextDisabled("Claim rewards through Aetherphone.");
+
+            return;
         }
 
+        ImGui.TextDisabled("Open Gamba in Aetherphone to load live rewards.");
+        ImGui.TextUnformatted("Timed bonus: 5,000 chips / 3 hours");
+
+        ImGui.Spacing();
         ImGui.Separator();
-        ImGui.TextDisabled("Manual fallback reminder");
+        ImGui.TextDisabled("Offline fallback reminder");
 
         if (cfg.LastTimedClaimUtc == DateTime.MinValue)
         {
@@ -362,7 +376,7 @@ public sealed class Plugin : IDalamudPlugin
                 cfg.LastTimedClaimUtc.AddHours(3) - DateTime.UtcNow;
 
             ImGui.TextUnformatted(remaining > TimeSpan.Zero
-                ? $"Next check in {Math.Ceiling(remaining.TotalMinutes)} minutes"
+                ? $"Next manual check in {Math.Ceiling(remaining.TotalMinutes)}m"
                 : "Reminder elapsed - check Aetherphone.");
         }
 
@@ -395,6 +409,11 @@ public sealed class Plugin : IDalamudPlugin
             ImGui.TextUnformatted("Aetherphone: " + bridge.BarkeepStatus);
             ImGui.TextDisabled("Automation: " + automation.Status);
 
+            if (automation.LastStopReason.Length > 0)
+                ImGui.TextColored(
+                    Theme.Get(cfg, 5),
+                    "Last stop: " + automation.LastStopReason);
+
             if (bridge.BarkeepCompleted.HasValue &&
                 bridge.BarkeepPatrons.HasValue)
             {
@@ -407,12 +426,28 @@ public sealed class Plugin : IDalamudPlugin
                 {
                     int score = bridge.BarkeepScore.Value;
                     int maximum = count * 100;
-                    double accuracy = maximum > 0
-                        ? score * 100d / maximum
-                        : 0d;
+                    if (complete == count)
+                    {
+                        double accuracy = maximum > 0
+                            ? score * 100d / maximum
+                            : 0d;
 
-                    ImGui.TextUnformatted(
-                        $"Score: {score:N0}/{maximum:N0} ({accuracy:0.#}%)");
+                        ImGui.TextUnformatted(
+                            $"Final score: {score:N0}/{maximum:N0} ({accuracy:0.#}%)");
+                    }
+                    else
+                    {
+                        double quality = complete > 0
+                            ? score / (complete * 100d) * 100d
+                            : 0d;
+
+                        ImGui.TextUnformatted(
+                            $"Progress score: {score:N0}/{maximum:N0}");
+
+                        if (complete > 0)
+                            ImGui.TextDisabled(
+                                $"Average served quality: {quality:0.#}%");
+                    }
                 }
             }
 
@@ -522,6 +557,30 @@ public sealed class Plugin : IDalamudPlugin
 
             ImGui.Spacing();
             ImGui.Separator();
+
+            if (automation.HasBatch)
+            {
+                Heading("LAST / CURRENT BATCH");
+
+                ImGui.TextUnformatted(
+                    $"Shifts: {automation.BatchWagers}/{cfg.WagerStopAfter}" +
+                    $" | Perfect: {automation.BatchPerfect}");
+
+                ImGui.TextUnformatted(
+                    $"Batch net: {automation.BatchNet:+#,0;-#,0;0} chips");
+
+                if (automation.BatchArmed &&
+                    !automation.ManagingWager &&
+                    automation.NextShiftInSeconds >= 0)
+                {
+                    ImGui.TextDisabled(
+                        $"Next shift: {automation.NextShiftInSeconds}s");
+                }
+
+                ImGui.Spacing();
+                ImGui.Separator();
+            }
+
             Heading("SESSION");
 
             ImGui.TextUnformatted(
@@ -546,7 +605,7 @@ public sealed class Plugin : IDalamudPlugin
                 automation.ResetFault();
 
             ImGui.TextDisabled(
-                "TEST3: Verify one wager before testing auto-continuation.");
+                "Batch stops and session totals are tracked separately.");
         }
         finally
         {
@@ -558,7 +617,7 @@ public sealed class Plugin : IDalamudPlugin
     {
         Heading(name);
         ImGui.TextWrapped(
-            "Module foundation ready. Additional game automation is not implemented in DEV2 TEST3.");
+            "Module foundation ready. Additional game automation is not implemented in DEV2 TEST4.");
 
         if (name == "ORIGINALS")
             ImGui.TextDisabled(
@@ -633,7 +692,7 @@ public sealed class Plugin : IDalamudPlugin
                 }
 
                 ImGui.Spacing();
-                ImGui.TextDisabled("APGambaHax " + VersionText + " - DEV2 TEST3");
+                ImGui.TextDisabled("APGambaHax " + VersionText + " - DEV2 TEST4");
                 ImGui.TextDisabled("Bridge: " + bridge.Status);
                 ImGui.TextDisabled("Aetherphone assembly: " + bridge.Version);
             }

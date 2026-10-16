@@ -24,6 +24,12 @@ internal sealed class BarkeepAutomation
     private bool batchArmed;
     private int batchStartWagers;
     private long batchStartNet;
+    private int batchStartPerfect;
+    private int batchEndWagers;
+    private long batchEndNet;
+    private int batchEndPerfect;
+    private bool hasBatch;
+    private bool includePendingSettlement;
     private bool paused;
     private DateTime requestedAt;
     private DateTime nextStartAt = DateTime.MaxValue;
@@ -39,6 +45,17 @@ internal sealed class BarkeepAutomation
     public long? NetWinToday { get; private set; }
     public bool Capped { get; private set; }
     public bool BatchArmed => batchArmed;
+    public bool HasBatch => hasBatch;
+    public int BatchWagers => hasBatch ? batchEndWagers - batchStartWagers : 0;
+    public int BatchPerfect => hasBatch ? batchEndPerfect - batchStartPerfect : 0;
+    public long BatchNet => hasBatch ? batchEndNet - batchStartNet : 0;
+    public string LastStopReason { get; private set; } = "";
+
+    public int NextShiftInSeconds =>
+        batchArmed && !paused && nextStartAt != DateTime.MaxValue
+            ? Math.Max(0, (int)Math.Ceiling(
+                (nextStartAt - DateTime.UtcNow).TotalSeconds))
+            : -1;
     public bool Paused => paused;
     public bool ManagingWager => managingWager || startPending;
     public bool DisableWagersRequested { get; private set; }
@@ -92,15 +109,15 @@ internal sealed class BarkeepAutomation
 
     public void ResetFault()
     {
-        if (ManagingWager)
+        if (ManagingWager || batchArmed)
         {
-            Status = "Cannot reset while a wager is being handled";
+            Status = "Cannot reset during an active batch or wager";
             return;
         }
 
         faulted = false;
         paused = false;
-        Status = "Ready";
+        Status = LastStopReason.Length > 0 ? LastStopReason : "Ready";
     }
 
     public void StartBatch()
@@ -117,8 +134,21 @@ internal sealed class BarkeepAutomation
             return;
         }
 
+        if (Capped)
+        {
+            Status = "Daily cap reported - batch start blocked";
+            return;
+        }
+
+        hasBatch = true;
+        includePendingSettlement = false;
         batchStartWagers = Wagers;
         batchStartNet = SessionNet;
+        batchStartPerfect = PerfectWagers;
+        batchEndWagers = Wagers;
+        batchEndNet = SessionNet;
+        batchEndPerfect = PerfectWagers;
+        LastStopReason = "";
         batchArmed = true;
         paused = false;
         DisableWagersRequested = false;
@@ -146,12 +176,14 @@ internal sealed class BarkeepAutomation
 
     public void StopBatch()
     {
+        includePendingSettlement = batchArmed && ManagingWager;
         batchArmed = false;
         paused = false;
         nextStartAt = DateTime.MaxValue;
-        Status = ManagingWager
-            ? "Stopping after current wager"
-            : "Batch stopped";
+        LastStopReason = ManagingWager
+            ? "Stopped - completing current wager"
+            : "Stopped manually";
+        Status = LastStopReason;
     }
 
     public void AcknowledgeDisable()
@@ -165,7 +197,8 @@ internal sealed class BarkeepAutomation
         paused = true;
         nextStartAt = DateTime.MaxValue;
         DisableWagersRequested = true;
-        Status = "Paused - " + reason;
+        LastStopReason = "Paused - " + reason;
+        Status = LastStopReason;
     }
 
     private void TryStart(object candidate, bool resetSettlement)
@@ -306,6 +339,14 @@ internal sealed class BarkeepAutomation
         if (roundId == settledRoundId)
             return;
 
+        var resultRoundId = Get(settlement, "RoundId") as string ?? "";
+
+        if (!string.Equals(roundId, resultRoundId, StringComparison.Ordinal))
+        {
+            Fail("Settlement round ID mismatch");
+            return;
+        }
+
         settledRoundId = roundId;
         managingWager = false;
         startPending = false;
@@ -335,6 +376,14 @@ internal sealed class BarkeepAutomation
             Int(trackedShift, "Score") == Int(trackedShift, "MaxScore"))
             PerfectWagers++;
 
+        if (batchArmed || includePendingSettlement)
+        {
+            batchEndWagers = Wagers;
+            batchEndNet = SessionNet;
+            batchEndPerfect = PerfectWagers;
+            includePendingSettlement = false;
+        }
+
         NetWinToday = Long(settlement, "NetWinToday");
         Capped = Bool(settlement, "Capped");
 
@@ -357,7 +406,10 @@ internal sealed class BarkeepAutomation
             batchArmed = false;
             nextStartAt = DateTime.MaxValue;
             DisableWagersRequested = true;
-            Status = stop;
+            LastStopReason = stop == "Shift limit reached"
+                ? $"Shift limit reached ({BatchWagers}/{shiftLimit})"
+                : stop;
+            Status = LastStopReason;
             return;
         }
 
@@ -386,6 +438,10 @@ internal sealed class BarkeepAutomation
     {
         if (faulted)
             return;
+
+        // Disabling the wager switch must never launch another batch shift.
+        if (!wagerEnabled && batchArmed)
+            StopBatch();
 
         if (candidate is null)
         {
@@ -522,7 +578,9 @@ internal sealed class BarkeepAutomation
             else if (batchArmed)
                 Status = "Waiting for next batch shift";
             else if (!practiceEnabled && !wagerEnabled)
-                Status = "Automation disabled";
+                Status = LastStopReason.Length > 0
+                    ? LastStopReason
+                    : "Automation disabled";
         }
         catch (Exception exception)
         {
