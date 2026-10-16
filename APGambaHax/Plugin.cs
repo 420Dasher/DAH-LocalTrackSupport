@@ -294,11 +294,29 @@ public sealed class Plugin : IDalamudPlugin
 
         ImGui.Spacing();
         ImGui.TextUnformatted("Currency: 1 coin = 1,000 chips");
+
+        ImGui.Spacing();
+        Heading("PROFIT LIMITS");
+
+        ImGui.TextUnformatted(
+            "Barkeep daily net cap: 20,000 chips");
+
+        if (bridge.MaxWinPerBet is long perBet)
+            ImGui.TextWrapped(
+                $"House-game net-win ceiling per bet: {perBet:N0} chips");
+
+        ImGui.TextDisabled(
+            "Per-bet clipping is not a daily profit cap.");
+
+        ImGui.TextDisabled(
+            "Other game-specific daily caps: not confirmed.");
+
+        ImGui.Spacing();
         ImGui.TextUnformatted(
             $"Enabled modules: {cfg.ModulesEnabled.Count(x => x)} / 6");
 
         ImGui.Spacing();
-        ImGui.TextDisabled("DEV2 TEST4 FIX3 - unified Barkeep automation.");
+        ImGui.TextDisabled("DEV2 TEST5 - unified Barkeep automation.");
         ImGui.TextDisabled("Wager automation is disabled by default.");
     }
 
@@ -507,11 +525,22 @@ public sealed class Plugin : IDalamudPlugin
             $" | Practice: {automation.PracticeRuns}");
 
         if (automation.NetWinToday.HasValue)
+        {
             ImGui.TextDisabled(
-                $"Server Barkeep net today: {automation.NetWinToday.Value:N0}");
+                $"Server Barkeep net: {automation.NetWinToday.Value:N0} / " +
+                $"{CasinoProfitLimits.BarkeepDailyNetCap:N0} chips");
 
-        if (automation.Capped)
-            ImGui.TextDisabled("Daily Barkeep cap reported by server.");
+            ImGui.TextDisabled(
+                $"Profitable perfect shifts left: {automation.DailyShiftsRemaining}");
+        }
+        else
+        {
+            ImGui.TextDisabled(
+                "Daily net unknown until a new Barkeep settlement.");
+        }
+
+        if (automation.DailyCapReached)
+            ImGui.TextDisabled("Daily Barkeep profit cap reached.");
 
         ImGui.TextWrapped("Last wager: " + automation.LastResult);
 
@@ -522,7 +551,7 @@ public sealed class Plugin : IDalamudPlugin
             Heading("LAST / CURRENT BATCH");
 
             ImGui.TextUnformatted(
-                $"Shifts: {automation.BatchWagers}/{cfg.WagerStopAfter}" +
+                $"Shifts: {automation.BatchWagers}/{automation.BatchEffectiveLimit}" +
                 $" | Perfect: {automation.BatchPerfect}");
 
             ImGui.TextUnformatted(
@@ -546,8 +575,15 @@ public sealed class Plugin : IDalamudPlugin
 
             if (!automation.BatchArmed)
             {
-                if (ImGui.Button("Start batch"))
-                    automation.StartBatch();
+                if (automation.DailyCapReached)
+                {
+                    ImGui.TextDisabled(
+                        "Start unavailable: daily Barkeep cap reached.");
+                }
+                else if (ImGui.Button("Start batch"))
+                {
+                    automation.StartBatch(cfg.WagerStopAfter);
+                }
             }
             else
             {
@@ -568,7 +604,8 @@ public sealed class Plugin : IDalamudPlugin
             }
 
             ImGui.TextDisabled(
-                $"Limit: {cfg.WagerStopAfter} shift(s) | " +
+                $"Limit: {automation.EffectiveBatchLimit(cfg.WagerStopAfter)} " +
+                $"of {cfg.WagerStopAfter} configured shift(s) | " +
                 (cfg.AutoContinueWagers
                     ? "Auto continuation on"
                     : "Auto continuation off"));
@@ -598,7 +635,11 @@ public sealed class Plugin : IDalamudPlugin
 
                         ImGui.TextDisabled("Shift limit");
 
-                        int count = cfg.WagerStopAfter;
+                        int maximum = Math.Max(
+                            1, automation.MaximumNewBatchShifts);
+
+                        int count = Math.Min(
+                            cfg.WagerStopAfter, maximum);
 
                         ImGui.SetNextItemWidth(-1f);
 
@@ -606,7 +647,7 @@ public sealed class Plugin : IDalamudPlugin
                             "##BarkeepShiftLimit", ref count, 1, 10))
                         {
                             cfg.WagerStopAfter = Math.Clamp(
-                                count, 1, 9999);
+                                count, 1, maximum);
                             Save();
                         }
 
@@ -682,7 +723,7 @@ public sealed class Plugin : IDalamudPlugin
     {
         Heading(name);
         ImGui.TextWrapped(
-            "Module foundation ready. Additional game automation is not implemented in DEV2 TEST4 FIX3.");
+            "Module foundation ready. Additional game automation is not implemented in DEV2 TEST5.");
 
         if (name == "ORIGINALS")
             ImGui.TextDisabled(
@@ -757,7 +798,7 @@ public sealed class Plugin : IDalamudPlugin
                 }
 
                 ImGui.Spacing();
-                ImGui.TextDisabled("APGambaHax " + VersionText + " - DEV2 TEST4 FIX3");
+                ImGui.TextDisabled("APGambaHax " + VersionText + " - DEV2 TEST5");
                 ImGui.TextDisabled("Bridge: " + bridge.Status);
                 ImGui.TextDisabled("Aetherphone assembly: " + bridge.Version);
             }

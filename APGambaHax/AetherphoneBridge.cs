@@ -30,6 +30,7 @@ internal sealed class AetherphoneBridge
     public object? BarkeepCabinet { get; private set; }
     public long? Chips { get; private set; }
     public int? Level { get; private set; }
+    public long? MaxWinPerBet { get; private set; }
     public bool? StakesPaused { get; private set; }
     public bool? DailySpinClaimed { get; private set; }
     public long? DailySpinNextAtUnix { get; private set; }
@@ -73,6 +74,7 @@ internal sealed class AetherphoneBridge
         BarkeepCabinet = null;
         Chips = null;
         Level = null;
+        MaxWinPerBet = null;
         StakesPaused = null;
         DailySpinClaimed = null;
         DailySpinNextAtUnix = null;
@@ -183,6 +185,14 @@ internal sealed class AetherphoneBridge
                 Member(Member(state, "Progress"), "Level"));
 
             StakesPaused = Flag(Member(state, "StakesPaused"));
+
+            var serverMaxWin = Number(Member(state, "MaxWinPerBet"));
+            var ceilingMaxWin = Number(
+                Member(Member(state, "Ceiling"), "MaxWinCap"));
+
+            MaxWinPerBet = serverMaxWin is > 0
+                ? serverMaxWin
+                : ceilingMaxWin is > 0 ? ceilingMaxWin : null;
 
             // These values are Aetherphone's existing cached
             // server responses. No network requests are made here.

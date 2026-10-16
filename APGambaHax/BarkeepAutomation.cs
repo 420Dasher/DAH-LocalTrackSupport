@@ -33,6 +33,8 @@ internal sealed class BarkeepAutomation
     private bool paused;
     private DateTime requestedAt;
     private DateTime nextStartAt = DateTime.MaxValue;
+    private DateTime observedDailyNetUtcDate = DateTime.MinValue;
+    private int batchEffectiveLimit = 1;
     private long afterEntry;
     private bool afterEntryKnown;
 
@@ -44,6 +46,49 @@ internal sealed class BarkeepAutomation
     public long SessionNet { get; private set; }
     public long? NetWinToday { get; private set; }
     public bool Capped { get; private set; }
+
+    public bool DailyCapReached =>
+        CasinoProfitLimits.DailyLimitReached(
+            "Barkeep", NetWinToday, Capped);
+
+    public int DailyShiftsRemaining =>
+        CasinoProfitLimits.BarkeepRemainingPerfectShifts(NetWinToday);
+
+    public int MaximumNewBatchShifts =>
+        DailyCapReached ? 0 : DailyShiftsRemaining;
+
+    public int BatchEffectiveLimit => batchEffectiveLimit;
+
+    public int EffectiveBatchLimit(int configured)
+    {
+        int completed = batchArmed
+            ? Wagers - batchStartWagers
+            : 0;
+
+        int dailyBound = NetWinToday.HasValue
+            ? completed + DailyShiftsRemaining
+            : CasinoProfitLimits.MaximumFreshPerfectShifts;
+
+        return Math.Min(
+            Math.Clamp(configured, 1, 9999),
+            Math.Clamp(
+                dailyBound,
+                0,
+                CasinoProfitLimits.MaximumFreshPerfectShifts));
+    }
+
+    private void ExpirePreviousDaySnapshot()
+    {
+        // Provisional UTC rollover: the actual server reset
+        // boundary is not exposed by Barkeep's settlement DTO.
+        if (observedDailyNetUtcDate == DateTime.MinValue ||
+            observedDailyNetUtcDate == DateTime.UtcNow.Date)
+            return;
+
+        observedDailyNetUtcDate = DateTime.MinValue;
+        NetWinToday = null;
+        Capped = false;
+    }
     public bool BatchArmed => batchArmed;
     public bool HasError => faulted;
     public bool HasBatch => hasBatch;
@@ -121,8 +166,10 @@ internal sealed class BarkeepAutomation
         Status = LastStopReason.Length > 0 ? LastStopReason : "Ready";
     }
 
-    public void StartBatch()
+    public void StartBatch(int requestedLimit)
     {
+        ExpirePreviousDaySnapshot();
+
         if (faulted)
         {
             Status = "Reset compatibility error first";
@@ -135,9 +182,17 @@ internal sealed class BarkeepAutomation
             return;
         }
 
-        if (Capped)
+        if (DailyCapReached)
         {
-            Status = "Daily cap reported - batch start blocked";
+            Status = "Daily Barkeep cap reached - batch blocked";
+            return;
+        }
+
+        batchEffectiveLimit = EffectiveBatchLimit(requestedLimit);
+
+        if (batchEffectiveLimit <= 0)
+        {
+            Status = "No profitable Barkeep shifts remaining";
             return;
         }
 
@@ -210,6 +265,12 @@ internal sealed class BarkeepAutomation
     {
         if (!batchArmed || paused || faulted || startPending || managingWager)
             return;
+
+        if (DailyCapReached)
+        {
+            Fail("Daily Barkeep cap reached");
+            return;
+        }
 
         var store = Get(candidate, "store");
         var state = Get(store, "State");
@@ -391,16 +452,27 @@ internal sealed class BarkeepAutomation
 
         NetWinToday = Long(settlement, "NetWinToday");
         Capped = Bool(settlement, "Capped");
+        observedDailyNetUtcDate = DateTime.UtcNow.Date;
+
+        // Tighten the current batch ceiling using the latest
+        // server-reported daily net winnings.
+        if (batchArmed)
+            batchEffectiveLimit = Math.Min(
+                batchEffectiveLimit,
+                EffectiveBatchLimit(shiftLimit));
 
         LastResult = $"Server return {returned:N0}, net {net:+#,0;-#,0;0} chips" +
             $", settled stack {stack:N0}";
 
         string? stop = null;
 
-        if (Capped)
-            stop = "Daily cap reached";
-        else if (batchArmed && Wagers - batchStartWagers >= shiftLimit)
-            stop = "Shift limit reached";
+        if (DailyCapReached)
+            stop = "Daily Barkeep cap reached";
+        else if (batchArmed &&
+                 Wagers - batchStartWagers >= batchEffectiveLimit)
+            stop = batchEffectiveLimit < shiftLimit
+                ? "Daily batch maximum reached"
+                : "Shift limit reached";
         else if (batchArmed && profitLimit > 0 && SessionNet - batchStartNet >= profitLimit)
             stop = "Profit target reached";
         else if (batchArmed && lossLimit > 0 && SessionNet - batchStartNet <= -lossLimit)
@@ -412,7 +484,7 @@ internal sealed class BarkeepAutomation
             nextStartAt = DateTime.MaxValue;
             DisableWagersRequested = true;
             LastStopReason = stop == "Shift limit reached"
-                ? $"Shift limit reached ({BatchWagers}/{shiftLimit})"
+                ? $"Shift limit reached ({BatchWagers}/{batchEffectiveLimit})"
                 : stop;
             Status = LastStopReason;
             return;
@@ -448,6 +520,8 @@ internal sealed class BarkeepAutomation
         int lossLimit,
         int delay)
     {
+        ExpirePreviousDaySnapshot();
+
         if (faulted)
             return;
 
