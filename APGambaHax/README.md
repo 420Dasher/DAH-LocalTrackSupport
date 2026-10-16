@@ -2,23 +2,22 @@
 
 Modular Aetherphone Gamba companion.
 
-## DEV2 TEST1 - v0.1.1.0
+## DEV2 TEST2 - v0.1.2.0
 
 - Dalamud API 15 / .NET 10
-- Native Dalamud testing channel
-- Compact AethernetAssist-style UI
-- Six configurable modules
-- Default dark and matched Dalamud colors
-- Read-only Aetherphone reflection bridge
-- Casino bankroll and level snapshots
-- Bonus eligibility and cooldown display
-- Daily-spin cached status
-- Barkeep shift progress
-- Manual reminder and payout estimator
+- Native Dalamud testing-exclusive release
+- Compact AethernetAssist-style UI and theme matching
+- Live casino balance, bonus, daily-spin and Barkeep tracking
+- Optional practice-only Auto Barkeep integration
+- Automatic perfect grades for newly completed practice orders
+- One patron per four seconds, following DEV13's pacing
+- Compatibility error pauses instead of repeated invocation
+- Practice automation disabled by default
+- 512x512 transparent plugin icon
 
-The bridge uses Aetherphone's internal objects via reflection.
-It does not access account tokens, send network requests,
-modify shift grades, claim rewards or initiate wagers.
+No wager starts, wager-grade modifications, server settlement
+calls or automatic bonus claims are performed by the new
+practice automation.
 
-Unverified integration against future Aetherphone releases may
-stop working. DEV2 TEST1 tests the read-only connection first.
+The Aetherphone bridge uses reflection of internal objects.
+Updates to Aetherphone may require compatibility maintenance.

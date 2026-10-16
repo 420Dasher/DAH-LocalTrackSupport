@@ -37,6 +37,7 @@ public sealed class Plugin : IDalamudPlugin
 
     private readonly Configuration cfg;
     private readonly AetherphoneBridge bridge = new();
+    private readonly PracticeBarkeepAutomation practice = new();
     private bool mainOpen;
     private bool settingsOpen;
     private Page page = Page.Overview;
@@ -78,6 +79,11 @@ public sealed class Plugin : IDalamudPlugin
             bridge.Tick();
         else
             bridge.Clear();
+
+        if (cfg.ModulesEnabled[1] && cfg.PracticeAutomationEnabled)
+            practice.Tick(bridge.BarkeepCabinet);
+        else
+            practice.Stop();
     }
 
     private static string TimeUntil(long unix)
@@ -217,7 +223,7 @@ public sealed class Plugin : IDalamudPlugin
 
                 ImGui.Spacing();
                 ImGui.Separator();
-                ImGui.TextDisabled("Aetherphone: " + bridge.Status + " | read-only bridge");
+                ImGui.TextDisabled("Aetherphone: " + bridge.Status + " | practice-only bridge");
             }
 
             ImGui.End();
@@ -259,7 +265,7 @@ public sealed class Plugin : IDalamudPlugin
             $"Enabled modules: {cfg.ModulesEnabled.Count(x => x)} / 6");
 
         ImGui.Spacing();
-        ImGui.TextDisabled("DEV2 TEST1 - live read-only bridge.");
+        ImGui.TextDisabled("DEV2 TEST2 - live read-only bridge.");
         ImGui.TextDisabled("No automated wagers or reward claims.");
     }
 
@@ -366,7 +372,25 @@ public sealed class Plugin : IDalamudPlugin
         ImGui.TextUnformatted("Entry: 2,000 | Top payout: 4,000 chips");
         ImGui.TextUnformatted("Daily net-win cap: 20,000 chips");
 
-        ImGui.SliderInt("Accuracy (%)", ref barkeepScore, 0, 100);
+        ImGui.Spacing();
+
+        bool autoPractice = cfg.PracticeAutomationEnabled;
+        if (ImGui.Checkbox("Auto-perfect practice", ref autoPractice))
+        {
+            cfg.PracticeAutomationEnabled = autoPractice;
+
+            if (autoPractice)
+                practice.Reset();
+            else
+                practice.Stop();
+
+            Save();
+        }
+
+        ImGui.TextDisabled("Practice: " + practice.Status);
+        ImGui.TextDisabled("Free Play only - wager shifts are never automated.");
+
+        ImGui.SliderInt("Estimate accuracy (%)", ref barkeepScore, 0, 100);
 
         int payout = barkeepScore >= 95 ? 4000 :
                      barkeepScore >= 80 ? 3000 :
@@ -384,14 +408,14 @@ public sealed class Plugin : IDalamudPlugin
 
         ImGui.Spacing();
         ImGui.TextDisabled(
-            "Read-only shift tracking. No grade injection or automatic wagers.");
+            "Practice-only automation. Wagers remain manual and untouched.");
     }
 
     private void DrawPlaceholder(string name)
     {
         Heading(name);
         ImGui.TextWrapped(
-            "Module foundation ready. Additional game automation is not implemented in DEV2 TEST1.");
+            "Module foundation ready. Additional game automation is not implemented in DEV2 TEST2.");
 
         if (name == "ORIGINALS")
             ImGui.TextDisabled(
@@ -466,7 +490,7 @@ public sealed class Plugin : IDalamudPlugin
                 }
 
                 ImGui.Spacing();
-                ImGui.TextDisabled("APGambaHax " + VersionText + " - DEV2 TEST1");
+                ImGui.TextDisabled("APGambaHax " + VersionText + " - DEV2 TEST2");
                 ImGui.TextDisabled("Bridge: " + bridge.Status);
                 ImGui.TextDisabled("Aetherphone assembly: " + bridge.Version);
             }

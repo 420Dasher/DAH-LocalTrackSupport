@@ -27,6 +27,7 @@ internal sealed class AetherphoneBridge
     public string Status { get; private set; } = "Waiting for Aetherphone";
     public string Version { get; private set; } = "--";
     public bool HasCasinoState { get; private set; }
+    public object? BarkeepCabinet { get; private set; }
     public long? Chips { get; private set; }
     public int? Level { get; private set; }
     public bool? StakesPaused { get; private set; }
@@ -69,6 +70,7 @@ internal sealed class AetherphoneBridge
     private void ResetSnapshot()
     {
         HasCasinoState = false;
+        BarkeepCabinet = null;
         Chips = null;
         Level = null;
         StakesPaused = null;
@@ -211,6 +213,7 @@ internal sealed class AetherphoneBridge
             }
 
             var barkeep = Member(app, "barkeep");
+            BarkeepCabinet = barkeep;
             var shift = Member(barkeep, "shift");
             var settlement = Member(barkeep, "settle");
 
