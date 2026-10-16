@@ -45,6 +45,7 @@ internal sealed class BarkeepAutomation
     public long? NetWinToday { get; private set; }
     public bool Capped { get; private set; }
     public bool BatchArmed => batchArmed;
+    public bool HasError => faulted;
     public bool HasBatch => hasBatch;
     public int BatchWagers => hasBatch ? batchEndWagers - batchStartWagers : 0;
     public int BatchPerfect => hasBatch ? batchEndPerfect - batchStartPerfect : 0;
@@ -176,7 +177,11 @@ internal sealed class BarkeepAutomation
 
     public void StopBatch()
     {
-        includePendingSettlement = batchArmed && ManagingWager;
+        // No active batch means there was nothing to stop.
+        if (!batchArmed)
+            return;
+
+        includePendingSettlement = ManagingWager;
         batchArmed = false;
         paused = false;
         nextStartAt = DateTime.MaxValue;

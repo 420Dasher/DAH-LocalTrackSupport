@@ -1,25 +1,20 @@
 # APGambaHax
 
-## DEV2 TEST4 - v0.1.4.0
+## DEV2 TEST4 FIX1 - v0.1.5.0
 
 - Dalamud API 15 / .NET 10
-- Native Dalamud testing-exclusive release
-- Verified unified Barkeep perfect-grade engine
-- Practice and wager automation switches
-- Guarded batch start, pause, resume and stop
-- Persistent last-stop reason
-- Current/last batch statistics separate from session totals
-- Profit, loss, shift-count and reported daily-cap stopping
-- Safeguard against new wagers after wager automation is disabled
-- Server settlement round-ID validation
-- Improved live score and completed-patron quality display
-- Rewards labels and precise cooldowns
-- Offline reminder shown only without live casino state
-- Matching Dalamud colors and compact UI
-- Icon picker with existing-icon reuse
+- Native testing-exclusive Dalamud release
+- Single scrolling region in the main plugin window
+- Removed nested Barkeep child scrolling
+- Session and batch statistics moved above configuration
+- Collapsible wager batch settings
+- Batch start/pause/resume/stop remain directly accessible
+- No false manual-stop status when a batch is not active
+- Reset bridge error shown only when an actual reflection error occurs
+- Existing unified Barkeep grade and settlement engine unchanged
+- Existing live Rewards functionality preserved
+- Same matched Dalamud theme and plugin icon
+- Optional Windows icon picker during release
 
-Wager automation remains opt-in.
-Automatic continuation remains disabled by default.
-
-Barkeep uses Aetherphone internal objects via reflection.
-Future changes in Aetherphone may require compatibility updates.
+Wager automation and continuation remain opt-in.
+The existing reflection integration depends on Aetherphone internals.
