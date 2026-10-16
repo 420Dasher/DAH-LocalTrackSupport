@@ -17,6 +17,9 @@ public sealed class Configuration : IPluginConfiguration
     // All reward automation requires explicit opt-in.
     public bool AutoClaimBonuses { get; set; } = false;
 
+    // Mission claiming is separate from bonus claiming.
+    public bool AutoClaimMissions { get; set; } = false;
+
     // welcome, timed, reload, streak, levelup, broke, rebate
     public bool[] AutoBonusKinds { get; set; } =
         { true, true, true, true, true, true, true };

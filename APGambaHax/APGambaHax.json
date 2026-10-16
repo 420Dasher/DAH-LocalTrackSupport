@@ -2,7 +2,7 @@
   "Author": "Dash + AI",
   "Name": "APGambaHax",
   "InternalName": "APGambaHax",
-  "AssemblyVersion": "0.1.11.0",
+  "AssemblyVersion": "0.1.12.0",
   "DalamudApiLevel": 15,
   "ApplicableVersion": "any",
   "LoadRequiredState": 0,
@@ -10,6 +10,6 @@
   "CanUnloadAsync": false,
   "LoadPriority": 0,
   "Punchline": "Make sense of the Gamba floor.",
-  "Description": "Modular companion tools for Aetherphone Gamba. Rewards DEV1 adds opt-in auto claiming, manual bonus claims, per-type controls and safeguards using the existing Aetherphone claim method.",
+  "Description": "Modular companion tools for Aetherphone Gamba. Missions DEV1 adds live objectives, progress bars, manual and opt-in automatic mission claims through Aetherphone.",
   "Tags": ["aetherphone", "gamba", "utility"]
 }

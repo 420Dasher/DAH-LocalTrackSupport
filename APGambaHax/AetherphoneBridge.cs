@@ -15,6 +15,18 @@ internal readonly record struct LiveBonus(
     long NextAtUnix,
     int StreakDay);
 
+internal readonly record struct LiveMission(
+    string Id,
+    int Slot,
+    string Description,
+    string Metric,
+    string GameKind,
+    long Progress,
+    long Target,
+    long Reward,
+    bool Complete,
+    bool Claimed);
+
 internal sealed class AetherphoneBridge
 {
     private const BindingFlags InstanceFlags =
@@ -26,6 +38,8 @@ internal sealed class AetherphoneBridge
     private DateTime nextReadUtc = DateTime.MinValue;
     private readonly List<LiveBonus> bonuses = new();
     private object? casinoStore;
+    private object? missionStore;
+    private readonly List<LiveMission> missions = new();
 
     public string Status { get; private set; } = "Waiting for Aetherphone";
     public string Version { get; private set; } = "--";
@@ -50,6 +64,98 @@ internal sealed class AetherphoneBridge
     public int? BarkeepScore { get; private set; }
 
     public IReadOnlyList<LiveBonus> Bonuses => bonuses;
+    public IReadOnlyList<LiveMission> Missions => missions;
+
+    public bool MissionsLoaded { get; private set; }
+    public int MissionsDayIndex { get; private set; }
+    public long MissionsResetsAtUnix { get; private set; }
+
+    public string ClaimingMission =>
+        Member(missionStore, "ClaimingMission") as string ?? "";
+
+    public bool TryClaimMission(
+        string missionId,
+        out string message)
+    {
+        message = "";
+
+        if (missionStore is null ||
+            !MissionsLoaded ||
+            AccountKey.Length == 0)
+        {
+            message = "Mission store is unavailable";
+            return false;
+        }
+
+        var target = missions.Find(m =>
+            string.Equals(m.Id, missionId,
+                StringComparison.Ordinal));
+
+        if (string.IsNullOrWhiteSpace(target.Id) ||
+            !target.Complete || target.Claimed)
+        {
+            message = "Mission is not claimable";
+            return false;
+        }
+
+        if (MissionsResetsAtUnix > 0 &&
+            DateTimeOffset.UtcNow.ToUnixTimeSeconds() >=
+                MissionsResetsAtUnix)
+        {
+            message = "Mission reset pending";
+            return false;
+        }
+
+        try
+        {
+            // Verify the authenticated account is still the one
+            // from which the mission snapshot was retrieved.
+            string currentId =
+                Member(missionStore, "AccountId") as string ?? "";
+
+            if (currentId.Length == 0 ||
+                Convert.ToHexString(
+                    SHA256.HashData(
+                        Encoding.UTF8.GetBytes(currentId))) !=
+                    AccountKey)
+            {
+                message = "Aetherphone account changed";
+                return false;
+            }
+
+            if (ClaimingMission.Length > 0)
+            {
+                message = "Another mission claim is processing";
+                return false;
+            }
+
+            var method = missionStore.GetType().GetMethod(
+                "ClaimMission",
+                InstanceFlags,
+                null,
+                new[] { typeof(string) },
+                null);
+
+            if (method is null)
+            {
+                message = "Aetherphone mission API unavailable";
+                return false;
+            }
+
+            method.Invoke(
+                missionStore,
+                new object[] { missionId });
+
+            message = "Request handed to Aetherphone";
+            return true;
+        }
+        catch (Exception exception)
+        {
+            message = "Compatibility error: " +
+                exception.GetBaseException().GetType().Name;
+            return false;
+        }
+    }
 
     public string ClaimingBonus =>
         Member(casinoStore, "ClaimingBonus") as string ?? "";
@@ -163,6 +269,11 @@ internal sealed class AetherphoneBridge
     {
         HasCasinoState = false;
         casinoStore = null;
+        missionStore = null;
+        missions.Clear();
+        MissionsLoaded = false;
+        MissionsDayIndex = 0;
+        MissionsResetsAtUnix = 0;
         BarkeepCabinet = null;
         AccountKey = "";
         BarkeepHistoryLoaded = false;
@@ -244,7 +355,7 @@ internal sealed class AetherphoneBridge
         return bestApp;
     }
 
-    public void Tick()
+    public void Tick(bool includeMissions = false)
     {
         if (DateTime.UtcNow < nextReadUtc)
             return;
@@ -414,6 +525,106 @@ internal sealed class AetherphoneBridge
             {
                 DailySpinClaimed = Flag(Member(spin, "Claimed"));
                 DailySpinNextAtUnix = Number(Member(spin, "NextSpinAtUnix"));
+            }
+
+            // Missions use Aetherphone's existing cached store.
+            // Its own EnsureFresh() handles refresh throttling.
+            if (includeMissions && AccountKey.Length > 0)
+            {
+                try
+                {
+                    var floor = Member(app, "floor");
+
+                    if (floor is not null)
+                    {
+                        floor.GetType().GetMethod(
+                            "EnsureFresh",
+                            InstanceFlags)?.Invoke(floor, null);
+
+                        var response = Member(floor, "Missions");
+
+                        if (response is not null)
+                        {
+                            missionStore = floor;
+                            MissionsLoaded = true;
+                            MissionsDayIndex = (int)(
+                                Number(Member(response, "DayIndex")) ?? 0);
+
+                            MissionsResetsAtUnix =
+                                Number(Member(response, "ResetsAtUnix")) ?? 0;
+
+                            var textType = app.GetType().Assembly.GetType(
+                                "Aetherphone.Apps.Casino.Strip.MissionText",
+                                false);
+
+                            var compose = textType?.GetMethod(
+                                "Compose", StaticFlags);
+
+                            if (Member(response, "Missions") is IEnumerable items)
+                            {
+                                foreach (var mission in items)
+                                {
+                                    if (mission is null)
+                                        continue;
+
+                                    var id = Member(mission, "Id") as string ?? "";
+                                    if (id.Length == 0)
+                                        continue;
+
+                                    var metric = Member(mission, "Metric")
+                                        as string ?? "";
+
+                                    var game = Member(mission, "GameKind")
+                                        as string ?? "";
+
+                                    string description = "";
+
+                                    if (compose is not null)
+                                    {
+                                        try
+                                        {
+                                            description = compose.Invoke(
+                                                null,
+                                                new object[] { mission })
+                                                as string ?? "";
+                                        }
+                                        catch
+                                        {
+                                            // Fall back to raw mission data.
+                                        }
+                                    }
+
+                                    if (description.Length == 0)
+                                    {
+                                        description = metric.Length > 0
+                                            ? metric + (game.Length > 0
+                                                ? " - " + game : "")
+                                            : id;
+                                    }
+
+                                    missions.Add(new LiveMission(
+                                        id,
+                                        (int)(Number(Member(mission, "Slot")) ?? 0),
+                                        description,
+                                        metric,
+                                        game,
+                                        Number(Member(mission, "Progress")) ?? 0,
+                                        Number(Member(mission, "Target")) ?? 0,
+                                        Number(Member(mission, "Reward")) ?? 0,
+                                        Flag(Member(mission, "Complete")) ?? false,
+                                        Flag(Member(mission, "Claimed")) ?? false));
+                                }
+                            }
+                        }
+                    }
+                }
+                catch
+                {
+                    // Keep the Rewards and Barkeep bridges alive.
+                    missionStore = null;
+                    missions.Clear();
+                    MissionsLoaded = false;
+                }
             }
 
             var barkeep = Member(app, "barkeep");

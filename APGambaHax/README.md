@@ -1,27 +1,21 @@
 # APGambaHax
 
-## Rewards DEV1 - v0.1.11.0
+## Missions DEV1 - v0.1.12.0
 
 - Dalamud API 15 / .NET 10
 - Native testing-exclusive release
-- Opt-in automatic claims for eligible bonuses
-- Per-bonus-type enable/disable selection
-- Manual claim buttons for currently eligible bonuses
-- Uses Aetherphone CasinoStore.ClaimBonus
-- No direct HTTP requests or authentication duplication
-- Checks Ready and Eligible before each request
-- One outstanding bonus request at a time
-- Throttles repeated attempts for the same bonus
-- Account identity rechecked before a claim
-- Shows request status, not fictitious success messages
-- Free daily spin is display-only for now
-- Existing Barkeep automation and safeguards unchanged
-- Compact theme-aware interface retained
-- Optional 512x512 icon picker
+- Live Aetherphone mission progress
+- Localized mission descriptions when available
+- Progress bars, targets and chip rewards
+- Manual claims for completed missions
+- Opt-in automatic mission claiming, default OFF
+- Per-account claim verification
+- Daily mission reset awareness
+- Request throttling and duplicate prevention
+- Aetherphone CasinoFloorStore handles claims
+- Aetherphone handles actual server results
+- Barkeep and Rewards DEV1 logic preserved
+- Existing plugin icon retained
 
-Next module: Missions progress and claiming.
-
-Rewards require Aetherphone to be signed in and its
-casino state to be loaded. The plugin can submit a
-claim but Aetherphone remains responsible for
-processing and displaying the server response.
+Mission objectives are not auto-played in this version.
+Daily spin remains display-only.

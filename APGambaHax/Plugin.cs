@@ -39,6 +39,7 @@ public sealed class Plugin : IDalamudPlugin
     private readonly AetherphoneBridge bridge = new();
     private readonly BarkeepAutomation automation = new();
     private readonly RewardsAutomation rewardAutomation = new();
+    private readonly MissionsAutomation missionAutomation = new();
 
     private string currentDailyAccount = "";
     private DateTime currentDailyDate = DateTime.MinValue;
@@ -173,8 +174,9 @@ public sealed class Plugin : IDalamudPlugin
     private void OnFrameworkUpdate(IFramework framework)
     {
         if (cfg.ModulesEnabled[0] || cfg.ModulesEnabled[1] ||
+            cfg.ModulesEnabled[2] ||
             automation.ManagingWager || automation.BatchArmed)
-            bridge.Tick();
+            bridge.Tick(cfg.ModulesEnabled[2]);
         else
             bridge.Clear();
 
@@ -185,6 +187,10 @@ public sealed class Plugin : IDalamudPlugin
             bridge,
             cfg.ModulesEnabled[0] && cfg.AutoClaimBonuses,
             cfg.AutoBonusKinds);
+
+        missionAutomation.Tick(
+            bridge,
+            cfg.ModulesEnabled[2] && cfg.AutoClaimMissions);
 
         if (cfg.ModulesEnabled[1] ||
             automation.ManagingWager || automation.BatchArmed)
@@ -343,7 +349,7 @@ public sealed class Plugin : IDalamudPlugin
                     case Page.Overview: DrawOverview(); break;
                     case Page.Rewards: DrawRewards(); break;
                     case Page.Barkeep: DrawBarkeep(); break;
-                    case Page.Missions: DrawPlaceholder("MISSIONS"); break;
+                    case Page.Missions: DrawMissions(); break;
                     case Page.Originals: DrawPlaceholder("ORIGINALS"); break;
                     case Page.Blackjack: DrawPlaceholder("BLACKJACK"); break;
                     case Page.Challenges: DrawPlaceholder("CHALLENGES"); break;
@@ -411,7 +417,7 @@ public sealed class Plugin : IDalamudPlugin
             $"Enabled modules: {cfg.ModulesEnabled.Count(x => x)} / 6");
 
         ImGui.Spacing();
-        ImGui.TextDisabled("REWARDS DEV1 - unified Barkeep automation.");
+        ImGui.TextDisabled("MISSIONS DEV1 - unified Barkeep automation.");
         ImGui.TextDisabled("Wager automation is disabled by default.");
     }
 
@@ -920,11 +926,152 @@ public sealed class Plugin : IDalamudPlugin
         }
     }
 
+    private void DrawMissions()
+    {
+        Heading("MISSIONS");
+
+        if (!bridge.HasCasinoState ||
+            bridge.AccountKey.Length == 0)
+        {
+            ImGui.TextDisabled(
+                "Connect and sign in to Aetherphone Gamba.");
+            return;
+        }
+
+        Heading("AUTO CLAIM");
+
+        bool autoClaim = cfg.AutoClaimMissions;
+
+        if (ImGui.Checkbox(
+            "Auto claim completed missions", ref autoClaim))
+        {
+            cfg.AutoClaimMissions = autoClaim;
+            Save();
+        }
+
+        ImGui.TextDisabled(missionAutomation.Status);
+
+        ImGui.Spacing();
+        ImGui.Separator();
+
+        if (!bridge.MissionsLoaded)
+        {
+            ImGui.TextDisabled(
+                "Waiting for Aetherphone mission data...");
+            return;
+        }
+
+        int completed = 0;
+        int claimed = 0;
+
+        foreach (var mission in bridge.Missions)
+        {
+            if (mission.Complete)
+                completed++;
+
+            if (mission.Claimed)
+                claimed++;
+        }
+
+        ImGui.TextUnformatted(
+            $"Completed: {completed}/{bridge.Missions.Count}" +
+            $" | Claimed: {claimed}");
+
+        if (bridge.MissionsResetsAtUnix > 0)
+        {
+            ImGui.TextDisabled(
+                "Mission reset: " +
+                TimeUntil(bridge.MissionsResetsAtUnix));
+        }
+
+        if (bridge.Missions.Count == 0)
+        {
+            ImGui.TextDisabled(
+                "No missions available in Aetherphone's cache.");
+        }
+
+        ImGui.Spacing();
+
+        foreach (var mission in bridge.Missions)
+        {
+            ImGui.PushID(mission.Id);
+
+            try
+            {
+                ImGui.Separator();
+
+                ImGui.TextWrapped(mission.Description);
+
+                float progress = mission.Target <= 0
+                    ? (mission.Complete ? 1f : 0f)
+                    : Math.Clamp(
+                        (float)mission.Progress / mission.Target,
+                        0f, 1f);
+
+                long shownProgress = Math.Max(0L, mission.Progress);
+                long shownTarget = Math.Max(0L, mission.Target);
+
+                ImGui.ProgressBar(
+                    progress,
+                    new Vector2(-1f, 0f),
+                    $"{shownProgress:N0} / {shownTarget:N0}");
+
+                ImGui.TextDisabled(
+                    $"Reward: {mission.Reward:N0} chips");
+
+                if (mission.Claimed)
+                {
+                    ImGui.TextDisabled("Claimed");
+                }
+                else if (mission.Complete)
+                {
+                    bool busy = bridge.ClaimingMission.Length > 0;
+
+                    if (busy)
+                        ImGui.BeginDisabled();
+
+                    if (ImGui.SmallButton("Claim reward"))
+                    {
+                        missionAutomation.RequestManual(
+                            bridge, mission.Id);
+                    }
+
+                    if (busy)
+                        ImGui.EndDisabled();
+                }
+                else
+                {
+                    ImGui.TextDisabled("In progress");
+                }
+
+                ImGui.Spacing();
+            }
+            finally
+            {
+                ImGui.PopID();
+            }
+        }
+
+        ImGui.Separator();
+
+        ImGui.TextDisabled(
+            "Last: " + missionAutomation.LastRequest);
+
+        ImGui.TextDisabled(
+            $"Mission claim requests: {missionAutomation.Requests}");
+
+        ImGui.TextDisabled(
+            "Claims are verified by Aetherphone and the server.");
+
+        ImGui.TextDisabled(
+            "Claim requests are not confirmed payouts.");
+    }
+
     private void DrawPlaceholder(string name)
     {
         Heading(name);
         ImGui.TextWrapped(
-            "Module foundation ready. Additional game automation is not implemented in REWARDS DEV1.");
+            "Module foundation ready. Additional game automation is not implemented in MISSIONS DEV1.");
 
         if (name == "ORIGINALS")
             ImGui.TextDisabled(
@@ -999,7 +1146,7 @@ public sealed class Plugin : IDalamudPlugin
                 }
 
                 ImGui.Spacing();
-                ImGui.TextDisabled("APGambaHax " + VersionText + " - REWARDS DEV1");
+                ImGui.TextDisabled("APGambaHax " + VersionText + " - MISSIONS DEV1");
                 ImGui.TextDisabled("Bridge: " + bridge.Status);
                 ImGui.TextDisabled("Aetherphone assembly: " + bridge.Version);
             }
