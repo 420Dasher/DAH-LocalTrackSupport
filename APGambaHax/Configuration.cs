@@ -4,9 +4,15 @@ namespace APGambaHax;
 
 public sealed class Configuration : IPluginConfiguration
 {
-    public int Version { get; set; } = 2;
+    public int Version { get; set; } = 3;
     // Off by default; only free-play practice shifts can be assisted.
     public bool PracticeAutomationEnabled { get; set; } = false;
+    public bool WagerAutomationEnabled { get; set; } = false;
+    public bool AutoContinueWagers { get; set; } = false;
+    public int WagerStopAfter { get; set; } = 1;
+    public int WagerStopAtProfit { get; set; } = 0;
+    public int WagerStopAtLoss { get; set; } = 0;
+    public int WagerDelaySeconds { get; set; } = 3;
 
     public bool UseDalamudColors { get; set; }
     public uint[] MatchedStyleColors { get; set; } = Array.Empty<uint>();

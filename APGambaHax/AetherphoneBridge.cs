@@ -229,8 +229,10 @@ internal sealed class AetherphoneBridge
                     Member(shift, "Score"));
 
                 BarkeepStatus = settlement is not null
-                    ? "Shift settled"
-                    : "Shift active";
+                    ? "Wager settled"
+                    : Member(barkeep, "practiceSettled") is true
+                        ? "Practice complete"
+                        : "Shift active";
             }
         }
         catch (Exception exception)

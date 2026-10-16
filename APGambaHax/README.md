@@ -1,23 +1,21 @@
 # APGambaHax
 
-Modular Aetherphone Gamba companion.
-
-## DEV2 TEST2 - v0.1.2.0
+## DEV2 TEST3 - v0.1.3.0
 
 - Dalamud API 15 / .NET 10
-- Native Dalamud testing-exclusive release
-- Compact AethernetAssist-style UI and theme matching
-- Live casino balance, bonus, daily-spin and Barkeep tracking
-- Optional practice-only Auto Barkeep integration
-- Automatic perfect grades for newly completed practice orders
-- One patron per four seconds, following DEV13's pacing
-- Compatibility error pauses instead of repeated invocation
-- Practice automation disabled by default
-- 512x512 transparent plugin icon
+- Native testing-exclusive plugin release
+- Unified perfect-grade Barkeep engine
+- Optional practice and wager automation
+- Guarded batches with explicit Start, Pause, Resume and Stop
+- Default wager batch size: one
+- Profit, loss and shift-count limits
+- Server-authoritative Barkeep payout and net statistics
+- Existing live casino, bonus and spin tracking
+- Compact UI with matched Dalamud colors
+- Existing 512x512 plugin icon
 
-No wager starts, wager-grade modifications, server settlement
-calls or automatic bonus claims are performed by the new
-practice automation.
+Wager automation and automatic continuation are off by default.
+Verify one manually initiated wager before batch testing.
 
-The Aetherphone bridge uses reflection of internal objects.
-Updates to Aetherphone may require compatibility maintenance.
+Uses reflection of Aetherphone internals, which may change
+between Aetherphone versions.

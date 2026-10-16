@@ -37,11 +37,11 @@ public sealed class Plugin : IDalamudPlugin
 
     private readonly Configuration cfg;
     private readonly AetherphoneBridge bridge = new();
-    private readonly PracticeBarkeepAutomation practice = new();
+    private readonly BarkeepAutomation automation = new();
     private bool mainOpen;
     private bool settingsOpen;
     private Page page = Page.Overview;
-    private int barkeepScore = 95;
+
     private uint[] sampledTheme = Array.Empty<uint>();
 
     private static string VersionText =>
@@ -60,6 +60,18 @@ public sealed class Plugin : IDalamudPlugin
             Save();
         }
 
+        if (cfg.Version < 3)
+        {
+            cfg.WagerAutomationEnabled = false;
+            cfg.AutoContinueWagers = false;
+            cfg.WagerStopAfter = 1;
+            cfg.WagerStopAtProfit = 0;
+            cfg.WagerStopAtLoss = 0;
+            cfg.WagerDelaySeconds = 3;
+            cfg.Version = 3;
+            Save();
+        }
+
         Commands.AddHandler("/apgamba", new CommandInfo(OnCommand)
         {
             HelpMessage = "Open APGambaHax. Subcommands: rewards, barkeep, missions, originals, blackjack, challenges, settings."
@@ -75,15 +87,33 @@ public sealed class Plugin : IDalamudPlugin
 
     private void OnFrameworkUpdate(IFramework framework)
     {
-        if (cfg.ModulesEnabled[0] || cfg.ModulesEnabled[1])
+        if (cfg.ModulesEnabled[0] || cfg.ModulesEnabled[1] ||
+            automation.ManagingWager || automation.BatchArmed)
             bridge.Tick();
         else
             bridge.Clear();
 
-        if (cfg.ModulesEnabled[1] && cfg.PracticeAutomationEnabled)
-            practice.Tick(bridge.BarkeepCabinet);
-        else
-            practice.Stop();
+        if (cfg.ModulesEnabled[1] ||
+            automation.ManagingWager || automation.BatchArmed)
+        {
+            automation.Tick(
+                bridge.BarkeepCabinet,
+                cfg.ModulesEnabled[1] && cfg.PracticeAutomationEnabled,
+                cfg.ModulesEnabled[1] && cfg.WagerAutomationEnabled,
+                cfg.AutoContinueWagers,
+                Math.Clamp(cfg.WagerStopAfter, 1, 9999),
+                Math.Clamp(cfg.WagerStopAtProfit, 0, 1000000),
+                Math.Clamp(cfg.WagerStopAtLoss, 0, 1000000),
+                Math.Clamp(cfg.WagerDelaySeconds, 1, 60));
+        }
+
+        if (automation.DisableWagersRequested)
+        {
+            cfg.WagerAutomationEnabled = false;
+            cfg.AutoContinueWagers = false;
+            automation.AcknowledgeDisable();
+            Save();
+        }
     }
 
     private static string TimeUntil(long unix)
@@ -223,7 +253,7 @@ public sealed class Plugin : IDalamudPlugin
 
                 ImGui.Spacing();
                 ImGui.Separator();
-                ImGui.TextDisabled("Aetherphone: " + bridge.Status + " | practice-only bridge");
+                ImGui.TextDisabled("Aetherphone: " + bridge.Status + " | Barkeep bridge");
             }
 
             ImGui.End();
@@ -265,8 +295,8 @@ public sealed class Plugin : IDalamudPlugin
             $"Enabled modules: {cfg.ModulesEnabled.Count(x => x)} / 6");
 
         ImGui.Spacing();
-        ImGui.TextDisabled("DEV2 TEST2 - live read-only bridge.");
-        ImGui.TextDisabled("No automated wagers or reward claims.");
+        ImGui.TextDisabled("DEV2 TEST3 - unified Barkeep automation.");
+        ImGui.TextDisabled("Wager automation is disabled by default.");
     }
 
     private void DrawRewards()
@@ -355,67 +385,180 @@ public sealed class Plugin : IDalamudPlugin
     {
         Heading("BARKEEP");
 
-        ImGui.TextUnformatted("Aetherphone: " + bridge.BarkeepStatus);
+        ImGui.BeginChild(
+            "##BarkeepScrollable",
+            new Vector2(0, MathF.Max(120f, ImGui.GetContentRegionAvail().Y - 4f)),
+            false);
 
-        if (bridge.BarkeepPatrons.HasValue &&
-            bridge.BarkeepCompleted.HasValue)
+        try
         {
+            ImGui.TextUnformatted("Aetherphone: " + bridge.BarkeepStatus);
+            ImGui.TextDisabled("Automation: " + automation.Status);
+
+            if (bridge.BarkeepCompleted.HasValue &&
+                bridge.BarkeepPatrons.HasValue)
+            {
+                int count = bridge.BarkeepPatrons.Value;
+                int complete = bridge.BarkeepCompleted.Value;
+
+                ImGui.TextUnformatted($"Patrons: {complete}/{count}");
+
+                if (bridge.BarkeepScore.HasValue)
+                {
+                    int score = bridge.BarkeepScore.Value;
+                    int maximum = count * 100;
+                    double accuracy = maximum > 0
+                        ? score * 100d / maximum
+                        : 0d;
+
+                    ImGui.TextUnformatted(
+                        $"Score: {score:N0}/{maximum:N0} ({accuracy:0.#}%)");
+                }
+            }
+
+            ImGui.TextDisabled("Entry: 2,000 | Maximum return: 4,000 chips");
+
+            ImGui.Spacing();
+            Heading("AUTOMATION");
+
+            bool practice = cfg.PracticeAutomationEnabled;
+
+            if (ImGui.Checkbox("Automate practice shifts", ref practice))
+            {
+                cfg.PracticeAutomationEnabled = practice;
+                Save();
+            }
+
+            bool wagers = cfg.WagerAutomationEnabled;
+
+            if (ImGui.Checkbox("Automate wager shifts", ref wagers))
+            {
+                cfg.WagerAutomationEnabled = wagers;
+
+                if (!wagers)
+                    automation.StopBatch();
+
+                Save();
+            }
+
+            ImGui.TextDisabled("Always aims for perfect grades.");
+
+            if (wagers)
+            {
+                ImGui.Separator();
+                Heading("WAGER BATCH");
+
+                bool repeat = cfg.AutoContinueWagers;
+
+                if (ImGui.Checkbox("Continue automatically", ref repeat))
+                {
+                    cfg.AutoContinueWagers = repeat;
+                    Save();
+                }
+
+                int count = cfg.WagerStopAfter;
+                ImGui.SetNextItemWidth(130f);
+
+                if (ImGui.InputInt("Shift limit", ref count))
+                {
+                    cfg.WagerStopAfter = Math.Clamp(count, 1, 9999);
+                    Save();
+                }
+
+                int profit = cfg.WagerStopAtProfit;
+                ImGui.SetNextItemWidth(130f);
+
+                if (ImGui.InputInt("Stop at profit (chips)",
+                    ref profit, 100, 1000))
+                {
+                    cfg.WagerStopAtProfit = Math.Clamp(profit, 0, 1000000);
+                    Save();
+                }
+
+                int loss = cfg.WagerStopAtLoss;
+                ImGui.SetNextItemWidth(130f);
+
+                if (ImGui.InputInt("Stop at loss (chips)",
+                    ref loss, 100, 1000))
+                {
+                    cfg.WagerStopAtLoss = Math.Clamp(loss, 0, 1000000);
+                    Save();
+                }
+
+                int delay = cfg.WagerDelaySeconds;
+                ImGui.SetNextItemWidth(130f);
+
+                if (ImGui.InputInt("Batch delay (seconds)", ref delay))
+                {
+                    cfg.WagerDelaySeconds = Math.Clamp(delay, 1, 60);
+                    Save();
+                }
+
+                ImGui.Spacing();
+
+                if (!automation.BatchArmed)
+                {
+                    if (ImGui.Button("Start batch"))
+                        automation.StartBatch();
+                }
+                else
+                {
+                    if (ImGui.Button(automation.Paused
+                        ? "Resume batch"
+                        : "Pause batch"))
+                    {
+                        if (automation.Paused)
+                            automation.Resume();
+                        else
+                            automation.Pause();
+                    }
+
+                    ImGui.SameLine();
+
+                    if (ImGui.Button("Stop batch"))
+                        automation.StopBatch();
+                }
+            }
+
+            ImGui.Spacing();
+            ImGui.Separator();
+            Heading("SESSION");
+
             ImGui.TextUnformatted(
-                $"Patrons: {bridge.BarkeepCompleted.Value}/{bridge.BarkeepPatrons.Value}");
+                $"Wagers: {automation.Wagers} | Perfect: {automation.PerfectWagers}");
 
-            if (bridge.BarkeepScore.HasValue)
+            ImGui.TextUnformatted(
+                $"Practice results: {automation.PracticeRuns}");
+
+            ImGui.TextUnformatted(
+                $"Session net: {automation.SessionNet:+#,0;-#,0;0} chips");
+
+            if (automation.NetWinToday.HasValue)
                 ImGui.TextUnformatted(
-                    $"Current score: {bridge.BarkeepScore.Value:N0}");
+                    $"Server Barkeep net today: {automation.NetWinToday.Value:N0}");
+
+            if (automation.Capped)
+                ImGui.TextDisabled("Server reported a daily cap.");
+
+            ImGui.TextWrapped("Last wager: " + automation.LastResult);
+
+            if (ImGui.SmallButton("Reset bridge error"))
+                automation.ResetFault();
+
+            ImGui.TextDisabled(
+                "TEST3: Verify one wager before testing auto-continuation.");
         }
-
-        ImGui.Spacing();
-        ImGui.TextUnformatted("Entry: 2,000 | Top payout: 4,000 chips");
-        ImGui.TextUnformatted("Daily net-win cap: 20,000 chips");
-
-        ImGui.Spacing();
-
-        bool autoPractice = cfg.PracticeAutomationEnabled;
-        if (ImGui.Checkbox("Auto-perfect practice", ref autoPractice))
+        finally
         {
-            cfg.PracticeAutomationEnabled = autoPractice;
-
-            if (autoPractice)
-                practice.Reset();
-            else
-                practice.Stop();
-
-            Save();
+            ImGui.EndChild();
         }
-
-        ImGui.TextDisabled("Practice: " + practice.Status);
-        ImGui.TextDisabled("Free Play only - wager shifts are never automated.");
-
-        ImGui.SliderInt("Estimate accuracy (%)", ref barkeepScore, 0, 100);
-
-        int payout = barkeepScore >= 95 ? 4000 :
-                     barkeepScore >= 80 ? 3000 :
-                     barkeepScore >= 60 ? 2000 :
-                     barkeepScore >= 40 ? 1000 : 0;
-
-        int net = payout - 2000;
-
-        ImGui.TextUnformatted(
-            $"Estimated payout: {payout:N0} chips");
-
-        ImGui.TextColored(
-            net >= 0 ? Theme.Get(cfg, 5) : Theme.Get(cfg, 3),
-            $"Estimated net: {net:+#,0;-#,0;0} chips");
-
-        ImGui.Spacing();
-        ImGui.TextDisabled(
-            "Practice-only automation. Wagers remain manual and untouched.");
     }
 
     private void DrawPlaceholder(string name)
     {
         Heading(name);
         ImGui.TextWrapped(
-            "Module foundation ready. Additional game automation is not implemented in DEV2 TEST2.");
+            "Module foundation ready. Additional game automation is not implemented in DEV2 TEST3.");
 
         if (name == "ORIGINALS")
             ImGui.TextDisabled(
@@ -490,7 +633,7 @@ public sealed class Plugin : IDalamudPlugin
                 }
 
                 ImGui.Spacing();
-                ImGui.TextDisabled("APGambaHax " + VersionText + " - DEV2 TEST2");
+                ImGui.TextDisabled("APGambaHax " + VersionText + " - DEV2 TEST3");
                 ImGui.TextDisabled("Bridge: " + bridge.Status);
                 ImGui.TextDisabled("Aetherphone assembly: " + bridge.Version);
             }

@@ -2,7 +2,7 @@
   "Author": "Dash + AI",
   "Name": "APGambaHax",
   "InternalName": "APGambaHax",
-  "AssemblyVersion": "0.1.2.0",
+  "AssemblyVersion": "0.1.3.0",
   "DalamudApiLevel": 15,
   "ApplicableVersion": "any",
   "LoadRequiredState": 0,
@@ -10,6 +10,6 @@
   "CanUnloadAsync": false,
   "LoadPriority": 0,
   "Punchline": "Make sense of the Gamba floor.",
-  "Description": "Modular companion tools for Aetherphone Gamba. DEV2 TEST2 adds optional practice-only Barkeep automation alongside live casino and rewards tracking, module controls and theme matching.",
+  "Description": "Modular companion tools for Aetherphone Gamba. DEV2 TEST3 adds unified Barkeep automation, optional guarded wager batches, live rewards and theme matching.",
   "Tags": ["aetherphone", "gamba", "utility"]
 }
