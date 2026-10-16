@@ -119,11 +119,11 @@
         "Name":  "APGambaHax",
         "InternalName":  "APGambaHax",
         "AssemblyVersion":  "0.0.0.0",
-        "TestingAssemblyVersion":  "0.1.2.0",
-        "Description":  "Modular Aetherphone Gamba companion with live reward tracking, Barkeep practice assistance, payout estimates and customizable appearance.",
+        "TestingAssemblyVersion":  "0.1.3.0",
+        "Description":  "Modular Aetherphone Gamba companion with live rewards, Barkeep automation, guarded wager batches and theme matching.",
         "Punchline":  "Make sense of the Gamba floor.",
         "Changelog":  "DEV1 TEST1: Initial modular UI, appearance settings, manual rewards reminder and Barkeep estimator.",
-        "TestingChangelog":  "DEV2 TEST2: Practice-only Barkeep automation, compatibility safeguards and new 512x512 plugin icon.",
+        "TestingChangelog":  "DEV2 TEST3: Unified perfect-grade Barkeep engine, optional wager automation, guarded batches and session statistics.",
         "ApplicableVersion":  "any",
         "Tags":  [
                      "aetherphone",
@@ -142,7 +142,7 @@
         "DownloadLinkInstall":  "https://raw.githubusercontent.com/420Dasher/Dashs-Plugins/testing/plugins/APGambaHax/latest.zip",
         "DownloadLinkUpdate":  "https://raw.githubusercontent.com/420Dasher/Dashs-Plugins/testing/plugins/APGambaHax/latest.zip",
         "DownloadLinkTesting":  "https://raw.githubusercontent.com/420Dasher/Dashs-Plugins/testing/plugins/APGambaHax/latest.zip",
-        "LastUpdate":  1792110608,
+        "LastUpdate":  1792114796,
         "IconUrl":  "https://raw.githubusercontent.com/420Dasher/Dashs-Plugins/main/plugins/APGambaHax/icon.png"
     }
 ]
