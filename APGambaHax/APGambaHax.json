@@ -2,7 +2,7 @@
   "Author": "Dash + AI",
   "Name": "APGambaHax",
   "InternalName": "APGambaHax",
-  "AssemblyVersion": "0.1.10.0",
+  "AssemblyVersion": "0.1.11.0",
   "DalamudApiLevel": 15,
   "ApplicableVersion": "any",
   "LoadRequiredState": 0,
@@ -10,6 +10,6 @@
   "CanUnloadAsync": false,
   "LoadPriority": 0,
   "Punchline": "Make sense of the Gamba floor.",
-  "Description": "Modular companion tools for Aetherphone Gamba. DEV2 TEST5 FIX2 separates server-confirmed and history-suspected caps, reports signed history winnings and preserves safe batch blocking.",
+  "Description": "Modular companion tools for Aetherphone Gamba. Rewards DEV1 adds opt-in auto claiming, manual bonus claims, per-type controls and safeguards using the existing Aetherphone claim method.",
   "Tags": ["aetherphone", "gamba", "utility"]
 }

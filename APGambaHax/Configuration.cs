@@ -14,6 +14,13 @@ public sealed class Configuration : IPluginConfiguration
     public int WagerStopAtLoss { get; set; } = 0;
     public int WagerDelaySeconds { get; set; } = 3;
 
+    // All reward automation requires explicit opt-in.
+    public bool AutoClaimBonuses { get; set; } = false;
+
+    // welcome, timed, reload, streak, levelup, broke, rebate
+    public bool[] AutoBonusKinds { get; set; } =
+        { true, true, true, true, true, true, true };
+
     // Keyed by SHA256 of the authenticated Aetherphone account ID.
     // Never stores the account ID itself.
     public Dictionary<string, BarkeepDailyRecord> BarkeepDailyRecords

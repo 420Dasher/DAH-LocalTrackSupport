@@ -38,6 +38,7 @@ public sealed class Plugin : IDalamudPlugin
     private readonly Configuration cfg;
     private readonly AetherphoneBridge bridge = new();
     private readonly BarkeepAutomation automation = new();
+    private readonly RewardsAutomation rewardAutomation = new();
 
     private string currentDailyAccount = "";
     private DateTime currentDailyDate = DateTime.MinValue;
@@ -74,6 +75,15 @@ public sealed class Plugin : IDalamudPlugin
             cfg.WagerStopAtLoss = 0;
             cfg.WagerDelaySeconds = 3;
             cfg.Version = 3;
+            Save();
+        }
+
+        if (cfg.AutoBonusKinds is not { Length: 7 })
+        {
+            cfg.AutoBonusKinds = new[]
+            {
+                true, true, true, true, true, true, true
+            };
             Save();
         }
 
@@ -169,6 +179,12 @@ public sealed class Plugin : IDalamudPlugin
             bridge.Clear();
 
         RestoreDailyIfNeeded();
+
+        // Reward claiming is independent of the Barkeep module.
+        rewardAutomation.Tick(
+            bridge,
+            cfg.ModulesEnabled[0] && cfg.AutoClaimBonuses,
+            cfg.AutoBonusKinds);
 
         if (cfg.ModulesEnabled[1] ||
             automation.ManagingWager || automation.BatchArmed)
@@ -395,7 +411,7 @@ public sealed class Plugin : IDalamudPlugin
             $"Enabled modules: {cfg.ModulesEnabled.Count(x => x)} / 6");
 
         ImGui.Spacing();
-        ImGui.TextDisabled("DEV2 TEST5 FIX2 - unified Barkeep automation.");
+        ImGui.TextDisabled("REWARDS DEV1 - unified Barkeep automation.");
         ImGui.TextDisabled("Wager automation is disabled by default.");
     }
 
@@ -422,74 +438,124 @@ public sealed class Plugin : IDalamudPlugin
             {
                 ImGui.TextUnformatted(
                     "Daily spin: " +
-                    (bridge.DailySpinClaimed.Value ? "Claimed" : "Available"));
+                    (bridge.DailySpinClaimed.Value
+                        ? "Claimed" : "Available"));
 
-                if (bridge.DailySpinNextAtUnix is long nextSpin && nextSpin > 0)
-                    ImGui.TextDisabled("Next spin: " + TimeUntil(nextSpin));
+                if (bridge.DailySpinNextAtUnix is long nextSpin &&
+                    nextSpin > 0)
+                    ImGui.TextDisabled(
+                        "Next spin: " + TimeUntil(nextSpin));
             }
             else
             {
-                ImGui.TextDisabled("Daily spin data not loaded.");
+                ImGui.TextDisabled("Daily spin state not loaded.");
+            }
+
+            ImGui.TextDisabled(
+                "Daily spin claiming will be developed separately.");
+
+            ImGui.Spacing();
+            ImGui.Separator();
+
+            Heading("AUTO CLAIM");
+
+            bool autoClaim = cfg.AutoClaimBonuses;
+
+            if (ImGui.Checkbox(
+                "Auto claim eligible bonuses", ref autoClaim))
+            {
+                cfg.AutoClaimBonuses = autoClaim;
+                Save();
+            }
+
+            ImGui.TextDisabled(rewardAutomation.Status);
+
+            if (ImGui.CollapsingHeader(
+                "Choose bonus types##RewardTypes"))
+            {
+                for (int i = 0;
+                     i < RewardsAutomation.Kinds.Length;
+                     i++)
+                {
+                    bool selected = cfg.AutoBonusKinds[i];
+
+                    if (ImGui.Checkbox(
+                        BonusLabel(RewardsAutomation.Kinds[i]) +
+                        "##autoReward" + i,
+                        ref selected))
+                    {
+                        cfg.AutoBonusKinds[i] = selected;
+                        Save();
+                    }
+                }
             }
 
             ImGui.Spacing();
+            ImGui.Separator();
+
+            Heading("AVAILABLE BONUSES");
 
             if (bridge.Bonuses.Count == 0)
-                ImGui.TextDisabled("No live bonus data in Aetherphone's cache.");
+            {
+                ImGui.TextDisabled(
+                    "No live bonus data in Aetherphone's cache.");
+            }
 
             foreach (var bonus in bridge.Bonuses)
             {
-                string status =
-                    bonus.Ready && bonus.Eligible ? "READY" :
-                    bonus.Ready && !bonus.Eligible ? "Not eligible" :
-                    bonus.NextAtUnix > 0 ? TimeUntil(bonus.NextAtUnix) :
-                    "Not ready";
+                bool claimable = bonus.Ready && bonus.Eligible;
 
-                ImGui.TextWrapped(
-                    $"{BonusLabel(bonus.Kind)}: {bonus.Amount:N0} chips - {status}");
+                string status = claimable ? "READY" :
+                    bonus.Ready ? "Not eligible" :
+                    bonus.NextAtUnix > 0
+                        ? TimeUntil(bonus.NextAtUnix)
+                        : "Not ready";
+
+                ImGui.TextUnformatted(
+                    $"{BonusLabel(bonus.Kind)} - " +
+                    $"{bonus.Amount:N0} chips");
+
+                if (claimable)
+                {
+                    ImGui.SameLine();
+
+                    if (ImGui.SmallButton(
+                        "Claim##reward-" + bonus.Kind))
+                    {
+                        rewardAutomation.RequestManual(
+                            bridge, bonus.Kind);
+                    }
+                }
+                else
+                {
+                    ImGui.TextDisabled(status);
+                }
+
+                ImGui.Spacing();
             }
 
-            ImGui.Spacing();
-            ImGui.TextDisabled("Live cached data from Aetherphone.");
-            ImGui.TextDisabled("Claim rewards through Aetherphone.");
+            ImGui.Separator();
+            ImGui.TextDisabled(
+                "Last: " + rewardAutomation.LastRequest);
+            ImGui.TextDisabled(
+                $"Claim requests this session: " +
+                $"{rewardAutomation.Requests}");
+
+            ImGui.TextDisabled(
+                "Requests are not confirmed payouts.");
+            ImGui.TextDisabled(
+                "Aetherphone processes the server results.");
 
             return;
         }
 
-        ImGui.TextDisabled("Open Gamba in Aetherphone to load live rewards.");
-        ImGui.TextUnformatted("Timed bonus: 5,000 chips / 3 hours");
+        Heading("CONNECTION");
 
-        ImGui.Spacing();
-        ImGui.Separator();
-        ImGui.TextDisabled("Offline fallback reminder");
+        ImGui.TextDisabled(
+            "Open Gamba in Aetherphone to load live rewards.");
 
-        if (cfg.LastTimedClaimUtc == DateTime.MinValue)
-        {
-            ImGui.TextUnformatted("No timed claim recorded.");
-        }
-        else
-        {
-            var remaining =
-                cfg.LastTimedClaimUtc.AddHours(3) - DateTime.UtcNow;
-
-            ImGui.TextUnformatted(remaining > TimeSpan.Zero
-                ? $"Next manual check in {Math.Ceiling(remaining.TotalMinutes)}m"
-                : "Reminder elapsed - check Aetherphone.");
-        }
-
-        if (ImGui.SmallButton("Mark claim now"))
-        {
-            cfg.LastTimedClaimUtc = DateTime.UtcNow;
-            Save();
-        }
-
-        ImGui.SameLine();
-
-        if (ImGui.SmallButton("Clear reminder"))
-        {
-            cfg.LastTimedClaimUtc = DateTime.MinValue;
-            Save();
-        }
+        ImGui.TextDisabled(
+            "Auto claiming waits for authenticated casino data.");
     }
 
     private void DrawBarkeep()
@@ -858,7 +924,7 @@ public sealed class Plugin : IDalamudPlugin
     {
         Heading(name);
         ImGui.TextWrapped(
-            "Module foundation ready. Additional game automation is not implemented in DEV2 TEST5 FIX2.");
+            "Module foundation ready. Additional game automation is not implemented in REWARDS DEV1.");
 
         if (name == "ORIGINALS")
             ImGui.TextDisabled(
@@ -933,7 +999,7 @@ public sealed class Plugin : IDalamudPlugin
                 }
 
                 ImGui.Spacing();
-                ImGui.TextDisabled("APGambaHax " + VersionText + " - DEV2 TEST5 FIX2");
+                ImGui.TextDisabled("APGambaHax " + VersionText + " - REWARDS DEV1");
                 ImGui.TextDisabled("Bridge: " + bridge.Status);
                 ImGui.TextDisabled("Aetherphone assembly: " + bridge.Version);
             }

@@ -25,6 +25,7 @@ internal sealed class AetherphoneBridge
 
     private DateTime nextReadUtc = DateTime.MinValue;
     private readonly List<LiveBonus> bonuses = new();
+    private object? casinoStore;
 
     public string Status { get; private set; } = "Waiting for Aetherphone";
     public string Version { get; private set; } = "--";
@@ -49,6 +50,87 @@ internal sealed class AetherphoneBridge
     public int? BarkeepScore { get; private set; }
 
     public IReadOnlyList<LiveBonus> Bonuses => bonuses;
+
+    public string ClaimingBonus =>
+        Member(casinoStore, "ClaimingBonus") as string ?? "";
+
+    public bool TryClaimBonus(string kind, out string message)
+    {
+        message = "";
+
+        if (casinoStore is null ||
+            !HasCasinoState ||
+            AccountKey.Length == 0)
+        {
+            message = "No authenticated casino state";
+            return false;
+        }
+
+        if (RewardsAutomation.IndexOf(kind) < 0)
+        {
+            message = "Unknown bonus type";
+            return false;
+        }
+
+        var liveBonus = bonuses.Find(b =>
+            string.Equals(b.Kind, kind, StringComparison.Ordinal));
+
+        if (!liveBonus.Ready || !liveBonus.Eligible)
+        {
+            message = "Bonus is not ready or eligible";
+            return false;
+        }
+
+        try
+        {
+            // Recheck account identity at the moment of the request.
+            var session = Member(casinoStore, "session");
+            var userId = Member(
+                Member(session, "CurrentUser"), "Id") as string;
+
+            if (Member(session, "IsSignedIn") is not true ||
+                string.IsNullOrEmpty(userId) ||
+                Convert.ToHexString(
+                    SHA256.HashData(Encoding.UTF8.GetBytes(userId)))
+                    != AccountKey)
+            {
+                message = "Account changed - waiting for refresh";
+                return false;
+            }
+
+            if (ClaimingBonus.Length > 0)
+            {
+                message = "Another claim is processing";
+                return false;
+            }
+
+            var method = casinoStore.GetType().GetMethod(
+                "ClaimBonus",
+                InstanceFlags,
+                null,
+                new[] { typeof(string) },
+                null);
+
+            if (method is null)
+            {
+                message = "Aetherphone claim API unavailable";
+                return false;
+            }
+
+            // The original Aetherphone store owns networking,
+            // retries and server-side result handling.
+            method.Invoke(casinoStore, new object[] { kind });
+
+            message = "Request handed to Aetherphone";
+            return true;
+        }
+        catch (Exception exception)
+        {
+            message = "Compatibility error: " +
+                exception.GetBaseException().GetType().Name;
+            return false;
+        }
+    }
 
     private static object? Member(object? target, string name)
     {
@@ -80,6 +162,7 @@ internal sealed class AetherphoneBridge
     private void ResetSnapshot()
     {
         HasCasinoState = false;
+        casinoStore = null;
         BarkeepCabinet = null;
         AccountKey = "";
         BarkeepHistoryLoaded = false;
@@ -206,6 +289,9 @@ internal sealed class AetherphoneBridge
                 AccountKey = Convert.ToHexString(
                     SHA256.HashData(Encoding.UTF8.GetBytes(userId)));
             }
+
+            // Only an authenticated account may issue bonus claims.
+            casinoStore = AccountKey.Length > 0 ? store : null;
 
             // Aetherphone owns the history requests and caching.
             // This is a read of its existing history store.
