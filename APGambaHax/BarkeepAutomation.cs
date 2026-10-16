@@ -48,20 +48,41 @@ internal sealed class BarkeepAutomation
     public bool Capped { get; private set; }
 
     private long historyPositiveNet;
+    private long historySignedNet;
+    private bool historyHasMore;
+    private int historyRounds;
     private bool historyLoaded;
+    private bool restoredServerObservation;
     private bool observedLiveUnsettled;
 
     public string FreshSettlementRoundId { get; private set; } = "";
 
     public bool HistoryLoaded => historyLoaded;
     public long HistoryPositiveNet => historyPositiveNet;
+    public long HistorySignedNet => historySignedNet;
+    public int HistoryRounds => historyRounds;
+    public bool HistoryHasMore => historyHasMore;
+
     public bool DailyNetConfirmed => NetWinToday.HasValue;
 
-    public bool DailyCapReached =>
+    public string DailyObservationSource =>
+        !NetWinToday.HasValue ? "unconfirmed" :
+        restoredServerObservation ? "restored server observation" :
+        "live server settlement";
+
+    public bool DailyCapConfirmed =>
         CasinoProfitLimits.DailyLimitReached(
-            "Barkeep", NetWinToday, Capped) ||
-        (historyLoaded &&
-         historyPositiveNet >= CasinoProfitLimits.BarkeepDailyNetCap);
+            "Barkeep", NetWinToday, Capped);
+
+    public bool HistoryCapSuspected =>
+        historyLoaded &&
+        historyPositiveNet >= CasinoProfitLimits.BarkeepDailyNetCap &&
+        !DailyCapConfirmed;
+
+    // Both are safe reasons to block another automatic wager,
+    // but only the first is server-confirmed.
+    public bool DailyCapReached =>
+        DailyCapConfirmed || HistoryCapSuspected;
 
     public bool CanStartBatch =>
         DailyNetConfirmed && !DailyCapReached;
@@ -104,7 +125,11 @@ internal sealed class BarkeepAutomation
 
         NetWinToday = net;
         Capped = capped && net.HasValue;
+        restoredServerObservation = net.HasValue;
         historyPositiveNet = 0;
+        historySignedNet = 0;
+        historyRounds = 0;
+        historyHasMore = false;
         historyLoaded = false;
         observedLiveUnsettled = false;
         FreshSettlementRoundId = "";
@@ -113,7 +138,12 @@ internal sealed class BarkeepAutomation
             : DateTime.MinValue;
     }
 
-    public void SetHistoryObservation(bool loaded, long positiveNet)
+    public void SetHistoryObservation(
+        bool loaded,
+        long positiveNet,
+        long signedNet,
+        int rounds,
+        bool hasMore)
     {
         historyLoaded = loaded;
         historyPositiveNet = loaded
@@ -123,8 +153,16 @@ internal sealed class BarkeepAutomation
                 CasinoProfitLimits.BarkeepDailyNetCap)
             : 0L;
 
+        historySignedNet = loaded ? signedNet : 0L;
+        historyRounds = loaded ? Math.Max(0, rounds) : 0;
+        historyHasMore = loaded && hasMore;
+
         if (batchArmed && DailyCapReached)
-            Fail("Daily Barkeep cap detected from history");
+        {
+            Fail(DailyCapConfirmed
+                ? "Server-confirmed daily Barkeep cap"
+                : "Possible daily Barkeep cap detected from history");
+        }
     }
 
     private void ExpirePreviousDaySnapshot()
@@ -138,6 +176,7 @@ internal sealed class BarkeepAutomation
         observedDailyNetUtcDate = DateTime.MinValue;
         NetWinToday = null;
         Capped = false;
+        restoredServerObservation = false;
     }
     public bool BatchArmed => batchArmed;
     public bool HasError => faulted;
@@ -234,7 +273,9 @@ internal sealed class BarkeepAutomation
 
         if (DailyCapReached)
         {
-            Status = "Daily Barkeep cap reached - batch blocked";
+            Status = DailyCapConfirmed
+                ? "Server-confirmed daily Barkeep cap - batch blocked"
+                : "Possible daily Barkeep cap - batch blocked";
             return;
         }
 
@@ -521,6 +562,7 @@ internal sealed class BarkeepAutomation
 
         NetWinToday = Long(settlement, "NetWinToday");
         Capped = Bool(settlement, "Capped");
+        restoredServerObservation = false;
         observedDailyNetUtcDate = DateTime.UtcNow.Date;
 
         // Tighten the current batch ceiling using the latest

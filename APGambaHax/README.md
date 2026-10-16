@@ -1,28 +1,24 @@
 # APGambaHax
 
-## DEV2 TEST5 FIX1 - v0.1.9.0
+## DEV2 TEST5 FIX2 - v0.1.10.0
 
 - Dalamud API 15 / .NET 10
 - Native testing-exclusive release
-- Barkeep daily net-win ceiling: 20,000 chips
-- Account-specific persisted server daily observations
-- Stores SHA256 account identifiers, never raw account IDs
-- Reuses Aetherphone's existing history cache
-- History positive winnings act as a conservative cap signal
-- Unknown daily total blocks new automatic batches
-- Confirmed daily totals cap the maximum batch length
-- Prior settled results cannot masquerade as fresh settlements
-- Existing Pause, Resume, Stop, grading and payout logic retained
-- Shared per-bet ceiling display retained
-- Compact single-scroll interface and theme matching retained
-- Optional 512x512 icon picker
+- Server-confirmed vs history-suspected daily Barkeep cap
+- Daily cap: 20,000 net chips
+- Signed history net includes wins and losses
+- Positive history winnings tracked separately for safety
+- History completeness indicator
+- Account-specific persisted daily server observations
+- New automatic batches blocked when daily total unconfirmed
+- Both confirmed and suspected cap states block new batches
+- Server daily reset instant remains unverified
+- Existing Barkeep scoring, settlement and batching retained
+- Existing rewards bridge and global per-bet cap retained
+- Compact theme-aware single-scroll UI retained
 
-The actual server daily reset instant is not established.
-A new UTC date invalidates an earlier saved observation.
-History below the cap cannot by itself establish the exact
-server daily total. A fresh confirmed settlement is required
-before starting automatic batches when no saved observation
-exists for the account and current UTC date.
+Upcoming modules:
+- Rewards auto-claim through Aetherphone CasinoStore.ClaimBonus
+- Mission tracking and claiming through CasinoFloorStore
 
-Other games do not have verified game-specific daily profit
-limits in the current client source.
+No live wager is needed to verify this update.

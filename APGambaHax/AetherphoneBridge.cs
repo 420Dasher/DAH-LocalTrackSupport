@@ -33,6 +33,9 @@ internal sealed class AetherphoneBridge
     public string AccountKey { get; private set; } = "";
     public bool BarkeepHistoryLoaded { get; private set; }
     public long BarkeepHistoryPositiveNet { get; private set; }
+    public long BarkeepHistorySignedNet { get; private set; }
+    public bool BarkeepHistoryHasMore { get; private set; }
+    public int BarkeepHistoryRounds { get; private set; }
     public object? BarkeepCabinet { get; private set; }
     public long? Chips { get; private set; }
     public int? Level { get; private set; }
@@ -81,6 +84,9 @@ internal sealed class AetherphoneBridge
         AccountKey = "";
         BarkeepHistoryLoaded = false;
         BarkeepHistoryPositiveNet = 0;
+        BarkeepHistorySignedNet = 0;
+        BarkeepHistoryHasMore = false;
+        BarkeepHistoryRounds = 0;
         Chips = null;
         Level = null;
         MaxWinPerBet = null;
@@ -218,6 +224,9 @@ internal sealed class AetherphoneBridge
                         BarkeepHistoryLoaded =
                             Member(history, "Loaded") is true;
 
+                        BarkeepHistoryHasMore =
+                            Member(history, "HasMore") is true;
+
                         if (BarkeepHistoryLoaded &&
                             Member(history, "Rounds") is IEnumerable rounds)
                         {
@@ -258,6 +267,9 @@ internal sealed class AetherphoneBridge
                                 BarkeepHistoryPositiveNet = Math.Min(
                                     20_000L,
                                     BarkeepHistoryPositiveNet + positiveNet);
+
+                                BarkeepHistorySignedNet += payout - stake;
+                                BarkeepHistoryRounds++;
                             }
                         }
                     }
@@ -269,6 +281,9 @@ internal sealed class AetherphoneBridge
                 // break the otherwise working casino bridge.
                 BarkeepHistoryLoaded = false;
                 BarkeepHistoryPositiveNet = 0;
+                BarkeepHistorySignedNet = 0;
+                BarkeepHistoryHasMore = false;
+                BarkeepHistoryRounds = 0;
             }
 
             var sitting = Member(state, "Sitting");

@@ -129,7 +129,10 @@ public sealed class Plugin : IDalamudPlugin
 
         automation.SetHistoryObservation(
             bridge.BarkeepHistoryLoaded,
-            bridge.BarkeepHistoryPositiveNet);
+            bridge.BarkeepHistoryPositiveNet,
+            bridge.BarkeepHistorySignedNet,
+            bridge.BarkeepHistoryRounds,
+            bridge.BarkeepHistoryHasMore);
     }
 
     private void SaveFreshDailySettlement()
@@ -392,7 +395,7 @@ public sealed class Plugin : IDalamudPlugin
             $"Enabled modules: {cfg.ModulesEnabled.Count(x => x)} / 6");
 
         ImGui.Spacing();
-        ImGui.TextDisabled("DEV2 TEST5 FIX1 - unified Barkeep automation.");
+        ImGui.TextDisabled("DEV2 TEST5 FIX2 - unified Barkeep automation.");
         ImGui.TextDisabled("Wager automation is disabled by default.");
     }
 
@@ -523,8 +526,10 @@ public sealed class Plugin : IDalamudPlugin
             !automation.HasError &&
             automation.LastStopReason.Length == 0)
         {
-            if (automation.DailyCapReached)
-                automationLabel = "Daily Barkeep cap reached";
+            if (automation.DailyCapConfirmed)
+                automationLabel = "Daily Barkeep cap confirmed";
+            else if (automation.HistoryCapSuspected)
+                automationLabel = "Possible daily Barkeep cap - batch locked";
             else if (!automation.DailyNetConfirmed)
                 automationLabel = "Daily net unconfirmed - batch locked";
         }
@@ -615,7 +620,8 @@ public sealed class Plugin : IDalamudPlugin
         if (automation.NetWinToday.HasValue)
         {
             ImGui.TextDisabled(
-                $"Server Barkeep net: {automation.NetWinToday.Value:N0} / " +
+                $"Server Barkeep net ({automation.DailyObservationSource}): " +
+                $"{automation.NetWinToday.Value:N0} / " +
                 $"{CasinoProfitLimits.BarkeepDailyNetCap:N0} chips");
 
             ImGui.TextDisabled(
@@ -630,11 +636,17 @@ public sealed class Plugin : IDalamudPlugin
         if (automation.HistoryLoaded)
         {
             ImGui.TextDisabled(
-                $"History positive winnings today: " +
+                $"History positive winnings (UTC day): " +
                 $"{automation.HistoryPositiveNet:N0} chips");
 
             ImGui.TextDisabled(
-                "History is a partial recovery estimate.");
+                $"History signed net: " +
+                $"{automation.HistorySignedNet:+#,0;-#,0;0} chips" +
+                $" | {automation.HistoryRounds} settled round(s)");
+
+            ImGui.TextDisabled(automation.HistoryHasMore
+                ? "History incomplete; additional pages exist."
+                : "History loaded; server reset time unverified.");
         }
         else
         {
@@ -642,8 +654,12 @@ public sealed class Plugin : IDalamudPlugin
                 "Waiting for Aetherphone history.");
         }
 
-        if (automation.DailyCapReached)
-            ImGui.TextDisabled("Daily Barkeep profit cap reached.");
+        if (automation.DailyCapConfirmed)
+            ImGui.TextDisabled(
+                "Daily Barkeep cap confirmed by server.");
+        else if (automation.HistoryCapSuspected)
+            ImGui.TextDisabled(
+                "Possible daily cap from history - batch locked.");
 
         ImGui.TextWrapped("Last wager: " + automation.LastResult);
 
@@ -681,7 +697,9 @@ public sealed class Plugin : IDalamudPlugin
                 if (automation.DailyCapReached)
                 {
                     ImGui.TextDisabled(
-                        "Start unavailable: daily Barkeep cap reached.");
+                        automation.DailyCapConfirmed
+                            ? "Start locked: server-confirmed daily cap."
+                            : "Start locked: possible daily cap in history.");
                 }
                 else if (!automation.CanStartBatch)
                 {
@@ -840,7 +858,7 @@ public sealed class Plugin : IDalamudPlugin
     {
         Heading(name);
         ImGui.TextWrapped(
-            "Module foundation ready. Additional game automation is not implemented in DEV2 TEST5 FIX1.");
+            "Module foundation ready. Additional game automation is not implemented in DEV2 TEST5 FIX2.");
 
         if (name == "ORIGINALS")
             ImGui.TextDisabled(
@@ -915,7 +933,7 @@ public sealed class Plugin : IDalamudPlugin
                 }
 
                 ImGui.Spacing();
-                ImGui.TextDisabled("APGambaHax " + VersionText + " - DEV2 TEST5 FIX1");
+                ImGui.TextDisabled("APGambaHax " + VersionText + " - DEV2 TEST5 FIX2");
                 ImGui.TextDisabled("Bridge: " + bridge.Status);
                 ImGui.TextDisabled("Aetherphone assembly: " + bridge.Version);
             }
