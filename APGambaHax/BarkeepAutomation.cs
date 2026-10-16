@@ -418,7 +418,14 @@ internal sealed class BarkeepAutomation
             return;
         }
 
-        if (batchArmed && autoContinue && !paused)
+        if (batchArmed && paused)
+        {
+            // Preserve the current batch and its counters.
+            // Do not schedule another wager until Resume is pressed.
+            nextStartAt = DateTime.MaxValue;
+            Status = "Batch paused - wager settled; ready to resume";
+        }
+        else if (batchArmed && autoContinue)
         {
             nextStartAt = DateTime.UtcNow.AddSeconds(Math.Clamp(delay, 1, 60));
             Status = "Wager settled - next batch shift queued";

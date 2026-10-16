@@ -298,7 +298,7 @@ public sealed class Plugin : IDalamudPlugin
             $"Enabled modules: {cfg.ModulesEnabled.Count(x => x)} / 6");
 
         ImGui.Spacing();
-        ImGui.TextDisabled("DEV2 TEST4 FIX2 - unified Barkeep automation.");
+        ImGui.TextDisabled("DEV2 TEST4 FIX3 - unified Barkeep automation.");
         ImGui.TextDisabled("Wager automation is disabled by default.");
     }
 
@@ -411,7 +411,8 @@ public sealed class Plugin : IDalamudPlugin
             bool waiting =
                 automationLabel == "Idle" ||
                 automationLabel == "Automation disabled" ||
-                automationLabel == "Practice automation disabled";
+                automationLabel == "Practice automation disabled" ||
+                automationLabel == "Wager settled";
 
             if (waiting)
             {
@@ -681,7 +682,7 @@ public sealed class Plugin : IDalamudPlugin
     {
         Heading(name);
         ImGui.TextWrapped(
-            "Module foundation ready. Additional game automation is not implemented in DEV2 TEST4 FIX2.");
+            "Module foundation ready. Additional game automation is not implemented in DEV2 TEST4 FIX3.");
 
         if (name == "ORIGINALS")
             ImGui.TextDisabled(
@@ -756,7 +757,7 @@ public sealed class Plugin : IDalamudPlugin
                 }
 
                 ImGui.Spacing();
-                ImGui.TextDisabled("APGambaHax " + VersionText + " - DEV2 TEST4 FIX2");
+                ImGui.TextDisabled("APGambaHax " + VersionText + " - DEV2 TEST4 FIX3");
                 ImGui.TextDisabled("Bridge: " + bridge.Status);
                 ImGui.TextDisabled("Aetherphone assembly: " + bridge.Version);
             }
