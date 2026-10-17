@@ -1299,37 +1299,34 @@ public sealed unsafe partial class Plugin : IDalamudPlugin
 
     private void RestoreNavigationPage()
     {
-        bool housingAvailable = HousingPageAvailable();
+        // A user's saved preference takes priority over proximity.
+        // Housing detection must never force Housing when the
+        // user last explicitly selected Aethernet.
 
-        bool dcTravelAvailable =
-            WorldVisitPageAvailable() ||
-            worldVisitPhase != WorldVisitPhase.Idle;
-
-        bool aethernetAvailable =
-            nearby != null ||
-            TryFindResidentialShard(out _) ||
-            cosmicLocalNearby != null ||
-            overworldNearby != null;
+        int available = AvailableNavigationTabsMask();
 
         NavigationPage remembered =
-            (NavigationPage)config.LastSelectedNavigationPage;
+            config.LastSelectedNavigationPage switch
+            {
+                0 => NavigationPage.Aethernet,
+                1 => NavigationPage.Housing,
+                2 => NavigationPage.DcTravel,
+                _ => NavigationPage.Aethernet
+            };
 
-        NavigationPage next =
-            housingAvailable && !aethernetAvailable
-                ? NavigationPage.Housing
-                : remembered switch
-                {
-                    NavigationPage.Housing when housingAvailable
-                        => NavigationPage.Housing,
+        // Aethernet is the universal fallback tab.
+        // Do not save this fallback: the original preference
+        // must survive zoning and temporary unavailability.
+        NavigationPage next = remembered switch
+        {
+            NavigationPage.Housing when (available & 2) != 0
+                => NavigationPage.Housing,
 
-                    NavigationPage.DcTravel when dcTravelAvailable
-                        => NavigationPage.DcTravel,
+            NavigationPage.DcTravel when (available & 4) != 0
+                => NavigationPage.DcTravel,
 
-                    NavigationPage.Aethernet
-                        => NavigationPage.Aethernet,
-
-                    _ => NavigationPage.Aethernet
-                };
+            _ => NavigationPage.Aethernet
+        };
 
         currentPage = next;
 
@@ -1375,8 +1372,7 @@ public sealed unsafe partial class Plugin : IDalamudPlugin
     private void DrawPageTab(
         string label,
         NavigationPage target,
-        float width,
-        bool rememberSelection)
+        float width)
     {
         Vector2 pos = ImGui.GetCursorScreenPos();
         Vector2 size = new(width, 30f);
@@ -1415,14 +1411,15 @@ public sealed unsafe partial class Plugin : IDalamudPlugin
                 1f);
         }
 
-        if (ImGui.IsItemClicked() && !selected)
+        if (ImGui.IsItemClicked())
         {
+            // Explicit clicks always establish user preference,
+            // including clicking the sole visible or selected tab.
+            // RememberNavigationPage only writes when changed.
             currentPage = target;
+            RememberNavigationPage(target);
 
-            if (rememberSelection)
-                RememberNavigationPage(target);
-
-            if (target == NavigationPage.Aethernet)
+            if (target == NavigationPage.Aethernet && !selected)
                 resetDestinationScroll = true;
         }
     }
@@ -1680,6 +1677,24 @@ public sealed unsafe partial class Plugin : IDalamudPlugin
         if (config.ShowDebug &&
             ImGui.CollapsingHeader("Diagnostics"))
         {
+            ImGui.TextColored(NavMuted, "NAVIGATION MEMORY");
+
+            string savedTab = config.LastSelectedNavigationPage switch
+            {
+                0 => "Aethernet",
+                1 => "Housing",
+                2 => "DC Travel",
+                _ => "Unset (Aethernet default)"
+            };
+
+            ImGui.TextUnformatted("Saved tab: " + savedTab);
+            ImGui.TextUnformatted("Displayed tab: " + currentPage);
+            ImGui.TextUnformatted(
+                "Available tabs mask: " + AvailableNavigationTabsMask());
+
+            ImGui.Spacing();
+            ImGui.Separator();
+
             ImGui.TextColored(NavMuted, "AETHERNET");
 
             ImGui.TextUnformatted(
@@ -1942,8 +1957,7 @@ public sealed unsafe partial class Plugin : IDalamudPlugin
             DrawPageTab(
                 "Aethernet",
                 NavigationPage.Aethernet,
-                tabWidth,
-                visibleTabs > 1);
+                tabWidth);
 
             if (housingAvailable)
             {
@@ -1952,8 +1966,7 @@ public sealed unsafe partial class Plugin : IDalamudPlugin
                 DrawPageTab(
                     "Housing",
                     NavigationPage.Housing,
-                    tabWidth,
-                    visibleTabs > 1);
+                    tabWidth);
             }
 
             if (dcTravelAvailable)
@@ -1963,8 +1976,7 @@ public sealed unsafe partial class Plugin : IDalamudPlugin
                 DrawPageTab(
                     "DC Travel",
                     NavigationPage.DcTravel,
-                    tabWidth,
-                    visibleTabs > 1);
+                    tabWidth);
             }
 
             ImGui.Spacing();
