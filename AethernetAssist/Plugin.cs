@@ -463,7 +463,16 @@ public sealed unsafe partial class Plugin : IDalamudPlugin
                 break;
 
             case "cancel":
-                if (worldVisitPhase != WorldVisitPhase.Idle)
+                if (overworldPhase != OverworldPhase.Idle)
+                    StopOverworldTeleport(
+                        "Stopped tracking. An accepted teleport cannot be cancelled here.",
+                        false);
+                else if (overworldArmedDestination != 0)
+                {
+                    ClearOverworldSelection();
+                    overworldStatus = "Teleport selection cancelled.";
+                }
+                else if (worldVisitPhase != WorldVisitPhase.Idle)
                     TryStopWorldVisitFromUser();
                 else if (cosmicLocalPhase != CosmicLocalPhase.Idle)
                     StopCosmicLocal("Cancelled by user.");
@@ -523,6 +532,12 @@ public sealed unsafe partial class Plugin : IDalamudPlugin
                 return;
             }
 
+            if (overworldPhase != OverworldPhase.Idle)
+            {
+                TickOverworldTeleport();
+                return;
+            }
+
 
             if ((DateTime.UtcNow - lastScan).TotalMilliseconds < 200)
                 return;
@@ -537,7 +552,11 @@ public sealed unsafe partial class Plugin : IDalamudPlugin
         catch (Exception ex)
         {
             Log.Error($"AethernetAssist: {ex}");
-            if (worldVisitPhase != WorldVisitPhase.Idle)
+            if (overworldPhase != OverworldPhase.Idle)
+                StopOverworldTeleport(
+                    "Stopped tracking after an internal error.",
+                    false);
+            else if (worldVisitPhase != WorldVisitPhase.Idle)
                 StopWorldVisit("Stopped after an internal error.");
             else if (cosmicLocalPhase != CosmicLocalPhase.Idle)
                 StopCosmicLocal("Stopped after an internal error.");
@@ -1715,6 +1734,8 @@ public sealed unsafe partial class Plugin : IDalamudPlugin
 
             ImGui.TextUnformatted("Overworld source: " +
                 (overworldNearby?.Name.ToString() ?? "None"));
+            ImGui.TextUnformatted("Overworld phase: " + overworldPhase);
+            ImGui.TextWrapped(overworldStatus);
             ImGui.TextWrapped("Native menu snapshots: " +
                 overworldMenuSnapshots.Count);
 
