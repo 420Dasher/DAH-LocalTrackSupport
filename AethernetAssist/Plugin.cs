@@ -523,11 +523,6 @@ public sealed unsafe partial class Plugin : IDalamudPlugin
                 return;
             }
 
-            if (overworldPhase != OverworldPhase.Idle)
-            {
-                TickOverworldTeleport();
-                return;
-            }
 
             if ((DateTime.UtcNow - lastScan).TotalMilliseconds < 200)
                 return;
@@ -536,14 +531,13 @@ public sealed unsafe partial class Plugin : IDalamudPlugin
             ScanNearby();
             ScanCosmicLocalNearby();
             ScanOverworldNearby();
+            CaptureOverworldNativeMenu();
             UpdateProximityWindow();
         }
         catch (Exception ex)
         {
             Log.Error($"AethernetAssist: {ex}");
-            if (overworldPhase != OverworldPhase.Idle)
-                StopOverworldTeleport("Stopped after an internal error.", false);
-            else if (worldVisitPhase != WorldVisitPhase.Idle)
+            if (worldVisitPhase != WorldVisitPhase.Idle)
                 StopWorldVisit("Stopped after an internal error.");
             else if (cosmicLocalPhase != CosmicLocalPhase.Idle)
                 StopCosmicLocal("Stopped after an internal error.");
@@ -1704,9 +1698,10 @@ public sealed unsafe partial class Plugin : IDalamudPlugin
                 "Travel phase: " + phase
             );
 
-            ImGui.TextUnformatted("Overworld: " + overworldPhase +
-                " | " + (overworldNearby?.Name.ToString() ?? "No source"));
-            ImGui.TextWrapped(overworldStatus);
+            ImGui.TextUnformatted("Overworld source: " +
+                (overworldNearby?.Name.ToString() ?? "None"));
+            ImGui.TextWrapped("Native menu snapshots: " +
+                overworldMenuSnapshots.Count);
 
             ImGui.TextUnformatted(
                 "Callbacks: " + callbackAttempts + "/2"

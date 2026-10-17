@@ -2,244 +2,389 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Numerics;
+using System.Runtime.InteropServices;
+using System.Text;
 using Dalamud.Bindings.ImGui;
 using Dalamud.Game.ClientState.Objects.Enums;
 using Dalamud.Game.ClientState.Objects.Types;
-using FFXIVClientStructs.FFXIV.Client.Game.UI;
+using Dalamud.Memory;
+using FFXIVClientStructs.FFXIV.Client.UI;
+using FFXIVClientStructs.FFXIV.Component.GUI;
 using Lumina.Excel.Sheets;
 
 namespace AethernetAssist;
 
 public sealed unsafe partial class Plugin
 {
-    // Overworld travel is isolated from city Aethernet, residential,
-    // Cosmic and housing travel. All destinations come from game data.
-    private sealed record OverworldStop(uint Id, uint Territory, string Name);
-
-    private enum OverworldPhase { Idle, WaitingForArrival }
+    private sealed record OverworldStop(
+        uint Id,
+        uint Territory,
+        string Name
+    );
 
     private readonly Dictionary<uint, List<OverworldStop>> overworldStops = new();
+    private readonly List<string> overworldMenuSnapshots = new();
+
     private IGameObject? overworldNearby;
-    private OverworldPhase overworldPhase = OverworldPhase.Idle;
-    private DateTime overworldRequestedAt;
-    private Vector3 overworldOriginPosition;
-    private uint overworldOriginTerritory;
-    private bool overworldSawLoading;
-    private string overworldDestinationName = "";
-    private string overworldStatus = "Ready";
+    private string overworldPreviousMenu = "";
 
     private void LoadOverworldAetherytes()
     {
         foreach (var row in Data.GetExcelSheet<Aetheryte>())
         {
-            // Regular teleport destinations, not city Aethernet shards.
             if (!row.IsAetheryte || row.AethernetGroup != 0)
                 continue;
 
             uint territory = row.Territory.Value.RowId;
+
             if (territory == 0)
                 continue;
 
             string name = row.PlaceName.Value.Name.ToString().Trim();
+
             if (string.IsNullOrWhiteSpace(name))
                 continue;
 
             if (!overworldStops.TryGetValue(territory, out var list))
-                overworldStops[territory] = list = new List<OverworldStop>();
+            {
+                list = new List<OverworldStop>();
+                overworldStops[territory] = list;
+            }
 
-            list.Add(new OverworldStop(row.RowId, territory, name));
+            if (list.All(x => x.Id != row.RowId))
+                list.Add(new OverworldStop(row.RowId, territory, name));
         }
 
         foreach (var list in overworldStops.Values)
-            list.Sort((a, b) => string.Compare(
-                a.Name, b.Name, StringComparison.CurrentCultureIgnoreCase));
+        {
+            list.Sort((a, b) =>
+                string.Compare(
+                    a.Name,
+                    b.Name,
+                    StringComparison.OrdinalIgnoreCase
+                ));
+        }
 
-        Log.Information($"Overworld index: {overworldStops.Count} territories, " +
-                        $"{overworldStops.Values.Sum(x => x.Count)} main Aetherytes.");
+        Log.Information(
+            $"Overworld catalogue: {overworldStops.Count} territories; " +
+            $"{overworldStops.Values.Sum(x => x.Count)} main crystals."
+        );
     }
-
-    private bool HasOverworldStopsHere() =>
-        overworldStops.TryGetValue(Client.TerritoryType, out var list) &&
-        list.Count > 1;
 
     private void ScanOverworldNearby()
     {
         overworldNearby = null;
 
         var player = Objects.LocalPlayer;
-        if (player == null || IsBusy() || !HasOverworldStopsHere() ||
-            nearby != null || cosmicLocalNearby != null)
+
+        if (player == null ||
+            IsBusy() ||
+            nearby != null ||
+            cosmicLocalNearby != null ||
+            !overworldStops.TryGetValue(
+                Client.TerritoryType, out var stops) ||
+            stops.Count < 2)
             return;
 
         float closest = config.OpenRange;
+
         foreach (var obj in Objects)
         {
-            if (obj == null || !obj.IsTargetable ||
+            if (obj == null ||
+                !obj.IsTargetable ||
                 obj.ObjectKind != ObjectKind.Aetheryte)
                 continue;
 
-            float dist = Vector3.Distance(player.Position, obj.Position);
-            if (dist >= closest)
+            bool matches = stops.Any(x =>
+                x.Id == obj.BaseId ||
+                string.Equals(
+                    x.Name,
+                    obj.Name.ToString(),
+                    StringComparison.OrdinalIgnoreCase
+                ));
+
+            if (!matches)
                 continue;
 
+            float distance = Vector3.Distance(
+                player.Position,
+                obj.Position
+            );
+
+            if (distance >= closest)
+                continue;
+
+            closest = distance;
             overworldNearby = obj;
-            closest = dist;
         }
+    }
+
+    // Read-only capture. No callbacks, interactions or teleports.
+
+    private void CaptureOverworldNativeMenu()
+    {
+        if (overworldNearby == null)
+        {
+            overworldPreviousMenu = "";
+            return;
+        }
+
+        var menus = new List<string>();
+
+        var select = (AddonSelectString*)GetAddon("SelectString");
+
+        if (select != null)
+        {
+            var popup = select->PopupMenu.PopupMenu;
+
+            if (popup.EntryNames != null)
+            {
+                int count = Math.Clamp(popup.EntryCount, 0, 32);
+                var labels = new List<string>();
+
+                for (int i = 0; i < count; i++)
+                {
+                    var pointer = popup.EntryNames[i].Value;
+
+                    if (pointer == null)
+                        continue;
+
+                    try
+                    {
+                        string label = Clean(
+                            Marshal.PtrToStringUTF8(
+                                (nint)pointer
+                            ) ?? ""
+                        );
+
+                        if (label.Length > 100)
+                            label = label.Substring(0, 100);
+
+                        labels.Add($"{i}: {label}");
+                    }
+                    catch
+                    {
+                        labels.Add($"{i}: unreadable label");
+                    }
+                }
+
+                menus.Add(
+                    "SelectString entries=" + count +
+                    " [" + string.Join(" | ", labels) + "]"
+                );
+            }
+        }
+
+        foreach (string addonName in new[]
+        {
+            "SelectIconString",
+            "TelepotTown",
+            "SelectYesno"
+        })
+        {
+            var addon = GetAddon(addonName);
+
+            if (addon == null)
+                continue;
+
+            if (addon->AtkValues == null ||
+                addon->AtkValuesCount <= 0)
+            {
+                menus.Add(addonName + " visible (no AtkValues)");
+                continue;
+            }
+
+            int count = Math.Min((int)addon->AtkValuesCount, 350);
+            var labels = new List<string>();
+
+            for (int i = 0; i < count && labels.Count < 26; i++)
+            {
+                var value = addon->AtkValues[i];
+
+                if (value.Type != AtkValueType.String &&
+                    value.Type != AtkValueType.ConstString &&
+                    value.Type != AtkValueType.ManagedString)
+                    continue;
+
+                var ptr = value.String.Value;
+
+                if (ptr == null)
+                    continue;
+
+                try
+                {
+                    string label = Clean(
+                        MemoryHelper.ReadSeStringNullTerminated(
+                            (nint)ptr
+                        ).TextValue
+                    );
+
+                    if (string.IsNullOrWhiteSpace(label))
+                        continue;
+
+                    if (label.Length > 100)
+                        label = label.Substring(0, 100);
+
+                    labels.Add($"{i}: {label}");
+                }
+                catch
+                {
+                    labels.Add($"{i}: unreadable string");
+                }
+            }
+
+            menus.Add(
+                addonName + " values=" +
+                addon->AtkValuesCount +
+                " [" + string.Join(" | ", labels) + "]"
+            );
+        }
+
+        if (menus.Count == 0)
+        {
+            overworldPreviousMenu = "";
+            return;
+        }
+
+        string detail = string.Join("\n", menus);
+
+        if (detail == overworldPreviousMenu)
+            return;
+
+        overworldPreviousMenu = detail;
+
+        string entry =
+            $"[{DateTime.Now:HH:mm:ss}] " +
+            $"Territory {Client.TerritoryType}; " +
+            $"crystal {overworldNearby.Name} " +
+            $"(BaseId={overworldNearby.BaseId})\n" +
+            detail;
+
+        overworldMenuSnapshots.Add(entry);
+
+        if (overworldMenuSnapshots.Count > 20)
+            overworldMenuSnapshots.RemoveAt(0);
+    }
+
+    private string BuildOverworldNativeMenuReport()
+    {
+        var builder = new StringBuilder();
+
+        builder.AppendLine(
+            "=== OVERWORLD NATIVE MENU - DEV7 TEST2 READ ONLY ==="
+        );
+
+        builder.AppendLine(
+            "Current territory: " + Client.TerritoryType
+        );
+
+        builder.AppendLine(
+            "Nearby source: " +
+            (overworldNearby?.Name.ToString() ?? "None")
+        );
+
+        builder.AppendLine(
+            "Snapshots: " + overworldMenuSnapshots.Count
+        );
+
+        foreach (string snapshot in overworldMenuSnapshots)
+        {
+            builder.AppendLine("---");
+            builder.AppendLine(snapshot);
+        }
+
+        if (overworldMenuSnapshots.Count == 0)
+        {
+            builder.AppendLine(
+                "No native menu observed. Interact with an overworld crystal."
+            );
+        }
+
+        return builder.ToString();
     }
 
     private void DrawOverworldPage()
     {
         if (overworldNearby == null ||
-            !overworldStops.TryGetValue(Client.TerritoryType, out var stops))
+            !overworldStops.TryGetValue(
+                Client.TerritoryType, out var stops))
             return;
-
-        // In contrast to Aethernet destination callbacks, overworld
-        // costs/unlocks are read directly from the live Teleport list.
-        var live = Aetherytes.Where(x =>
-            x.TerritoryId == Client.TerritoryType &&
-            x.SubIndex == 0 && !x.IsSharedHouse && !x.IsApartment)
-            .GroupBy(x => x.AetheryteId)
-            .ToDictionary(x => x.Key, x => x.First());
 
         ImGui.TextUnformatted(GetAreaName(Client.TerritoryType));
         ImGui.SameLine();
-        ImGui.TextDisabled("OVERWORLD");
+        ImGui.TextDisabled("OVERWORLD - TEST2");
+
         ImGui.Spacing();
 
-        var sourceName = overworldNearby.Name.ToString();
-        var visible = stops.Where(x => config.ShowUnlearned || live.ContainsKey(x.Id))
-            .ToList();
+        ImGui.TextColored(
+            NavMuted,
+            "Read-only research: no gil or travel actions."
+        );
 
-        float height = Math.Clamp(visible.Count * 32f + 6f, 70f, 480f);
-        if (ImGui.BeginChild("##OverworldDestinations", new Vector2(0f, height), false))
+        ImGui.TextWrapped(
+            "Interact with this crystal normally. " +
+            "AethernetAssist records the native menu options."
+        );
+
+        ImGui.Spacing();
+
+        var unlocked = Aetherytes.Where(x =>
+            x.TerritoryId == Client.TerritoryType &&
+            x.SubIndex == 0 &&
+            !x.IsSharedHouse &&
+            !x.IsApartment
+        ).Select(x => x.AetheryteId).ToHashSet();
+
+        var visible = stops.Where(x =>
+            config.ShowUnlearned || unlocked.Contains(x.Id)
+        ).ToList();
+
+        float height = Math.Clamp(
+            visible.Count * 26f + 8f,
+            60f,
+            440f
+        );
+
+        if (ImGui.BeginChild(
+            "##OverworldResearch",
+            new Vector2(0f, height),
+            false))
         {
             foreach (var stop in visible)
             {
-                bool unlocked = live.TryGetValue(stop.Id, out var entry);
-                bool current = string.Equals(sourceName, stop.Name,
-                    StringComparison.OrdinalIgnoreCase);
-                bool canTeleport = unlocked && !current &&
-                    overworldPhase == OverworldPhase.Idle;
+                bool current = stop.Id == overworldNearby.BaseId;
 
-                string suffix = current ? "Current" : unlocked
-                    ? $"{entry!.GilCost:N0} gil" : "Not attuned";
-                string label = $"{stop.Name}  -  {suffix}##overworld-{stop.Id}";
-                ImGui.BeginDisabled(!canTeleport);
-                if (ImGui.Button(label, new Vector2(-1f, 26f)) && canTeleport)
-                    StartOverworldTeleport(stop);
-                ImGui.EndDisabled();
+                string state = current
+                    ? " [CURRENT]"
+                    : unlocked.Contains(stop.Id)
+                        ? " [ATTUNED]"
+                        : " [LOCKED]";
+
+                ImGui.TextUnformatted(stop.Name + state);
             }
         }
+
         ImGui.EndChild();
-        ImGui.Spacing();
+
         ImGui.Separator();
-        ImGui.TextColored(overworldPhase == OverworldPhase.Idle ? NavReady : NavMuted,
-            "\u25CF");
-        ImGui.SameLine(0f, 5f);
-        ImGui.TextDisabled(overworldStatus);
-    }
 
-    private void StartOverworldTeleport(OverworldStop stop)
-    {
-        var player = Objects.LocalPlayer;
-        if (player == null || overworldNearby == null || !overworldNearby.IsTargetable ||
-            Vector3.Distance(player.Position, overworldNearby.Position) > config.OpenRange + 0.5f ||
-            IsBusy() || overworldPhase != OverworldPhase.Idle ||
-            phase != TravelPhase.Idle || housingPhase != HousingPhase.Idle ||
-            residentialPhase != ResidentialPhase.Idle ||
-            cosmicLocalPhase != CosmicLocalPhase.Idle ||
-            cosmicPhase != CosmicPhase.Idle ||
-            worldVisitPhase != WorldVisitPhase.Idle ||
-            stop.Territory != Client.TerritoryType)
-            return;
+        ImGui.TextDisabled(
+            $"Captured menu states: {overworldMenuSnapshots.Count}"
+        );
 
-        // Revalidate against the live list at click time: no cached costs,
-        // no unsupported estate sub-index, no inferred unlock state.
-        var entry = Aetherytes.FirstOrDefault(x =>
-            x.AetheryteId == stop.Id && x.TerritoryId == stop.Territory &&
-            x.SubIndex == 0 && !x.IsSharedHouse && !x.IsApartment);
-        if (entry == null)
+        if (ImGui.Button("Copy overworld diagnostics"))
         {
-            overworldStatus = "Destination is not available for Teleport.";
-            return;
+            ImGui.SetClipboardText(
+                BuildOverworldNativeMenuReport()
+            );
         }
 
-        if (string.Equals(overworldNearby.Name.ToString(), stop.Name,
-            StringComparison.OrdinalIgnoreCase))
+        ImGui.SameLine();
+
+        if (ImGui.SmallButton("Clear##overworld-capture"))
         {
-            overworldStatus = "Already at this Aetheryte.";
-            return;
-        }
-
-        var telepo = Telepo.Instance();
-        if (telepo == null)
-        {
-            overworldStatus = "The game's teleport service is unavailable.";
-            return;
-        }
-
-        bool accepted = telepo->Teleport(entry.AetheryteId, entry.SubIndex);
-        if (!accepted)
-        {
-            overworldStatus = "The game rejected the teleport request.";
-            return;
-        }
-
-        RememberNavigationPage(NavigationPage.Aethernet);
-        overworldOriginTerritory = Client.TerritoryType;
-        overworldOriginPosition = player.Position;
-        overworldRequestedAt = DateTime.UtcNow;
-        overworldDestinationName = stop.Name;
-        overworldSawLoading = false;
-        overworldPhase = OverworldPhase.WaitingForArrival;
-        overworldStatus = $"Teleporting to {stop.Name}...";
-        windowOpen = false;
-        Log.Information("Overworld teleport requested: " +
-                        stop.Name + " (#" + stop.Id + ", " + entry.GilCost + " gil).");
-    }
-
-    private void TickOverworldTeleport()
-    {
-        if (overworldPhase != OverworldPhase.WaitingForArrival)
-            return;
-
-        if (IsBusy() || Objects.LocalPlayer == null)
-        {
-            overworldSawLoading = true;
-            return;
-        }
-
-        if (Client.TerritoryType != overworldOriginTerritory)
-        {
-            StopOverworldTeleport("Territory changed unexpectedly. No retry.", false);
-            return;
-        }
-
-        // Same-territory teleports do not necessarily trigger a territory
-        // change. Confirm a significant actual position change instead.
-        if (Vector3.Distance(Objects.LocalPlayer.Position, overworldOriginPosition) > 20f)
-        {
-            StopOverworldTeleport("Arrived: " + overworldDestinationName, true);
-            return;
-        }
-
-        if ((DateTime.UtcNow - overworldRequestedAt).TotalSeconds > 50)
-            StopOverworldTeleport("Teleport arrival unconfirmed. No retry.", false);
-    }
-
-    private void StopOverworldTeleport(string message, bool arrived)
-    {
-        overworldPhase = OverworldPhase.Idle;
-        overworldStatus = message;
-        if (arrived)
-        {
-            overworldNearby = null;
-            autoWindowWasInRange = false;
-        }
-        else
-        {
-            windowOpen = true;
-            Log.Warning(message);
+            overworldMenuSnapshots.Clear();
+            overworldPreviousMenu = "";
         }
     }
 }
